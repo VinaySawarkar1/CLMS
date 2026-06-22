@@ -71,4 +71,6 @@ workflow, and database design. Implemented so far:
 - [x] Uncertainty engine (GUM: combined/expanded, coverage factor, Welch–Satterthwaite)
 - [x] Certificate + QR verification + digital-signature workflow (immutability on final lock)
 - [x] Engineers · Tasks (Kanban) · Dashboard widgets
-- [ ] Report engine (PDF/Excel/Word) · Billing · Inventory · Notifications · Audit UI · Customer portal
+- [x] Report engine (HTML/PDF-ready certificate rendering)
+- [x] Billing (invoices + GST + payments) · Inventory · Notifications · Audit query API
+- [ ] Word/Excel export · Customer portal · NCR/CAPA UI · real notification providers
