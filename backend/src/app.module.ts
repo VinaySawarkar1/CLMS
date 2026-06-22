@@ -16,6 +16,9 @@ import { BillingModule } from './modules/billing/billing.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { QualityModule } from './modules/quality/quality.module';
+import { EnvironmentalModule } from './modules/environmental/environmental.module';
+import { PortalModule } from './modules/portal/portal.module';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { AuditModule } from './modules/audit/audit.module';
     InventoryModule,
     NotificationsModule,
     AuditModule,
+    QualityModule,
+    EnvironmentalModule,
+    PortalModule,
   ],
 })
 export class AppModule {}

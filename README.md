@@ -73,4 +73,6 @@ workflow, and database design. Implemented so far:
 - [x] Engineers · Tasks (Kanban) · Dashboard widgets
 - [x] Report engine (HTML/PDF-ready certificate rendering)
 - [x] Billing (invoices + GST + payments) · Inventory · Notifications · Audit query API
-- [ ] Word/Excel export · Customer portal · NCR/CAPA UI · real notification providers
+- [x] Quality (NCR/CAPA) · Environmental monitoring (limit alerts) · Customer portal
+- [x] Frontend: routed shell (Dashboard, Jobs, Customers, Task board) with TanStack Query
+- [ ] Word/Excel export · datasheet grid UI · real notification providers
