@@ -67,6 +67,8 @@ workflow, and database design. Implemented so far:
 - [x] Prisma schema covering the major table groups
 - [x] Auth service (JWT + refresh) & RBAC scaffolding
 - [x] Core CRUD modules: Users, Customers, Instruments, Jobs
-- [ ] Datasheet engine · Formula engine · Uncertainty engine
-- [ ] Report / Certificate / QR / Digital-signature engines
-- [ ] CRM · Billing · Inventory · Notifications · Dashboard · Audit
+- [x] Formula engine (Excel-like parser/evaluator) + Datasheet module
+- [x] Uncertainty engine (GUM: combined/expanded, coverage factor, Welch–Satterthwaite)
+- [x] Certificate + QR verification + digital-signature workflow (immutability on final lock)
+- [x] Engineers · Tasks (Kanban) · Dashboard widgets
+- [ ] Report engine (PDF/Excel/Word) · Billing · Inventory · Notifications · Audit UI · Customer portal
