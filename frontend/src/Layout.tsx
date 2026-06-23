@@ -9,6 +9,7 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material';
+import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { logout } from './api';
 
@@ -25,7 +26,7 @@ export default function Layout({
   children,
   onLogout,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   onLogout: () => void;
 }) {
   const { pathname } = useLocation();

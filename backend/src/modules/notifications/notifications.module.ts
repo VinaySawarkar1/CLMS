@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -39,7 +40,7 @@ export class NotificationsService {
         userId: params.userId,
         channel: params.channel,
         event: params.event,
-        payload: params.payload ?? undefined,
+        payload: (params.payload ?? undefined) as Prisma.InputJsonValue | undefined,
       },
     });
     await this.dispatch(record.channel, record.event, record.payload);

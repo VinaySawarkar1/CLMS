@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { evaluate, FormulaContext } from '../../common/formula/formula-engine';
 import {
@@ -22,7 +23,7 @@ export class DatasheetsService {
         jobId: dto.jobId,
         templateName: dto.templateName,
         version: (latest?.version ?? 0) + 1,
-        environmental: dto.environmental ?? undefined,
+        environmental: (dto.environmental ?? undefined) as Prisma.InputJsonValue | undefined,
         observations: dto.observations?.length
           ? {
               create: dto.observations.map((o) => ({
@@ -30,7 +31,7 @@ export class DatasheetsService {
                 nominal: o.nominal,
                 standardValue: o.standardValue,
                 observedValue: o.observedValue,
-                data: o.data ?? undefined,
+                data: (o.data ?? undefined) as Prisma.InputJsonValue | undefined,
               })),
             }
           : undefined,
