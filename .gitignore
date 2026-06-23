@@ -31,3 +31,7 @@ reports/out/
 # Prisma
 backend/prisma/*.db
 *.tsbuildinfo
+
+# Runtime logs
+*.out
+backend/server.log
