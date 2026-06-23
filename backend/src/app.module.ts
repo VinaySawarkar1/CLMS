@@ -19,8 +19,10 @@ import { AuditModule } from './modules/audit/audit.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { EnvironmentalModule } from './modules/environmental/environmental.module';
 import { PortalModule } from './modules/portal/portal.module';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,

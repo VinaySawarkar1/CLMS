@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-export const api = axios.create({ baseURL: '/api' });
+// When hosted (e.g. Render), VITE_API_BASE is the backend hostname injected at
+// build time. Locally (Docker/dev) it is unset and we use the proxied '/api'.
+const apiHost = import.meta.env.VITE_API_BASE as string | undefined;
+const baseURL = apiHost ? `https://${apiHost}/api` : '/api';
+
+export const api = axios.create({ baseURL });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('clms_access_token');

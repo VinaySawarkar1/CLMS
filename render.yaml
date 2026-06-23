@@ -1,0 +1,46 @@
+# Render Blueprint for CLMS — deploys the whole stack from this repo.
+# In the Render dashboard: New + → Blueprint → pick this repo/branch → Apply.
+databases:
+  - name: clms-db
+    plan: free
+    databaseName: clms
+    user: clms
+
+services:
+  # Backend API (NestJS, Docker). Auto-migrates and seeds on boot.
+  - type: web
+    name: clms-backend
+    runtime: docker
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clms-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+  # Frontend (React/Vite static site). Talks to the backend over HTTPS.
+  - type: web
+    name: clms-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Backend hostname injected at build time (api.ts builds https://<host>/api)
+      - key: VITE_API_BASE
+        fromService:
+          type: web
+          name: clms-backend
+          property: host
+    routes:
+      # SPA fallback so client-side routes resolve to index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html

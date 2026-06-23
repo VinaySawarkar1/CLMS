@@ -39,6 +39,20 @@ clms/
 └── docker-compose.yml  Postgres + Redis + MinIO for local development
 ```
 
+## Deploy to the web (Render — no local setup)
+
+This repo includes a Render Blueprint ([`render.yaml`](render.yaml)) that provisions
+a PostgreSQL database, the backend API, and the frontend as one stack.
+
+1. Sign in at **https://render.com** with your GitHub account (free).
+2. Click **New +** → **Blueprint**.
+3. Select this repository and the `claude/wonderful-mendel-4e1luu` branch → **Apply**.
+4. Render builds all three services. When `clms-frontend` shows **Live**, open its
+   URL and sign in with **admin@clms.local / admin123**.
+
+The backend auto-migrates and seeds on first boot. (Free instances sleep when idle,
+so the first request after a pause takes ~30s to wake.)
+
 ## Quick Start — one command (recommended)
 
 Requires only **Docker Desktop**. Builds and runs the whole stack (Postgres,
