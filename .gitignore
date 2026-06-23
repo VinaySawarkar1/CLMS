@@ -30,3 +30,4 @@ reports/out/
 
 # Prisma
 backend/prisma/*.db
+*.tsbuildinfo
