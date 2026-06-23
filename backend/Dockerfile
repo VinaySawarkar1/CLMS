@@ -11,10 +11,14 @@ RUN npm run build
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# Install all deps: prisma CLI + ts-node are needed at boot for migrate/seed.
 COPY package*.json ./
-RUN npm install --omit=dev
-COPY --from=build /app/dist ./dist
+RUN npm install
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/dist ./dist
+COPY prisma ./prisma
+COPY tsconfig.json ./
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+CMD ["./docker-entrypoint.sh"]

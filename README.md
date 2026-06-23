@@ -39,17 +39,35 @@ clms/
 └── docker-compose.yml  Postgres + Redis + MinIO for local development
 ```
 
-## Quick Start (local development)
+## Quick Start — one command (recommended)
+
+Requires only **Docker Desktop**. Builds and runs the whole stack (Postgres,
+Redis, MinIO, backend with auto-migrate + seed, frontend):
 
 ```bash
-# 1. Start infrastructure (Postgres, Redis, MinIO)
-docker compose up -d
+docker compose up --build
+```
+
+Then open **http://localhost:8080** and sign in with **admin@clms.local / admin123**.
+
+(First run takes a few minutes to build images and pull bases. The backend
+container automatically applies migrations and seeds the admin user + the 14
+disciplines before serving on `:3000`; the frontend is served on `:8080`.)
+
+## Quick Start — manual dev mode
+
+For hot-reload development without containerizing the apps:
+
+```bash
+# 1. Infrastructure only
+docker compose up -d postgres redis
 
 # 2. Backend
 cd backend
 cp .env.example .env
 npm install
-npx prisma migrate dev --name init
+npx prisma migrate deploy
+npx ts-node prisma/seed.ts
 npm run start:dev          # API on http://localhost:3000
 
 # 3. Frontend
