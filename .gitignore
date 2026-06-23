@@ -35,3 +35,6 @@ backend/prisma/*.db
 # Runtime logs
 *.out
 backend/server.log
+
+# Built frontend bundled into backend image
+backend/public/
