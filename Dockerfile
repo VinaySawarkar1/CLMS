@@ -24,9 +24,10 @@ RUN npm run build
 # 3. Runtime image
 FROM node:20-alpine AS runtime
 WORKDIR /app
-ENV NODE_ENV=production
 RUN apk add --no-cache openssl libc6-compat
-# All deps: prisma CLI + ts-node are needed at boot for migrate/seed.
+# NOTE: do NOT set NODE_ENV=production here — that makes `npm install` skip
+# devDependencies (prisma CLI, ts-node, typescript) which are needed at boot
+# for migrate/seed. Production mode is set in docker-entrypoint.sh instead.
 COPY backend/package*.json ./
 RUN npm install
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
