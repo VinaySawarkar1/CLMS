@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// When hosted (e.g. Render), VITE_API_BASE is the backend hostname injected at
-// build time. Locally (Docker/dev) it is unset and we use the proxied '/api'.
+// When hosted, VITE_API_BASE is the backend host. Locally/single-service it is
+// unset and we use same-origin '/api'.
 const apiHost = import.meta.env.VITE_API_BASE as string | undefined;
 const baseURL = apiHost ? `https://${apiHost}/api` : '/api';
 
@@ -29,12 +29,70 @@ export function isAuthed() {
   return Boolean(localStorage.getItem('clms_access_token'));
 }
 
-// Typed helpers used by the screens.
-export const getDashboard = () => api.get('/dashboard').then((r) => r.data);
-export const getJobs = (status?: string) =>
-  api.get('/jobs', { params: { status } }).then((r) => r.data);
-export const getCustomers = (search?: string) =>
-  api.get('/customers', { params: { search } }).then((r) => r.data);
-export const getCertificate = (id: string) =>
-  api.get(`/certificates/${id}`).then((r) => r.data);
-export const getTaskBoard = () => api.get('/tasks/board').then((r) => r.data);
+const get = (url: string, params?: any) => api.get(url, { params }).then((r) => r.data);
+const post = (url: string, body?: any) => api.post(url, body).then((r) => r.data);
+const patch = (url: string, body?: any) => api.patch(url, body).then((r) => r.data);
+
+// Dashboard
+export const getDashboard = () => get('/dashboard');
+
+// Customers
+export const getCustomers = (search?: string) => get('/customers', { search });
+export const createCustomer = (b: any) => post('/customers', b);
+
+// Instruments
+export const getInstruments = (customerId?: string) => get('/instruments', { customerId });
+export const createInstrument = (b: any) => post('/instruments', b);
+
+// Jobs
+export const getJobs = (status?: string) => get('/jobs', { status });
+export const getJob = (id: string) => get(`/jobs/${id}`);
+export const createJob = (b: any) => post('/jobs', b);
+export const assignJob = (id: string, engineerId: string) => patch(`/jobs/${id}/assign`, { engineerId });
+export const setJobStatus = (id: string, status: string) => patch(`/jobs/${id}/status`, { status });
+
+// Engineers
+export const getEngineers = () => get('/engineers');
+export const createEngineer = (b: any) => post('/engineers', b);
+
+// Datasheets
+export const createDatasheet = (b: any) => post('/datasheets', b);
+export const getDatasheet = (id: string) => get(`/datasheets/${id}`);
+export const recalcDatasheet = (id: string, formulas: any) => post(`/datasheets/${id}/recalculate`, { formulas });
+export const computeUncertainty = (id: string, contributors: any) => post(`/datasheets/${id}/uncertainty`, { contributors });
+
+// Certificates
+export const generateCertificate = (b: any) => post('/certificates/generate', b);
+export const getCertificate = (id: string) => get(`/certificates/${id}`);
+export const signCertificate = (id: string, stage: string) => post(`/certificates/${id}/sign`, { stage });
+
+// Tasks
+export const getTaskBoard = () => get('/tasks/board');
+export const createTask = (b: any) => post('/tasks', b);
+export const setTaskStatus = (id: string, status: string) => patch(`/tasks/${id}/status`, { status });
+
+// Billing
+export const getInvoices = () => get('/billing/invoices');
+export const createInvoice = (b: any) => post('/billing/invoices', b);
+export const payInvoice = (id: string, b: any) => post(`/billing/invoices/${id}/payments`, b);
+
+// Inventory
+export const getInventory = (category?: string) => get('/inventory/items', { category });
+export const upsertInventory = (b: any) => post('/inventory/items', b);
+export const adjustStock = (id: string, delta: number) => patch(`/inventory/items/${id}/stock`, { delta });
+
+// Quality
+export const getNcrs = () => get('/quality/ncr');
+export const raiseNcr = (b: any) => post('/quality/ncr', b);
+export const addCapa = (id: string, b: any) => post(`/quality/ncr/${id}/capa`, b);
+export const closeNcr = (id: string) => patch(`/quality/ncr/${id}/close`, {});
+
+// Environmental
+export const getEnvironmental = () => get('/environmental');
+export const recordEnvironmental = (b: any) => post('/environmental', b);
+
+// Notifications
+export const getNotifications = () => get('/notifications');
+
+// Audit
+export const getAudit = () => get('/audit');
