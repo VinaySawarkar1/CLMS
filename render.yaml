@@ -12,7 +12,6 @@ services:
     name: clms-backend
     runtime: docker
     plan: free
-    rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
