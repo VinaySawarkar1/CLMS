@@ -33,6 +33,29 @@ services:
     volumes:
       - clms_minio_data:/data
 
+  backend:
+    build: ./backend
+    container_name: clms_backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://clms:clms@postgres:5432/clms?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build: ./frontend
+    container_name: clms_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
 volumes:
   clms_pg_data:
   clms_minio_data:
