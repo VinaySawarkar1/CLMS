@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem,
@@ -60,7 +61,7 @@ export default function Jobs() {
           <TableBody>
             {data.map((j: any) => (
               <TableRow key={j.id} hover>
-                <TableCell>{j.jobNumber}</TableCell>
+                <TableCell><RouterLink to={`/jobs/${j.id}`}>{j.jobNumber}</RouterLink></TableCell>
                 <TableCell>{j.customer?.name}</TableCell>
                 <TableCell>{j.instrument?.name}</TableCell>
                 <TableCell>
@@ -73,6 +74,7 @@ export default function Jobs() {
                 <TableCell><Chip size="small" label={j.status} /></TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={1}>
+                    <Button size="small" variant="contained" component={RouterLink} to={`/jobs/${j.id}`}>Calibrate</Button>
                     {(NEXT[j.status] || []).map((s) => (
                       <Button key={s} size="small" variant="outlined" onClick={() => statusMut.mutate({ id: j.id, s })}>→ {s}</Button>
                     ))}

@@ -29,6 +29,12 @@ export class DatasheetsController {
     return this.datasheets.recalculate(id, dto);
   }
 
+  @Post(':id/compute')
+  @Roles(Role.SUPER_ADMIN, Role.CALIBRATION_ENGINEER, Role.DATA_ENTRY_OPERATOR)
+  compute(@Param('id') id: string) {
+    return this.datasheets.computeResults(id);
+  }
+
   @Post(':id/uncertainty')
   @Roles(Role.SUPER_ADMIN, Role.CALIBRATION_ENGINEER, Role.TECHNICAL_MANAGER)
   computeUncertainty(

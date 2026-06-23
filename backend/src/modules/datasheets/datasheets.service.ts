@@ -72,6 +72,49 @@ export class DatasheetsService {
     return this.findOne(id);
   }
 
+  /**
+   * Compute calibration results from raw readings stored in each observation's
+   * `data.readings`: mean (= observed value), correction (standard − observed),
+   * error (observed − standard), and the Type-A repeatability standard
+   * uncertainty uA = s / sqrt(n). Results are written back to each row.
+   */
+  async computeResults(id: string) {
+    const ds = await this.findOne(id);
+    for (const obs of ds.observations) {
+      const data: any = (obs.data as any) ?? {};
+      const readings: number[] = Array.isArray(data.readings)
+        ? data.readings.map(Number).filter((n: number) => !Number.isNaN(n))
+        : [];
+
+      let observedValue = obs.observedValue ?? null;
+      let uA = 0;
+      if (readings.length) {
+        const mean = readings.reduce((a, b) => a + b, 0) / readings.length;
+        observedValue = mean;
+        if (readings.length > 1) {
+          const variance =
+            readings.reduce((a, b) => a + (b - mean) ** 2, 0) / (readings.length - 1);
+          uA = Math.sqrt(variance) / Math.sqrt(readings.length);
+        }
+      }
+
+      const standardValue = obs.standardValue ?? 0;
+      const correction = observedValue == null ? null : standardValue - observedValue;
+      const error = observedValue == null ? null : observedValue - standardValue;
+
+      await this.prisma.observation.update({
+        where: { id: obs.id },
+        data: {
+          observedValue,
+          correction,
+          error,
+          data: { ...data, uA, mean: observedValue } as Prisma.InputJsonValue,
+        },
+      });
+    }
+    return this.findOne(id);
+  }
+
   /** Compute and persist the uncertainty budget for a datasheet. */
   async computeBudget(id: string, contributors: UncertaintyContributor[]) {
     await this.findOne(id);

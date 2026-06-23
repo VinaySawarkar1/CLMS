@@ -5,6 +5,7 @@ import Layout from './Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Jobs from './pages/Jobs';
+import JobWorkspace from './pages/JobWorkspace';
 import Customers from './pages/Customers';
 import Instruments from './pages/Instruments';
 import Certificates from './pages/Certificates';
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/customers" element={<Customers />} />
           <Route path="/instruments" element={<Instruments />} />
           <Route path="/jobs" element={<Jobs />} />
+          <Route path="/jobs/:id" element={<JobWorkspace />} />
           <Route path="/certificates" element={<Certificates />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/engineers" element={<Engineers />} />

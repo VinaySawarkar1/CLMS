@@ -59,7 +59,15 @@ export const createEngineer = (b: any) => post('/engineers', b);
 export const createDatasheet = (b: any) => post('/datasheets', b);
 export const getDatasheet = (id: string) => get(`/datasheets/${id}`);
 export const recalcDatasheet = (id: string, formulas: any) => post(`/datasheets/${id}/recalculate`, { formulas });
+export const computeDatasheet = (id: string) => post(`/datasheets/${id}/compute`);
 export const computeUncertainty = (id: string, contributors: any) => post(`/datasheets/${id}/uncertainty`, { contributors });
+
+// Open the printable certificate report (auth-protected) in a new tab.
+export async function openCertificateReport(certificateId: string) {
+  const res = await api.get(`/reports/certificate/${certificateId}.html`, { responseType: 'text' });
+  const blob = new Blob([res.data], { type: 'text/html' });
+  window.open(URL.createObjectURL(blob), '_blank');
+}
 
 // Certificates
 export const generateCertificate = (b: any) => post('/certificates/generate', b);
