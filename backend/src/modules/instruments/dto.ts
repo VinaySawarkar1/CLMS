@@ -16,6 +16,8 @@ export class CreateInstrumentDto {
   @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsString() leastCount?: string;
   @IsOptional() @IsString() idNumber?: string;
+  @IsOptional() @IsString() labIdNo?: string;
+  @IsOptional() @IsInt() quantity?: number;
   @IsOptional() @IsInt() calibrationIntervalMonths?: number;
   @IsOptional() @IsString() lastCalibrationDate?: string;
 }

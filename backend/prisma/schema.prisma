@@ -216,6 +216,8 @@ model Instrument {
   unit          String?
   leastCount    String?
   idNumber      String?
+  labIdNo       String?   // Internal lab ID number for certificate
+  quantity      Int?      // For sets (e.g., slip gauge sets)
   // Calibration interval & recall tracking
   calibrationIntervalMonths Int?
   lastCalibrationDate       DateTime?
@@ -267,6 +269,13 @@ model Job {
   receivedAt   DateTime   @default(now())
   dueDate      DateTime?
   remarks      String?
+  // Administrative fields (for certificate)
+  challanNo            String?
+  poNumber             String?
+  conditionOfItem      String?   @default("OK (As Received)")
+  calibrationProcedureNo  String?
+  referenceDocumentNo  String?
+  calibrationProcedure String?   // Procedure description text
   // Onsite calibration
   isOnsite     Boolean    @default(false)
   siteAddress  String?

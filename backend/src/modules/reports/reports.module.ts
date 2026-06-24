@@ -37,15 +37,13 @@ class ReportsService {
             customer: true,
             instrument: true,
             lab: true,
-            references: {
-              include: { master: true },
-            },
+            references: { include: { master: true } },
             datasheets: {
               orderBy: { version: 'desc' },
               take: 1,
               include: {
                 observations: { orderBy: { id: 'asc' } },
-                uncertainty: { include: { parameters: true } },
+                uncertainty: true,
               },
             },
           },
@@ -54,23 +52,30 @@ class ReportsService {
     });
     if (!cert) throw new NotFoundException('Certificate not found');
 
-    const datasheet = cert.job.datasheets[0];
+    const job = cert.job as any;
+    const datasheet = job.datasheets[0];
     const env = (datasheet?.environmental as any) ?? null;
 
-    const refStandards: ReferenceStandardInfo[] = cert.job.references.map((r) => ({
+    const refStandards: ReferenceStandardInfo[] = job.references.map((r: any) => ({
       name: r.master.name,
       idNumber: r.master.idNumber,
+      srNo: r.master.serialNumber,
       make: r.master.make,
       model: r.master.model,
       serialNumber: r.master.serialNumber,
       certificateNumber: r.master.certificateNumber,
+      calibrationDate: r.master.calibratedDate,
+      validUpTo: r.master.calibrationDue,
       traceability: r.master.traceability,
       uncertainty: r.master.uncertainty,
-      calibrationDue: r.master.calibrationDue,
     }));
 
-    const traceability = refStandards.length > 0
-      ? refStandards.map((r) => r.traceability).filter(Boolean).join('; ')
+    const traceability = refStandards.map((r) => r.traceability).filter(Boolean).join('; ');
+
+    // Build ULR-style number from lab accreditation
+    const labAcc: string = job.lab?.accreditationNumber ?? '';
+    const ulr = labAcc
+      ? `${labAcc.replace(/[^A-Z0-9]/gi, '')}${new Date(cert.issueDate).getFullYear()}${cert.certificateNumber.replace(/\D/g, '').slice(-6).padStart(6, '0')}F`
       : undefined;
 
     const qr = buildQrPayload({
@@ -82,32 +87,93 @@ class ReportsService {
 
     const qrDataUrl = await generateQrDataUrl(qr.verificationUrl);
 
+    // Determine NABL discipline from instrument discipline (if linked)
+    const discipline = (job.instrument as any).discipline;
+    const nablDiscipline = discipline
+      ? `NABL · Mechanical Discipline: ${discipline.name}`
+      : undefined;
+
     const data: CertificateReportData = {
+      // Header
       certificateNumber: cert.certificateNumber,
+      ulrNumber: ulr,
       type: cert.type,
       issueDate: cert.issueDate,
-      labName: (cert.job as any).lab?.name,
-      labAccreditation: (cert.job as any).lab?.accreditationNumber,
-      customerName: cert.job.customer.name,
-      customerAddress: (cert.job.customer as any).address,
-      instrumentName: cert.job.instrument.name,
-      instrumentMake: cert.job.instrument.make,
-      instrumentModel: cert.job.instrument.model,
-      instrumentSerial: cert.job.instrument.serialNumber,
-      instrumentRange: (cert.job.instrument as any).range,
-      instrumentLeastCount: (cert.job.instrument as any).leastCount,
-      jobNumber: cert.job.jobNumber,
-      environmental: env,
+      pageNumber: 1,
+      totalPages: 1,
+
+      // Lab
+      labName: job.lab?.name,
+      labAddress: job.lab?.address,
+      labAccreditation: job.lab?.accreditationNumber,
+
+      // Customer
+      customerName: job.customer.name,
+      customerAddress: job.customer.address,
+
+      // Job admin
+      jobNumber: job.jobNumber,
+      dateOfReceipt: job.receivedAt,
+      calibrationDate: cert.issueDate,
+      nextCalibrationDate: job.instrument.nextDueDate,
+      challanNo: job.challanNo,
+      poNumber: job.poNumber,
+      conditionOfItem: job.conditionOfItem,
+
+      // Instrument
+      instrumentName: job.instrument.name,
+      instrumentMake: job.instrument.make,
+      instrumentModel: job.instrument.model,
+      instrumentSerial: job.instrument.serialNumber,
+      instrumentRange: job.instrument.range,
+      instrumentLeastCount: job.instrument.leastCount,
+      instrumentIdNumber: job.instrument.idNumber,
+      labIdNo: job.instrument.labIdNo,
+      calibrationLocation: job.isOnsite ? `Onsite — ${job.siteAddress ?? ''}` : 'In Lab',
+
+      // Procedure
+      calibrationProcedureNo: job.calibrationProcedureNo,
+      referenceDocumentNo: job.referenceDocumentNo,
+      calibrationProcedure: job.calibrationProcedure,
+
+      // NABL discipline
+      nablDiscipline,
+
+      // Environment
+      environmental: env ? {
+        temperature: env.temperature,
+        temperatureTolerance: env.temperatureTolerance ?? 1,
+        humidity: env.humidity,
+        humidityTolerance: env.humidityTolerance ?? 10,
+        pressure: env.pressure,
+      } : null,
+
+      // Results
       observations: datasheet?.observations ?? [],
       expandedUncertainty: datasheet?.uncertainty?.expandedUncertainty ?? null,
+      uncertaintyUnit: job.instrument.unit,
       coverageFactor: datasheet?.uncertainty?.coverageFactor ?? null,
       decisionRule: cert.decisionRule,
-      traceability,
+
+      // Reference standards
       referenceStandards: refStandards,
+
+      // QR
       qrVerificationUrl: qr.verificationUrl,
       qrDataUrl,
-      signatures: cert.signatures.map((s) => ({ stage: s.stage, by: s.signedByName })),
+
+      // Signatures
+      signatures: cert.signatures.map((s: any) => ({
+        stage: s.stage,
+        by: s.signedByName,
+        designation: s.stage === 'ENGINEER' ? 'Calibrated By'
+          : s.stage === 'TECHNICAL_MANAGER' ? 'Technical Manager'
+          : s.stage === 'QUALITY_MANAGER' ? 'Quality Manager'
+          : s.stage === 'FINAL_LOCK' ? 'Authorized Signatory'
+          : s.stage,
+      })),
     };
+
     return renderCertificateHtml(data);
   }
 
@@ -118,6 +184,7 @@ class ReportsService {
     });
     if (!cert) return { valid: false, reason: 'Certificate not found' };
 
+    const job = cert.job as any;
     const expected = buildQrPayload({
       certificateId: cert.id,
       certificateNumber: cert.certificateNumber,
@@ -135,14 +202,14 @@ class ReportsService {
         type: cert.type,
         issueDate: cert.issueDate,
         isLocked: cert.isLocked,
-        labName: (cert.job as any).lab?.name,
-        labAccreditation: (cert.job as any).lab?.accreditationNumber,
-        customerName: cert.job.customer.name,
-        instrumentName: cert.job.instrument.name,
-        instrumentMake: cert.job.instrument.make,
-        instrumentModel: cert.job.instrument.model,
-        instrumentSerial: cert.job.instrument.serialNumber,
-        jobNumber: cert.job.jobNumber,
+        labName: job.lab?.name,
+        labAccreditation: job.lab?.accreditationNumber,
+        customerName: job.customer.name,
+        instrumentName: job.instrument.name,
+        instrumentMake: job.instrument.make,
+        instrumentModel: job.instrument.model,
+        instrumentSerial: job.instrument.serialNumber,
+        jobNumber: job.jobNumber,
       },
     };
   }

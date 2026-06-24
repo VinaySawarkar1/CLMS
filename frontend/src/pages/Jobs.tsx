@@ -248,6 +248,36 @@ export default function Jobs() {
               </Row>
             </>
           )}
+          <Form.Item name="conditionOfItem" label="Condition of Item" initialValue="OK (As Received)">
+            <Input placeholder="OK (As Received)" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="challanNo" label="Challan No.">
+                <Input placeholder="DC / Challan number" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="poNumber" label="Purchase Order No.">
+                <Input placeholder="PO number (if any)" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="calibrationProcedureNo" label="Calibration Procedure No.">
+                <Input placeholder="e.g. CM 45" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="referenceDocumentNo" label="Reference Document No.">
+                <Input placeholder="e.g. Comparison Method" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="calibrationProcedure" label="Calibration Procedure (Description)">
+            <Input.TextArea rows={2} placeholder="Brief description of the calibration procedure" />
+          </Form.Item>
           <Form.Item name="remarks" label="Remarks">
             <Input.TextArea rows={2} placeholder="Optional notes or instructions" />
           </Form.Item>

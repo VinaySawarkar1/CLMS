@@ -162,8 +162,8 @@ export default function Instruments() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="idNumber" label="ID Number">
-                <Input placeholder="LAB-001" />
+              <Form.Item name="idNumber" label="Customer ID Number">
+                <Input placeholder="Customer-assigned ID" />
               </Form.Item>
             </Col>
           </Row>
@@ -180,12 +180,17 @@ export default function Instruments() {
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item name="serialNumber" label="Serial Number">
                 <Input placeholder="SN-12345" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={8}>
+              <Form.Item name="labIdNo" label="Lab ID No.">
+                <Input placeholder="Internal lab ID, e.g. OM-CAL/01" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
               <Form.Item name="unit" label="Unit of Measurement">
                 <Input placeholder="mm, bar, °C, kN..." />
               </Form.Item>
