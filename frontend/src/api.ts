@@ -88,8 +88,10 @@ export const getLabs = (status?: string) => get('/labs', { status });
 export const getLab = (id: string) => get(`/labs/${id}`);
 export const updateLabStatus = (id: string, status: string) => patch(`/labs/${id}/status`, { status });
 
-// Lab users (LAB_ADMIN)
+// Lab users (LAB_ADMIN or SUPER_ADMIN)
 export const getLabUsers = (labId: string) => get(`/labs/${labId}/users`);
+export const resetLabUserPassword = (labId: string, userId: string, newPassword: string) =>
+  patch(`/labs/${labId}/users/${userId}/reset-password`, { newPassword });
 export const createLabUser = (labId: string, b: any) => post(`/labs/${labId}/users`, b);
 export const updateLabUserRole = (labId: string, userId: string, role: string) =>
   patch(`/labs/${labId}/users/${userId}/role`, { role });

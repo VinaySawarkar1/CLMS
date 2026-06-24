@@ -199,6 +199,19 @@ export class LabsService {
     });
   }
 
+  /** SUPER_ADMIN: reset a lab user's password */
+  async resetUserPassword(labId: string, userId: string, newPassword: string) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, labId } });
+    if (!user) throw new NotFoundException('User not found in this lab');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+      select: { id: true, email: true, fullName: true, role: true },
+    });
+  }
+
   private hash(value: string) {
     return createHash('sha256').update(value).digest('hex');
   }

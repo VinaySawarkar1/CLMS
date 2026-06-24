@@ -54,7 +54,7 @@ export class LabsController {
     return this.labs.savePermissions(id, matrix);
   }
 
-  @Roles(Role.LAB_ADMIN)
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
   @Get(':id/users')
   getLabUsers(@Param('id') id: string) {
     return this.labs.getLabUsers(id);
@@ -88,4 +88,17 @@ export class LabsController {
   ) {
     return this.labs.setUserActive(id, userId, isActive);
   }
+
+  // ── SUPER_ADMIN: reset any lab user's password ─────────────────────────────
+
+  @Roles(Role.SUPER_ADMIN)
+  @Patch(':id/users/:userId/reset-password')
+  resetUserPassword(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.labs.resetUserPassword(id, userId, newPassword);
+  }
+
 }
