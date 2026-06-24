@@ -13,6 +13,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// If the token is rejected (expired/invalid), clear it and return to login
+// instead of leaving the app stuck firing 401s.
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error?.response?.status === 401 && localStorage.getItem('clms_access_token')) {
+      localStorage.removeItem('clms_access_token');
+      localStorage.removeItem('clms_refresh_token');
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  },
+);
+
 export async function login(email: string, password: string) {
   const { data } = await api.post('/auth/login', { email, password });
   localStorage.setItem('clms_access_token', data.accessToken);
