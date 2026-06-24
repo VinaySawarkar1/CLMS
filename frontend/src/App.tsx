@@ -25,6 +25,8 @@ import ReferenceStandards from './pages/ReferenceStandards';
 import Quotations from './pages/Quotations';
 import Reports from './pages/Reports';
 import VerifyCertificate from './pages/VerifyCertificate';
+import Documents from './pages/Documents';
+import InternalAudit from './pages/InternalAudit';
 import CustomerPortal from './pages/CustomerPortal';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
@@ -83,6 +85,8 @@ export default function App() {
               <Route path="/quality" element={<Quality />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/audit" element={<Audit />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/internal-audit" element={<InternalAudit />} />
               <Route path="/notifications" element={<Notifications />} />
               {isLabAdmin && <Route path="/users" element={<Users />} />}
               {isLabAdmin && <Route path="/permissions" element={<Permissions />} />}

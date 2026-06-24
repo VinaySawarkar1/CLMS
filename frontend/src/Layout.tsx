@@ -10,7 +10,7 @@ import {
   HistoryOutlined, BellOutlined, LogoutOutlined, ExperimentOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
-  GoldOutlined, FileDoneOutlined, BarChartOutlined,
+  GoldOutlined, FileDoneOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -53,6 +53,8 @@ const NAV_GROUPS: NavGroup[] = [
       { key: '/billing', label: 'Billing', icon: <DollarOutlined />, perm: 'billing' },
       { key: '/reports', label: 'Reports', icon: <BarChartOutlined />, perm: 'jobs' },
       { key: '/audit', label: 'Audit Trail', icon: <HistoryOutlined />, perm: 'audit' },
+      { key: '/documents', label: 'Documents', icon: <FileSyncOutlined />, perm: 'quality' },
+      { key: '/internal-audit', label: 'Internal Audit', icon: <SafetyOutlined />, perm: 'audit' },
       { key: '/notifications', label: 'Notifications', icon: <BellOutlined />, perm: 'notifications' },
     ],
   },

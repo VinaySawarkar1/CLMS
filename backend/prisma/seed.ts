@@ -11,12 +11,13 @@ const DISCIPLINES = [
 const ALL_PERMISSION_KEYS = [
   'customers', 'instruments', 'jobs', 'certificates', 'billing',
   'tasks', 'engineers', 'inventory', 'environmental', 'quality', 'audit', 'notifications',
+  'documents', 'internal-audit',
 ];
 
 // Default permissions per role (LAB_ADMIN can override these)
 const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   TECHNICAL_MANAGER: ALL_PERMISSION_KEYS,
-  CALIBRATION_ENGINEER: ['customers', 'instruments', 'jobs', 'certificates', 'tasks', 'environmental'],
+  CALIBRATION_ENGINEER: ['customers', 'instruments', 'jobs', 'certificates', 'tasks', 'environmental', 'documents', 'internal-audit'],
   SERVICE_ENGINEER: ['customers', 'instruments', 'jobs', 'tasks'],
   DATA_ENTRY_OPERATOR: ['customers', 'instruments', 'jobs', 'notifications'],
 };
