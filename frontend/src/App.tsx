@@ -21,6 +21,9 @@ import Notifications from './pages/Notifications';
 import Labs from './pages/Labs';
 import Users from './pages/Users';
 import Permissions from './pages/Permissions';
+import ReferenceStandards from './pages/ReferenceStandards';
+import Quotations from './pages/Quotations';
+import Reports from './pages/Reports';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
@@ -61,6 +64,9 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/instruments" element={<Instruments />} />
+              <Route path="/reference-standards" element={<ReferenceStandards />} />
+              <Route path="/quotations" element={<Quotations />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/:id" element={<JobWorkspace />} />
               <Route path="/certificates" element={<Certificates />} />

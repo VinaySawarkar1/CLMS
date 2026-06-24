@@ -88,6 +88,26 @@ async function main() {
     // Seed default permissions for this lab
     await seedPermissions(demoLab.id);
 
+    // Reference standards (master instruments)
+    const inOneYear = new Date();
+    inOneYear.setMonth(inOneYear.getMonth() + 11);
+    await prisma.masterInstrument.create({
+      data: {
+        labId: demoLab.id, name: 'Gauge Block Set (Grade 0)', idNumber: 'STD-001',
+        make: 'Mitutoyo', model: '516-940', serialNumber: 'GB-2201',
+        traceability: 'Traceable to NPL India', certificateNumber: 'NPL/2025/1123',
+        uncertainty: '±0.10 µm', calibrationDue: inOneYear, location: 'Dimensional Lab',
+      },
+    });
+    await prisma.masterInstrument.create({
+      data: {
+        labId: demoLab.id, name: 'Digital Pressure Calibrator', idNumber: 'STD-002',
+        make: 'Fluke', model: '719Pro', serialNumber: 'FP-8841',
+        traceability: 'Traceable to NABL Lab CC-1102', certificateNumber: 'CC1102/25/882',
+        uncertainty: '±0.02 bar', calibrationDue: inOneYear, location: 'Pressure Lab',
+      },
+    });
+
     // Customers
     const cust = await prisma.customer.create({
       data: {

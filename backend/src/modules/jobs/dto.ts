@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { JobStatus } from '@prisma/client';
 
 export class CreateJobDto {
@@ -10,6 +10,10 @@ export class CreateJobDto {
 
   @IsOptional() @IsUUID() branchId?: string;
   @IsOptional() @IsString() remarks?: string;
+  @IsOptional() @IsBoolean() isOnsite?: boolean;
+  @IsOptional() @IsString() siteAddress?: string;
+  @IsOptional() @IsString() siteContact?: string;
+  @IsOptional() @IsString() visitDate?: string;
 }
 
 export class AssignEngineerDto {

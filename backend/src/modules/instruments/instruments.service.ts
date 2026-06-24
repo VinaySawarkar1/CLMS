@@ -7,13 +7,42 @@ export class InstrumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   create(labId: string, dto: CreateInstrumentDto) {
-    return this.prisma.instrument.create({ data: { ...dto, labId } });
+    const { lastCalibrationDate, calibrationIntervalMonths, ...rest } = dto;
+    const last = lastCalibrationDate ? new Date(lastCalibrationDate) : null;
+    const nextDueDate = this.computeNextDue(last, calibrationIntervalMonths);
+    return this.prisma.instrument.create({
+      data: {
+        ...rest,
+        labId,
+        calibrationIntervalMonths: calibrationIntervalMonths ?? null,
+        lastCalibrationDate: last,
+        nextDueDate,
+      },
+    });
+  }
+
+  private computeNextDue(last: Date | null, intervalMonths?: number | null): Date | null {
+    if (!last || !intervalMonths) return null;
+    const due = new Date(last);
+    due.setMonth(due.getMonth() + intervalMonths);
+    return due;
   }
 
   findAll(labId: string, customerId?: string) {
     return this.prisma.instrument.findMany({
       where: { labId, ...(customerId ? { customerId } : {}) },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Instruments due for calibration within `days` (default 30) or already overdue. */
+  async dueForRecall(labId: string, days = 30) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+    return this.prisma.instrument.findMany({
+      where: { labId, nextDueDate: { not: null, lte: cutoff } },
+      include: { customer: { select: { name: true, email: true, code: true } } },
+      orderBy: { nextDueDate: 'asc' },
     });
   }
 

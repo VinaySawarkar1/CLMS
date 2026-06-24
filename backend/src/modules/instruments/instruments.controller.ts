@@ -24,6 +24,11 @@ export class InstrumentsController {
     return this.instruments.findAll(req.user.labId, customerId);
   }
 
+  @Get('due/recall')
+  dueForRecall(@Request() req: any, @Query('days') days?: string) {
+    return this.instruments.dueForRecall(req.user.labId, days ? Number(days) : 30);
+  }
+
   @Get(':id')
   findOne(@Request() req: any, @Param('id') id: string) {
     return this.instruments.findOne(id, req.user.labId);

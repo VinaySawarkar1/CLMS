@@ -3,10 +3,11 @@ import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Col, Form, Modal, Row, Select, Space, Table, Tag, Typography, Input, Tooltip, Dropdown,
+  Switch, DatePicker,
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  ArrowRightOutlined, EllipsisOutlined,
+  ArrowRightOutlined, EllipsisOutlined, EnvironmentOutlined,
 } from '@ant-design/icons';
 import {
   assignJob, createJob, generateCertificate, getCustomers, getEngineers,
@@ -49,9 +50,13 @@ export default function Jobs() {
     enabled: !!customerId,
   });
 
+  const isOnsite = Form.useWatch('isOnsite', form);
   const refresh = () => qc.invalidateQueries({ queryKey: ['jobs'] });
   const createMut = useMutation({
-    mutationFn: () => createJob(form.getFieldsValue()),
+    mutationFn: () => {
+      const v = form.getFieldsValue();
+      return createJob({ ...v, visitDate: v.visitDate ? v.visitDate.toISOString() : undefined });
+    },
     onSuccess: () => { refresh(); setOpen(false); form.resetFields(); },
   });
   const assignMut = useMutation({ mutationFn: (v: { id: string; engineerId: string }) => assignJob(v.id, v.engineerId), onSuccess: refresh });
@@ -78,7 +83,12 @@ export default function Jobs() {
       title: 'Instrument',
       dataIndex: ['instrument', 'name'],
       key: 'instrument',
-      render: (v: string) => <Text>{v}</Text>,
+      render: (v: string, row: any) => (
+        <Space>
+          <Text>{v}</Text>
+          {row.isOnsite && <Tag color="geekblue" icon={<EnvironmentOutlined />}>Onsite</Tag>}
+        </Space>
+      ),
     },
     {
       title: 'Engineer',
@@ -216,6 +226,28 @@ export default function Jobs() {
               }))}
             />
           </Form.Item>
+          <Form.Item name="isOnsite" label="Onsite Calibration" valuePropName="checked" initialValue={false}>
+            <Switch checkedChildren="Onsite" unCheckedChildren="In-lab" />
+          </Form.Item>
+          {isOnsite && (
+            <>
+              <Form.Item name="siteAddress" label="Site Address" rules={[{ required: true, message: 'Site address required for onsite jobs' }]}>
+                <Input.TextArea rows={2} placeholder="Customer site address" />
+              </Form.Item>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="siteContact" label="Site Contact">
+                    <Input placeholder="Name / phone" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="visitDate" label="Planned Visit Date">
+                    <DatePicker style={{ width: '100%' }} showTime />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
+          )}
           <Form.Item name="remarks" label="Remarks">
             <Input.TextArea rows={2} placeholder="Optional notes or instructions" />
           </Form.Item>

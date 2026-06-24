@@ -33,6 +33,10 @@ export class JobsService {
         customerId: dto.customerId,
         instrumentId: dto.instrumentId,
         remarks: dto.remarks,
+        isOnsite: dto.isOnsite ?? false,
+        siteAddress: dto.siteAddress,
+        siteContact: dto.siteContact,
+        visitDate: dto.visitDate ? new Date(dto.visitDate) : null,
         status: 'RECEIVED',
       },
     });

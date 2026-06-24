@@ -79,6 +79,7 @@ const get = (url: string, params?: any) => api.get(url, { params }).then((r) => 
 const post = (url: string, body?: any) => api.post(url, body).then((r) => r.data);
 const patch = (url: string, body?: any) => api.patch(url, body).then((r) => r.data);
 const put = (url: string, body?: any) => api.put(url, body).then((r) => r.data);
+const del = (url: string) => api.delete(url).then((r) => r.data);
 
 // Public lab registration (no auth)
 export const registerLab = (b: any) => post('/auth/register-lab', b);
@@ -173,3 +174,17 @@ export const getNotifications = () => get('/notifications');
 
 // Audit
 export const getAudit = () => get('/audit');
+
+// Reference Standards (Master Instruments)
+export const getMasters = () => get('/masters');
+export const createMaster = (b: any) => post('/masters', b);
+export const updateMaster = (id: string, b: any) => patch(`/masters/${id}`, b);
+export const deleteMaster = (id: string) => del(`/masters/${id}`);
+
+// Instrument calibration recall (due / overdue)
+export const getRecallDue = (days?: number) => get('/instruments/due/recall', { days });
+
+// Quotations
+export const getQuotations = () => get('/quotations');
+export const createQuotation = (b: any) => post('/quotations', b);
+export const setQuotationStatus = (id: string, status: string) => patch(`/quotations/${id}/status`, { status });

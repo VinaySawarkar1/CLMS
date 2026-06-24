@@ -22,6 +22,8 @@ import { QualityModule } from './modules/quality/quality.module';
 import { EnvironmentalModule } from './modules/environmental/environmental.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { LabsModule } from './modules/labs/labs.module';
+import { MastersModule } from './modules/masters/masters.module';
+import { QuotationsModule } from './modules/quotations/quotations.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -54,6 +56,8 @@ import { HealthController } from './health.controller';
     EnvironmentalModule,
     PortalModule,
     LabsModule,
+    MastersModule,
+    QuotationsModule,
   ],
 })
 export class AppModule {}

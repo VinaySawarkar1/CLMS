@@ -10,6 +10,7 @@ import {
   HistoryOutlined, BellOutlined, LogoutOutlined, ExperimentOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
+  GoldOutlined, FileDoneOutlined, BarChartOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -30,6 +31,7 @@ const NAV_GROUPS: NavGroup[] = [
     children: [
       { key: '/customers', label: 'Customers', icon: <TeamOutlined />, perm: 'customers' },
       { key: '/instruments', label: 'Instrument Entry', icon: <ToolOutlined />, perm: 'instruments' },
+      { key: '/reference-standards', label: 'Reference Standards', icon: <GoldOutlined />, perm: 'instruments' },
       { key: '/jobs', label: 'Jobs', icon: <FileTextOutlined />, perm: 'jobs' },
       { key: '/certificates', label: 'Certificates', icon: <SafetyCertificateOutlined />, perm: 'certificates' },
     ],
@@ -47,7 +49,9 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'quality', label: 'Quality & Finance',
     children: [
       { key: '/quality', label: 'NCR / CAPA', icon: <AlertOutlined />, perm: 'quality' },
+      { key: '/quotations', label: 'Quotations', icon: <FileDoneOutlined />, perm: 'billing' },
       { key: '/billing', label: 'Billing', icon: <DollarOutlined />, perm: 'billing' },
+      { key: '/reports', label: 'Reports', icon: <BarChartOutlined />, perm: 'jobs' },
       { key: '/audit', label: 'Audit Trail', icon: <HistoryOutlined />, perm: 'audit' },
       { key: '/notifications', label: 'Notifications', icon: <BellOutlined />, perm: 'notifications' },
     ],

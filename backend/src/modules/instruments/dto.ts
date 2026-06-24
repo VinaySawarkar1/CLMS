@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateInstrumentDto {
   @IsUUID()
@@ -16,4 +16,6 @@ export class CreateInstrumentDto {
   @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsString() leastCount?: string;
   @IsOptional() @IsString() idNumber?: string;
+  @IsOptional() @IsInt() calibrationIntervalMonths?: number;
+  @IsOptional() @IsString() lastCalibrationDate?: string;
 }

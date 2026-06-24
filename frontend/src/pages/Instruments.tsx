@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Form, Input, Modal, Row, Select, Space, Table, Tag, Typography,
+  Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, Typography, DatePicker,
 } from 'antd';
 import { PlusOutlined, ToolOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { createInstrument, getCustomers, getInstruments } from '../api';
 
 const { Title, Text } = Typography;
@@ -17,7 +18,10 @@ export default function Instruments() {
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
 
   const mut = useMutation({
-    mutationFn: () => createInstrument(form.getFieldsValue()),
+    mutationFn: () => {
+      const v = form.getFieldsValue();
+      return createInstrument({ ...v, lastCalibrationDate: v.lastCalibrationDate ? v.lastCalibrationDate.toISOString() : undefined });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['instruments'] });
       setOpen(false);
@@ -74,6 +78,23 @@ export default function Instruments() {
       dataIndex: 'leastCount',
       key: 'leastCount',
       render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Next Due',
+      dataIndex: 'nextDueDate',
+      key: 'nextDueDate',
+      render: (v: string) => {
+        if (!v) return <Text type="secondary">—</Text>;
+        const d = dayjs(v);
+        const overdue = d.isBefore(dayjs());
+        const soon = !overdue && d.isBefore(dayjs().add(30, 'day'));
+        return (
+          <Space direction="vertical" size={0}>
+            <Text>{d.format('DD MMM YYYY')}</Text>
+            {overdue ? <Tag color="red">OVERDUE</Tag> : soon ? <Tag color="orange">Due Soon</Tag> : null}
+          </Space>
+        );
+      },
     },
     {
       title: 'Customer',
@@ -179,6 +200,18 @@ export default function Instruments() {
             <Col span={12}>
               <Form.Item name="leastCount" label="Least Count">
                 <Input placeholder="0.01 mm" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="calibrationIntervalMonths" label="Calibration Interval (months)" tooltip="Used to auto-calculate the next due date">
+                <InputNumber min={1} max={120} style={{ width: '100%' }} placeholder="12" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="lastCalibrationDate" label="Last Calibration Date">
+                <DatePicker style={{ width: '100%' }} />
               </Form.Item>
             </Col>
           </Row>
