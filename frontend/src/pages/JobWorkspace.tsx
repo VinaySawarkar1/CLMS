@@ -161,19 +161,41 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.instrument?.discipline]);
 
-  const applyProcedure = (id: string) => {
-    setProcId(id);
-    const p = findProcedure(id);
-    if (!p) return;
-    setUnit(p.unit);
-    setRows(p.points.map((pt) => ({
+  const [rangeIdx, setRangeIdx] = useState(0);
+
+  const loadPoints = (u: string, points: { label: string; nominal: number }[]) => {
+    setUnit(u);
+    setRows(points.map((pt) => ({
       pointLabel: pt.label,
-      unit: p.unit,
+      unit: u,
       nominal: String(pt.nominal),
       standardValue: String(pt.nominal),
       readings: Array(NREAD).fill(''),
     })));
   };
+
+  const applyProcedure = (id: string) => {
+    setProcId(id);
+    setRangeIdx(0);
+    const p = findProcedure(id);
+    if (!p) return;
+    // If the instrument has multiple parameters/ranges, load the first one;
+    // otherwise fall back to the primary unit/points.
+    if (p.ranges && p.ranges.length) {
+      loadPoints(p.ranges[0].unit, p.ranges[0].points);
+    } else {
+      loadPoints(p.unit, p.points);
+    }
+  };
+
+  const applyRange = (idx: number) => {
+    setRangeIdx(idx);
+    const p = findProcedure(procId);
+    const r = p?.ranges?.[idx];
+    if (r) loadPoints(r.unit, r.points);
+  };
+
+  const selectedProc = findProcedure(procId);
 
   const createMut = useMutation({
     mutationFn: () => createDatasheet({
@@ -351,12 +373,46 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
             />
           </Form.Item>
         </Col>
+        {selectedProc?.ranges && selectedProc.ranges.length > 1 && (
+          <Col flex="240px">
+            <Form.Item label="Parameter / Range" style={{ marginBottom: 0 }}>
+              <Select
+                value={rangeIdx}
+                onChange={applyRange}
+                style={{ width: '100%' }}
+                options={selectedProc.ranges.map((r, i) => ({
+                  value: i,
+                  label: `${r.parameter}${r.rangeText ? ` (${r.rangeText})` : ` (${r.unit})`}`,
+                }))}
+              />
+            </Form.Item>
+          </Col>
+        )}
         <Col flex="160px">
           <Form.Item label="Unit of Measurement" style={{ marginBottom: 0 }}>
             <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="mm, bar, °C..." />
           </Form.Item>
         </Col>
       </Row>
+
+      {selectedProc && (selectedProc.procedureText || selectedProc.nablReference) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={
+            <Space size={8} wrap>
+              <Text strong>Calibration Procedure</Text>
+              {selectedProc.nablReference && <Tag color="blue">{selectedProc.nablReference}</Tag>}
+              {selectedProc.referenceStandard && <Tag color="geekblue">Std: {selectedProc.referenceStandard}</Tag>}
+              {selectedProc.units && selectedProc.units.length > 1 && (
+                <Tag color="cyan">Units: {selectedProc.units.join(', ')}</Tag>
+              )}
+            </Space>
+          }
+          description={selectedProc.procedureText}
+        />
+      )}
 
       <Card
         size="small"
