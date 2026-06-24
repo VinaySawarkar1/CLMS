@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Box, Button, Chip, Divider, MenuItem, Paper, Stack, Tab, Table,
+  Alert, Box, Button, Chip, Divider, ListSubheader, MenuItem, Paper, Stack, Tab, Table,
   TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
 import {
   computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, openCertificateReport, signCertificate,
 } from '../api';
-import { findProcedure, PROCEDURES, Procedure } from '../procedures';
+import { findProcedure, groupedProcedures, Procedure } from '../procedures';
 
 const SIG_STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
@@ -126,8 +126,16 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
   return (
     <Paper sx={{ p: 2 }}>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center">
-        <TextField select label="Procedure / Instrument type" size="small" value={procId} onChange={(e) => applyProcedure(e.target.value)} sx={{ minWidth: 280 }}>
-          {PROCEDURES.map((p: Procedure) => <MenuItem key={p.id} value={p.id}>{p.label} ({p.discipline}, {p.unit})</MenuItem>)}
+        <TextField select label="Discipline / Instrument procedure" size="small" value={procId} onChange={(e) => applyProcedure(e.target.value)} sx={{ minWidth: 340 }}>
+          {Object.entries(groupedProcedures()).flatMap(([discipline, subs]) => [
+            <ListSubheader key={discipline} sx={{ fontWeight: 700, color: 'primary.main' }}>{discipline}</ListSubheader>,
+            ...Object.entries(subs).flatMap(([sub, procs]) => [
+              <ListSubheader key={`${discipline}-${sub}`} sx={{ pl: 3, fontStyle: 'italic' }}>{sub}</ListSubheader>,
+              ...procs.map((p: Procedure) => (
+                <MenuItem key={p.id} value={p.id} sx={{ pl: 4 }}>{p.label} ({p.unit})</MenuItem>
+              )),
+            ]),
+          ])}
         </TextField>
         <TextField label="Unit of measurement" size="small" value={unit} onChange={(e) => setUnit(e.target.value)} sx={{ width: 160 }} />
       </Stack>
