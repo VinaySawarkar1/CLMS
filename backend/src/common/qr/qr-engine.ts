@@ -1,24 +1,16 @@
 import { createHash } from 'crypto';
-
-/**
- * CLMS QR Verification Engine
- * ---------------------------
- * Builds the tamper-evident payload embedded in a certificate's QR code and
- * the public verification URL used to confirm authenticity.
- */
+import * as QRCode from 'qrcode';
 
 export interface CertificateQrInput {
   certificateId: string;
   certificateNumber: string;
   issueDate: Date;
-  /** Stable content fingerprint of the certificate data. */
   contentHash: string;
 }
 
 const VERIFY_BASE_URL =
-  process.env.CERT_VERIFY_BASE_URL || 'https://verify.clms.local/c';
+  process.env.CERT_VERIFY_BASE_URL || 'http://localhost:5173/verify';
 
-/** Deterministic SHA-256 fingerprint of arbitrary certificate content. */
 export function contentHash(content: unknown): string {
   return createHash('sha256')
     .update(JSON.stringify(content))
@@ -39,7 +31,16 @@ export function buildQrPayload(input: CertificateQrInput) {
   };
 }
 
-/** Verify a presented hash against the stored certificate fingerprint. */
 export function verifyHash(stored: string, presented: string): boolean {
   return stored.length > 0 && stored === presented;
+}
+
+/** Generate a data-URL PNG QR code for the given URL (base64 encoded). */
+export async function generateQrDataUrl(url: string): Promise<string> {
+  return QRCode.toDataURL(url, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 160,
+    color: { dark: '#000000', light: '#ffffff' },
+  });
 }

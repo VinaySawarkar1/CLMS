@@ -187,10 +187,19 @@ export default function Certificates() {
               )}
               <Button
                 icon={<PrinterOutlined />}
-                href={`/api/certificates/${cert.id}/report`}
-                target="_blank"
+                onClick={() => {
+                  const base = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+                  const token = localStorage.getItem('token');
+                  const url = `${base}/reports/certificate/${cert.id}.html`;
+                  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+                    .then((r) => r.text())
+                    .then((html) => {
+                      const win = window.open('', '_blank');
+                      if (win) { win.document.write(html); win.document.close(); win.print(); }
+                    });
+                }}
               >
-                Print Certificate
+                Print / View Certificate
               </Button>
             </Space>
 
