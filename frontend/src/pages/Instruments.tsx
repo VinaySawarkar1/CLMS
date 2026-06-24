@@ -1,74 +1,189 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper,
-  Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
-} from '@mui/material';
+  Button, Card, Col, Form, Input, Modal, Row, Select, Space, Table, Tag, Typography,
+} from 'antd';
+import { PlusOutlined, ToolOutlined } from '@ant-design/icons';
 import { createInstrument, getCustomers, getInstruments } from '../api';
+
+const { Title, Text } = Typography;
 
 export default function Instruments() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<any>({ customerId: '', name: '', make: '', model: '', serialNumber: '', range: '', unit: '', leastCount: '', idNumber: '' });
+  const [form] = Form.useForm();
 
-  const { data = [] } = useQuery({ queryKey: ['instruments'], queryFn: () => getInstruments() });
+  const { data = [], isLoading } = useQuery({ queryKey: ['instruments'], queryFn: () => getInstruments() });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
+
   const mut = useMutation({
-    mutationFn: () => createInstrument(form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['instruments'] }); setOpen(false); },
+    mutationFn: () => createInstrument(form.getFieldsValue()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['instruments'] });
+      setOpen(false);
+      form.resetFields();
+    },
   });
 
-  const field = (k: string, label: string) => (
-    <TextField label={label} size="small" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} fullWidth />
-  );
+  const columns = [
+    {
+      title: 'ID Number',
+      dataIndex: 'idNumber',
+      key: 'idNumber',
+      width: 120,
+      render: (v: string) => v ? <Tag color="geekblue">{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Instrument Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (v: string) => <Text strong>{v}</Text>,
+    },
+    {
+      title: 'Make',
+      dataIndex: 'make',
+      key: 'make',
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Model',
+      dataIndex: 'model',
+      key: 'model',
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Serial No.',
+      dataIndex: 'serialNumber',
+      key: 'serialNumber',
+      render: (v: string) => v ? <Tag>{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Range',
+      dataIndex: 'range',
+      key: 'range',
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Unit',
+      dataIndex: 'unit',
+      key: 'unit',
+      render: (v: string) => v ? <Tag color="cyan">{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Least Count',
+      dataIndex: 'leastCount',
+      key: 'leastCount',
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Customer',
+      dataIndex: ['customer', 'name'],
+      key: 'customer',
+      render: (v: string) => v ? <Tag color="purple">{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+  ];
 
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5">Instrument Entry</Typography>
-        <Button variant="contained" onClick={() => setOpen(true)}>+ Receive Instrument</Button>
-      </Box>
-      <Paper>
-        <Table size="small">
-          <TableHead><TableRow>
-            <TableCell>Name</TableCell><TableCell>Make</TableCell><TableCell>Model</TableCell>
-            <TableCell>Serial</TableCell><TableCell>Range</TableCell><TableCell>Unit</TableCell>
-          </TableRow></TableHead>
-          <TableBody>
-            {data.map((i: any) => (
-              <TableRow key={i.id} hover>
-                <TableCell>{i.name}</TableCell><TableCell>{i.make || '—'}</TableCell><TableCell>{i.model || '—'}</TableCell>
-                <TableCell>{i.serialNumber || '—'}</TableCell><TableCell>{i.range || '—'}</TableCell><TableCell>{i.unit || '—'}</TableCell>
-              </TableRow>
-            ))}
-            {data.length === 0 && <TableRow><TableCell colSpan={6}>No instruments yet.</TableCell></TableRow>}
-          </TableBody>
-        </Table>
-      </Paper>
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={3} style={{ margin: 0 }}>
+              <Space>
+                <ToolOutlined style={{ color: '#1677ff' }} />
+                Instrument Entry
+              </Space>
+            </Title>
+            <Text type="secondary">Receive and manage calibration instruments</Text>
+          </Col>
+          <Col>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
+              Receive Instrument
+            </Button>
+          </Col>
+        </Row>
+      </div>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Receive Instrument</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField select label="Customer *" size="small" value={form.customerId}
-              onChange={(e) => setForm({ ...form, customerId: e.target.value })} fullWidth>
-              {customers.map((c: any) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
-            </TextField>
-            {field('name', 'Instrument Name *')}
-            {field('make', 'Make')}
-            {field('model', 'Model')}
-            {field('serialNumber', 'Serial Number')}
-            {field('range', 'Range')}
-            {field('unit', 'Unit of Measurement (e.g. mm, bar, °C)')}
-            {field('leastCount', 'Least Count')}
-            {field('idNumber', 'ID Number')}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" disabled={!form.customerId || !form.name || mut.isPending} onClick={() => mut.mutate()}>Save</Button>
-        </DialogActions>
-      </Dialog>
-    </>
+      <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <Table
+          columns={columns}
+          dataSource={data}
+          rowKey="id"
+          loading={isLoading}
+          pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} instruments` }}
+          size="middle"
+          scroll={{ x: 1000 }}
+        />
+      </Card>
+
+      <Modal
+        title={<Space><ToolOutlined /><span>Receive Instrument</span></Space>}
+        open={open}
+        onCancel={() => { setOpen(false); form.resetFields(); }}
+        onOk={() => form.validateFields().then(() => mut.mutate())}
+        okText="Save Instrument"
+        confirmLoading={mut.isPending}
+        width={600}
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="customerId" label="Customer" rules={[{ required: true }]}>
+            <Select
+              placeholder="Select customer"
+              options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+              showSearch
+              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="name" label="Instrument Name" rules={[{ required: true }]}>
+                <Input placeholder="e.g. Vernier Caliper" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="idNumber" label="ID Number">
+                <Input placeholder="LAB-001" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="make" label="Make">
+                <Input placeholder="Mitutoyo, Fluke..." />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="model" label="Model">
+                <Input placeholder="Model number" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="serialNumber" label="Serial Number">
+                <Input placeholder="SN-12345" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="unit" label="Unit of Measurement">
+                <Input placeholder="mm, bar, °C, kN..." />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="range" label="Range">
+                <Input placeholder="0–150 mm" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="leastCount" label="Least Count">
+                <Input placeholder="0.01 mm" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+    </div>
   );
 }

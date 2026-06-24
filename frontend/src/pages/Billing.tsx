@@ -1,77 +1,172 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper,
-  Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
-} from '@mui/material';
+  Button, Card, Col, Form, InputNumber, Modal, Row, Select, Space, Table, Tag, Typography,
+} from 'antd';
+import { PlusOutlined, DollarOutlined, CheckOutlined } from '@ant-design/icons';
 import { createInvoice, getCustomers, getInvoices, payInvoice } from '../api';
+
+const { Title, Text } = Typography;
 
 export default function Billing() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<any>({ customerId: '', amount: '' });
   const [payFor, setPayFor] = useState<any>(null);
-  const [payAmt, setPayAmt] = useState('');
+  const [payForm] = Form.useForm();
+  const [createForm] = Form.useForm();
 
-  const { data = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
+  const { data = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
+
   const refresh = () => qc.invalidateQueries({ queryKey: ['invoices'] });
-  const createMut = useMutation({ mutationFn: () => createInvoice({ customerId: form.customerId, amount: Number(form.amount) }), onSuccess: () => { refresh(); setOpen(false); setForm({ customerId: '', amount: '' }); } });
-  const payMut = useMutation({ mutationFn: () => payInvoice(payFor.id, { amount: Number(payAmt) }), onSuccess: () => { refresh(); setPayFor(null); setPayAmt(''); } });
+  const createMut = useMutation({
+    mutationFn: () => {
+      const { customerId, amount } = createForm.getFieldsValue();
+      return createInvoice({ customerId, amount: Number(amount) });
+    },
+    onSuccess: () => { refresh(); setOpen(false); createForm.resetFields(); },
+  });
+  const payMut = useMutation({
+    mutationFn: () => payInvoice(payFor.id, { amount: Number(payForm.getFieldValue('amount')) }),
+    onSuccess: () => { refresh(); setPayFor(null); payForm.resetFields(); },
+  });
+
+  const columns = [
+    {
+      title: 'Invoice No.',
+      dataIndex: 'invoiceNumber',
+      key: 'invoiceNumber',
+      render: (v: string) => <Text strong style={{ color: '#1677ff' }}>{v}</Text>,
+    },
+    {
+      title: 'Customer',
+      dataIndex: ['customer', 'name'],
+      key: 'customer',
+    },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      render: (v: number) => <Text>₹{v?.toFixed(2)}</Text>,
+    },
+    {
+      title: 'Tax (GST 18%)',
+      dataIndex: 'taxAmount',
+      key: 'tax',
+      render: (v: number) => <Text type="secondary">₹{v?.toFixed(2)}</Text>,
+    },
+    {
+      title: 'Total',
+      dataIndex: 'totalAmount',
+      key: 'total',
+      render: (v: number) => <Text strong>₹{v?.toFixed(2)}</Text>,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v: string) => (
+        <Tag color={v === 'PAID' ? 'green' : v === 'PARTIAL' ? 'orange' : 'red'}>
+          {v}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_: any, row: any) => (
+        row.status !== 'PAID' && (
+          <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => setPayFor(row)}>
+            Record Payment
+          </Button>
+        )
+      ),
+    },
+  ];
 
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5">Billing</Typography>
-        <Button variant="contained" onClick={() => setOpen(true)}>+ New Invoice</Button>
-      </Box>
-      <Paper>
-        <Table size="small">
-          <TableHead><TableRow>
-            <TableCell>Invoice No.</TableCell><TableCell>Customer</TableCell><TableCell>Amount</TableCell>
-            <TableCell>Tax</TableCell><TableCell>Total</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell>
-          </TableRow></TableHead>
-          <TableBody>
-            {data.map((inv: any) => (
-              <TableRow key={inv.id} hover>
-                <TableCell>{inv.invoiceNumber}</TableCell>
-                <TableCell>{inv.customer?.name}</TableCell>
-                <TableCell>₹{inv.amount}</TableCell><TableCell>₹{inv.taxAmount}</TableCell><TableCell>₹{inv.totalAmount}</TableCell>
-                <TableCell><Chip size="small" label={inv.status} color={inv.status === 'PAID' ? 'success' : 'default'} /></TableCell>
-                <TableCell>{inv.status !== 'PAID' && <Button size="small" onClick={() => setPayFor(inv)}>Pay</Button>}</TableCell>
-              </TableRow>
-            ))}
-            {data.length === 0 && <TableRow><TableCell colSpan={7}>No invoices yet.</TableCell></TableRow>}
-          </TableBody>
-        </Table>
-      </Paper>
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={3} style={{ margin: 0 }}>
+              <Space>
+                <DollarOutlined style={{ color: '#52c41a' }} />
+                Billing
+              </Space>
+            </Title>
+            <Text type="secondary">Manage invoices and payment records</Text>
+          </Col>
+          <Col>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
+              New Invoice
+            </Button>
+          </Col>
+        </Row>
+      </div>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>New Invoice</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField select label="Customer *" size="small" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
-              {customers.map((c: any) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
-            </TextField>
-            <TextField label="Amount (before tax) *" type="number" size="small" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" disabled={!form.customerId || !form.amount || createMut.isPending} onClick={() => createMut.mutate()}>Create (adds 18% GST)</Button>
-        </DialogActions>
-      </Dialog>
+      <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <Table
+          columns={columns}
+          dataSource={data}
+          rowKey="id"
+          loading={isLoading}
+          pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} invoices` }}
+          size="middle"
+        />
+      </Card>
 
-      <Dialog open={!!payFor} onClose={() => setPayFor(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Record Payment — {payFor?.invoiceNumber}</DialogTitle>
-        <DialogContent>
-          <TextField label="Amount" type="number" size="small" fullWidth sx={{ mt: 1 }} value={payAmt} onChange={(e) => setPayAmt(e.target.value)} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPayFor(null)}>Cancel</Button>
-          <Button variant="contained" disabled={!payAmt || payMut.isPending} onClick={() => payMut.mutate()}>Record</Button>
-        </DialogActions>
-      </Dialog>
-    </>
+      <Modal
+        title={<Space><PlusOutlined /><span>New Invoice</span></Space>}
+        open={open}
+        onCancel={() => { setOpen(false); createForm.resetFields(); }}
+        onOk={() => createForm.validateFields().then(() => createMut.mutate())}
+        okText="Create Invoice (+ 18% GST)"
+        confirmLoading={createMut.isPending}
+        width={480}
+      >
+        <Form form={createForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="customerId" label="Customer" rules={[{ required: true }]}>
+            <Select
+              placeholder="Select customer"
+              options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+              showSearch
+              filterOption={(i, o) => (o?.label as string)?.toLowerCase().includes(i.toLowerCase())}
+            />
+          </Form.Item>
+          <Form.Item name="amount" label="Amount (before tax)" rules={[{ required: true }]}>
+            <InputNumber
+              prefix="₹"
+              style={{ width: '100%' }}
+              min={0}
+              precision={2}
+              placeholder="0.00"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={<Space><CheckOutlined /><span>Record Payment — {payFor?.invoiceNumber}</span></Space>}
+        open={!!payFor}
+        onCancel={() => { setPayFor(null); payForm.resetFields(); }}
+        onOk={() => payForm.validateFields().then(() => payMut.mutate())}
+        okText="Record Payment"
+        confirmLoading={payMut.isPending}
+        width={400}
+      >
+        <Form form={payForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="amount" label="Payment Amount" rules={[{ required: true }]}>
+            <InputNumber
+              prefix="₹"
+              style={{ width: '100%' }}
+              min={0}
+              precision={2}
+              placeholder="0.00"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 }

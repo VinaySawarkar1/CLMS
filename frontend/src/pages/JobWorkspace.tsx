@@ -2,18 +2,34 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Box, Button, Chip, Divider, ListSubheader, MenuItem, Paper, Stack, Tab, Table,
-  TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography,
-} from '@mui/material';
+  Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Row, Select,
+  Space, Spin, Steps, Table, Tabs, Tag, Typography,
+} from 'antd';
+import {
+  ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
+  CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
+  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined,
+} from '@ant-design/icons';
 import {
   computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, openCertificateReport, signCertificate,
 } from '../api';
 import { findProcedure, groupedProcedures, Procedure } from '../procedures';
 
+const { Title, Text } = Typography;
+
 const SIG_STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
+const STAGE_LABELS: Record<string, string> = {
+  ENGINEER: 'Engineer', REVIEWER: 'Reviewer', TECHNICAL_MANAGER: 'Tech Manager',
+  QUALITY_MANAGER: 'QA Manager', FINAL_LOCK: 'Final Lock',
+};
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
 const NREAD = 5;
+
+const JOB_STATUS_COLORS: Record<string, string> = {
+  IN_CALIBRATION: 'processing', PENDING_REVIEW: 'gold', APPROVED: 'green',
+  CERTIFICATE_GENERATED: 'cyan', DELIVERED: 'purple', CLOSED: 'default',
+};
 
 type Row = { pointLabel: string; unit: string; nominal: string; standardValue: string; readings: string[] };
 const emptyRow = (unit = ''): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(NREAD).fill('') });
@@ -23,34 +39,97 @@ export default function JobWorkspace() {
   const jobId = id!;
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [tab, setTab] = useState(0);
+  const [activeTab, setActiveTab] = useState('datasheet');
 
   const { data: job } = useQuery({ queryKey: ['job-detail', jobId], queryFn: () => getJob(jobId) });
   const datasheetId: string | undefined = job?.datasheets?.[job.datasheets.length - 1]?.id;
-  const { data: datasheet } = useQuery({ queryKey: ['datasheet', datasheetId], queryFn: () => getDatasheet(datasheetId!), enabled: !!datasheetId });
+  const { data: datasheet } = useQuery({
+    queryKey: ['datasheet', datasheetId],
+    queryFn: () => getDatasheet(datasheetId!),
+    enabled: !!datasheetId,
+  });
 
-  if (!job) return <Typography>Loading…</Typography>;
+  if (!job) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+      <Spin size="large" tip="Loading job workspace..." />
+    </div>
+  );
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['job-detail', jobId] });
     qc.invalidateQueries({ queryKey: ['datasheet', datasheetId] });
   };
 
+  const tabItems = [
+    {
+      key: 'datasheet',
+      label: (
+        <Space>
+          <ExperimentOutlined />
+          Datasheet
+        </Space>
+      ),
+      children: <DatasheetTab job={job} datasheet={datasheet} onChanged={invalidate} />,
+    },
+    {
+      key: 'uncertainty',
+      label: (
+        <Space>
+          <CalculatorOutlined />
+          Uncertainty
+        </Space>
+      ),
+      children: <UncertaintyTab datasheet={datasheet} onChanged={invalidate} />,
+    },
+    {
+      key: 'certificate',
+      label: (
+        <Space>
+          <SafetyCertificateOutlined />
+          Certificate
+        </Space>
+      ),
+      children: <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />,
+    },
+  ];
+
   return (
-    <>
-      <Button onClick={() => nav('/jobs')} sx={{ mb: 1 }}>← Back to Jobs</Button>
-      <Typography variant="h5">{job.jobNumber} — {job.instrument?.name}</Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
-        {job.customer?.name} · <Chip size="small" label={job.status} />
-      </Typography>
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab label="1. Datasheet" />
-        <Tab label="2. Uncertainty" />
-        <Tab label="3. Certificate" />
-      </Tabs>
-      {tab === 0 && <DatasheetTab job={job} datasheet={datasheet} onChanged={invalidate} />}
-      {tab === 1 && <UncertaintyTab datasheet={datasheet} onChanged={invalidate} />}
-      {tab === 2 && <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />}
-    </>
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => nav('/jobs')}
+          style={{ marginBottom: 16 }}
+        >
+          Back to Jobs
+        </Button>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={3} style={{ margin: 0 }}>
+              <Space>
+                <FileTextOutlined style={{ color: '#1677ff' }} />
+                {job.jobNumber}
+              </Space>
+            </Title>
+            <Space style={{ marginTop: 4 }}>
+              <Text type="secondary">{job.instrument?.name}</Text>
+              <Text type="secondary">·</Text>
+              <Text type="secondary">{job.customer?.name}</Text>
+              <Tag color={JOB_STATUS_COLORS[job.status] || 'default'}>{job.status?.replace(/_/g, ' ')}</Tag>
+            </Space>
+          </Col>
+        </Row>
+      </div>
+
+      <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={tabItems}
+          size="large"
+        />
+      </Card>
+    </div>
   );
 }
 
@@ -65,7 +144,13 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
     const p = findProcedure(id);
     if (!p) return;
     setUnit(p.unit);
-    setRows(p.points.map((pt) => ({ pointLabel: pt.label, unit: p.unit, nominal: String(pt.nominal), standardValue: String(pt.nominal), readings: Array(NREAD).fill('') })));
+    setRows(p.points.map((pt) => ({
+      pointLabel: pt.label,
+      unit: p.unit,
+      nominal: String(pt.nominal),
+      standardValue: String(pt.nominal),
+      readings: Array(NREAD).fill(''),
+    })));
   };
 
   const createMut = useMutation({
@@ -89,89 +174,191 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
 
   if (datasheet) {
+    const obsColumns = [
+      { title: 'Point', dataIndex: 'pointLabel', key: 'point', render: (v: string) => v || '—' },
+      { title: 'Unit', dataIndex: 'unit', key: 'unit', render: (v: string) => v ? <Tag color="cyan">{v}</Tag> : '—' },
+      { title: 'Nominal', dataIndex: 'nominal', key: 'nominal', render: (v: number) => v ?? '—' },
+      { title: 'Standard', dataIndex: 'standardValue', key: 'standard', render: (v: number) => v ?? '—' },
+      { title: 'Observed (mean)', dataIndex: 'observedValue', key: 'observed', render: (v: number) => v?.toFixed(4) ?? '—' },
+      { title: 'Correction', dataIndex: 'correction', key: 'correction', render: (v: number) => v?.toFixed(4) ?? '—' },
+      { title: 'Error', dataIndex: 'error', key: 'error', render: (v: number) => v?.toFixed(4) ?? '—' },
+      {
+        title: 'uA', key: 'uA',
+        render: (_: any, row: any) => row.data?.uA != null ? Number(row.data.uA).toExponential(2) : '—',
+      },
+    ];
+
     return (
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>{datasheet.templateName} (v{datasheet.version})</Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          Conditions: {datasheet.environmental?.temperature ?? '—'} °C, {datasheet.environmental?.humidity ?? '—'} %RH, {datasheet.environmental?.pressure ?? '—'} kPa
-        </Typography>
-        <Table size="small">
-          <TableHead><TableRow>
-            <TableCell>Point</TableCell><TableCell>Unit</TableCell><TableCell>Nominal</TableCell><TableCell>Standard</TableCell>
-            <TableCell>Observed (mean)</TableCell><TableCell>Correction</TableCell><TableCell>Error</TableCell><TableCell>uA</TableCell>
-          </TableRow></TableHead>
-          <TableBody>
-            {datasheet.observations.map((o: any) => (
-              <TableRow key={o.id}>
-                <TableCell>{o.pointLabel || '—'}</TableCell>
-                <TableCell>{o.unit || '—'}</TableCell>
-                <TableCell>{o.nominal ?? '—'}</TableCell>
-                <TableCell>{o.standardValue ?? '—'}</TableCell>
-                <TableCell>{o.observedValue?.toFixed?.(4) ?? '—'}</TableCell>
-                <TableCell>{o.correction?.toFixed?.(4) ?? '—'}</TableCell>
-                <TableCell>{o.error?.toFixed?.(4) ?? '—'}</TableCell>
-                <TableCell>{o.data?.uA != null ? Number(o.data.uA).toExponential(2) : '—'}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <Button variant="contained" sx={{ mt: 2 }} disabled={computeMut.isPending} onClick={() => computeMut.mutate()}>
-          Calculate (mean · correction · error · repeatability)
-        </Button>
-        <Alert severity="info" sx={{ mt: 2 }}>Saved. Use “Calculate”, then go to the Uncertainty tab.</Alert>
-      </Paper>
+      <div>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col>
+            <Text strong>{datasheet.templateName}</Text>
+            <Text type="secondary" style={{ marginLeft: 8 }}>v{datasheet.version}</Text>
+          </Col>
+          <Col>
+            <Space size={4} style={{ marginLeft: 16 }}>
+              <Tag icon={<ThunderboltOutlined />} color="blue">{datasheet.environmental?.temperature ?? '—'} °C</Tag>
+              <Tag color="cyan">{datasheet.environmental?.humidity ?? '—'} %RH</Tag>
+              <Tag color="purple">{datasheet.environmental?.pressure ?? '—'} kPa</Tag>
+            </Space>
+          </Col>
+        </Row>
+        <Table
+          columns={obsColumns}
+          dataSource={datasheet.observations}
+          rowKey="id"
+          size="small"
+          pagination={false}
+          style={{ marginBottom: 16 }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            icon={<CalculatorOutlined />}
+            loading={computeMut.isPending}
+            onClick={() => computeMut.mutate()}
+          >
+            Calculate (mean · correction · error · repeatability)
+          </Button>
+        </Space>
+        <Alert
+          type="info"
+          message="Datasheet saved. Click Calculate to compute results, then proceed to Uncertainty tab."
+          showIcon
+          style={{ marginTop: 16 }}
+        />
+      </div>
     );
   }
 
+  const procedureOptions = Object.entries(groupedProcedures()).flatMap(([discipline, subs]) =>
+    Object.entries(subs as any).flatMap(([sub, procs]: [string, any]) =>
+      (procs as Procedure[]).map((p) => ({
+        value: p.id,
+        label: `${p.label} (${p.unit})`,
+        group: `${discipline} › ${sub}`,
+      }))
+    )
+  );
+
+  const groupedOptions = Object.entries(groupedProcedures()).map(([discipline, subs]) => ({
+    label: discipline,
+    options: Object.entries(subs as any).flatMap(([sub, procs]: [string, any]) =>
+      (procs as Procedure[]).map((p) => ({
+        value: p.id,
+        label: `${sub} › ${p.label} (${p.unit})`,
+      }))
+    ),
+  }));
+
+  const inputCols = [
+    {
+      title: 'Point Label', key: 'label', width: 110,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={rows[i].pointLabel} onChange={(e) => setRow(i, { pointLabel: e.target.value })} />
+      ),
+    },
+    {
+      title: 'Unit', key: 'unit', width: 70,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={rows[i].unit} onChange={(e) => setRow(i, { unit: e.target.value })} />
+      ),
+    },
+    {
+      title: 'Nominal', key: 'nominal', width: 90,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={rows[i].nominal} onChange={(e) => setRow(i, { nominal: e.target.value })} />
+      ),
+    },
+    {
+      title: 'Standard', key: 'std', width: 90,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={rows[i].standardValue} onChange={(e) => setRow(i, { standardValue: e.target.value })} />
+      ),
+    },
+    ...Array.from({ length: NREAD }).map((_, j) => ({
+      title: `R${j + 1}`, key: `r${j}`, width: 80,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={rows[i].readings[j]} onChange={(e) => setReading(i, j, e.target.value)} />
+      ),
+    })),
+  ];
+
   return (
-    <Paper sx={{ p: 2 }}>
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center">
-        <TextField select label="Discipline / Instrument procedure" size="small" value={procId} onChange={(e) => applyProcedure(e.target.value)} sx={{ minWidth: 340 }}>
-          {Object.entries(groupedProcedures()).flatMap(([discipline, subs]) => [
-            <ListSubheader key={discipline} sx={{ fontWeight: 700, color: 'primary.main' }}>{discipline}</ListSubheader>,
-            ...Object.entries(subs).flatMap(([sub, procs]) => [
-              <ListSubheader key={`${discipline}-${sub}`} sx={{ pl: 3, fontStyle: 'italic' }}>{sub}</ListSubheader>,
-              ...procs.map((p: Procedure) => (
-                <MenuItem key={p.id} value={p.id} sx={{ pl: 4 }}>{p.label} ({p.unit})</MenuItem>
-              )),
-            ]),
-          ])}
-        </TextField>
-        <TextField label="Unit of measurement" size="small" value={unit} onChange={(e) => setUnit(e.target.value)} sx={{ width: 160 }} />
-      </Stack>
-      <Typography variant="subtitle1" gutterBottom>Environmental conditions</Typography>
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-        <TextField label="Temp °C" size="small" value={env.temperature} onChange={(e) => setEnv({ ...env, temperature: e.target.value })} />
-        <TextField label="Humidity %RH" size="small" value={env.humidity} onChange={(e) => setEnv({ ...env, humidity: e.target.value })} />
-        <TextField label="Pressure kPa" size="small" value={env.pressure} onChange={(e) => setEnv({ ...env, pressure: e.target.value })} />
-      </Stack>
-      <Typography variant="subtitle1" gutterBottom>Measurement points & readings {unit && `(${unit})`}</Typography>
-      <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small">
-          <TableHead><TableRow>
-            <TableCell>Point</TableCell><TableCell>Unit</TableCell><TableCell>Nominal</TableCell><TableCell>Standard</TableCell>
-            {Array.from({ length: NREAD }).map((_, j) => <TableCell key={j}>R{j + 1}</TableCell>)}
-          </TableRow></TableHead>
-          <TableBody>
-            {rows.map((r, i) => (
-              <TableRow key={i}>
-                <TableCell><TextField size="small" sx={{ width: 90 }} value={r.pointLabel} onChange={(e) => setRow(i, { pointLabel: e.target.value })} /></TableCell>
-                <TableCell><TextField size="small" sx={{ width: 60 }} value={r.unit} onChange={(e) => setRow(i, { unit: e.target.value })} /></TableCell>
-                <TableCell><TextField size="small" sx={{ width: 80 }} value={r.nominal} onChange={(e) => setRow(i, { nominal: e.target.value })} /></TableCell>
-                <TableCell><TextField size="small" sx={{ width: 80 }} value={r.standardValue} onChange={(e) => setRow(i, { standardValue: e.target.value })} /></TableCell>
-                {r.readings.map((rv, j) => (
-                  <TableCell key={j}><TextField size="small" sx={{ width: 70 }} value={rv} onChange={(e) => setReading(i, j, e.target.value)} /></TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Box>
-      <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-        <Button onClick={() => setRows([...rows, emptyRow(unit)])}>+ Add Point</Button>
-        <Button variant="contained" disabled={createMut.isPending || !rows.some((r) => r.standardValue !== '')} onClick={() => createMut.mutate()}>Save Datasheet</Button>
-      </Stack>
-    </Paper>
+    <div>
+      <Row gutter={16} style={{ marginBottom: 20 }}>
+        <Col flex="400px">
+          <Form.Item label="Instrument Procedure" style={{ marginBottom: 0 }}>
+            <Select
+              placeholder="Select discipline / instrument..."
+              value={procId || undefined}
+              onChange={applyProcedure}
+              options={groupedOptions}
+              showSearch
+              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+        </Col>
+        <Col flex="160px">
+          <Form.Item label="Unit of Measurement" style={{ marginBottom: 0 }}>
+            <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="mm, bar, °C..." />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Card
+        size="small"
+        title="Environmental Conditions"
+        style={{ marginBottom: 20, borderRadius: 8 }}
+      >
+        <Row gutter={16}>
+          {[
+            { label: 'Temperature (°C)', key: 'temperature' },
+            { label: 'Humidity (%RH)', key: 'humidity' },
+            { label: 'Pressure (kPa)', key: 'pressure' },
+          ].map(({ label, key }) => (
+            <Col key={key} span={8}>
+              <Form.Item label={label} style={{ marginBottom: 0 }}>
+                <Input
+                  value={env[key as keyof typeof env]}
+                  onChange={(e) => setEnv({ ...env, [key]: e.target.value })}
+                  placeholder="—"
+                />
+              </Form.Item>
+            </Col>
+          ))}
+        </Row>
+      </Card>
+
+      <Text strong style={{ display: 'block', marginBottom: 12 }}>
+        Measurement Points & Readings {unit && <Tag color="cyan">{unit}</Tag>}
+      </Text>
+      <div style={{ overflowX: 'auto' }}>
+        <Table
+          columns={inputCols}
+          dataSource={rows}
+          rowKey={(_, i) => String(i)}
+          size="small"
+          pagination={false}
+          style={{ marginBottom: 12 }}
+        />
+      </div>
+      <Space>
+        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit)])}>
+          Add Point
+        </Button>
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
+          loading={createMut.isPending}
+          disabled={!rows.some((r) => r.standardValue !== '')}
+          onClick={() => createMut.mutate()}
+        >
+          Save Datasheet
+        </Button>
+      </Space>
+    </div>
   );
 }
 
@@ -205,61 +392,169 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
     onSuccess: (res: any) => { setResult(res.result); onChanged(); },
   });
 
-  if (!datasheet) return <Alert severity="warning">Create and calculate a datasheet first (tab 1).</Alert>;
+  if (!datasheet) return (
+    <Alert
+      type="warning"
+      message="No datasheet found"
+      description="Create and calculate a datasheet first (Datasheet tab)."
+      showIcon
+    />
+  );
 
   const add = (c: any) => setContributors((cs) => [...cs, c]);
   const setC = (i: number, patch: any) => setContributors(contributors.map((c, idx) => idx === i ? { ...c, ...patch } : c));
+  const removeC = (i: number) => setContributors(contributors.filter((_, idx) => idx !== i));
+
   const loadDefaults = () => {
     const list: any[] = [{ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit }];
     if (procedure) procedure.typeB.forEach((b) => list.push({ ...b, type: 'B', value: String(b.value) }));
     setContributors(list);
   };
 
+  const contribColumns = [
+    {
+      title: 'Source', key: 'source', width: 160,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={contributors[i].source} onChange={(e) => setC(i, { source: e.target.value })} />
+      ),
+    },
+    {
+      title: 'Type', dataIndex: 'type', key: 'type', width: 70,
+      render: (v: string) => <Tag color={v === 'A' ? 'blue' : 'orange'}>{v}</Tag>,
+    },
+    {
+      title: 'Value', key: 'value', width: 110,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={contributors[i].value} onChange={(e) => setC(i, { value: e.target.value })} />
+      ),
+    },
+    {
+      title: 'Unit', key: 'unit', width: 70,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={contributors[i].unit || ''} onChange={(e) => setC(i, { unit: e.target.value })} />
+      ),
+    },
+    {
+      title: 'Distribution', key: 'dist', width: 130,
+      render: (_: any, _row: any, i: number) => (
+        <Select
+          size="small"
+          style={{ width: '100%' }}
+          value={contributors[i].distribution || undefined}
+          onChange={(v) => setC(i, { distribution: v })}
+          options={DISTRIBUTIONS.map((d) => ({ value: d, label: d }))}
+          placeholder="—"
+          allowClear
+        />
+      ),
+    },
+    {
+      title: 'Divisor', key: 'divisor', width: 80,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={contributors[i].divisor ?? ''} onChange={(e) => setC(i, { divisor: e.target.value })} />
+      ),
+    },
+    {
+      title: 'ci', key: 'sensitivity', width: 70,
+      render: (_: any, _row: any, i: number) => (
+        <Input size="small" value={contributors[i].sensitivity ?? 1} onChange={(e) => setC(i, { sensitivity: e.target.value })} />
+      ),
+    },
+    {
+      title: '', key: 'del', width: 50,
+      render: (_: any, _row: any, i: number) => (
+        <Button size="small" danger type="text" onClick={() => removeC(i)}>✕</Button>
+      ),
+    },
+  ];
+
   return (
-    <Paper sx={{ p: 2 }}>
-      <Typography variant="subtitle1" gutterBottom>Uncertainty budget (GUM) {unit && `— ${unit}`}</Typography>
-      <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
-        <Button variant="outlined" onClick={loadDefaults}>Load {procedure ? procedure.label : 'default'} contributors</Button>
-        <Button onClick={() => add({ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit })}>+ Type A</Button>
-        <Button onClick={() => add({ source: '', type: 'B', value: '', distribution: 'normal', divisor: 2, sensitivity: 1, unit })}>+ Type B</Button>
-      </Stack>
-      <Table size="small">
-        <TableHead><TableRow>
-          <TableCell>Source</TableCell><TableCell>Type</TableCell><TableCell>Value</TableCell><TableCell>Unit</TableCell>
-          <TableCell>Distribution</TableCell><TableCell>Divisor</TableCell><TableCell>Sensitivity</TableCell>
-        </TableRow></TableHead>
-        <TableBody>
-          {contributors.map((c, i) => (
-            <TableRow key={i}>
-              <TableCell><TextField size="small" value={c.source} onChange={(e) => setC(i, { source: e.target.value })} /></TableCell>
-              <TableCell>{c.type}</TableCell>
-              <TableCell><TextField size="small" sx={{ width: 100 }} value={c.value} onChange={(e) => setC(i, { value: e.target.value })} /></TableCell>
-              <TableCell><TextField size="small" sx={{ width: 60 }} value={c.unit || ''} onChange={(e) => setC(i, { unit: e.target.value })} /></TableCell>
-              <TableCell>
-                <TextField select size="small" sx={{ width: 120 }} value={c.distribution || ''} onChange={(e) => setC(i, { distribution: e.target.value })}>
-                  <MenuItem value="">—</MenuItem>
-                  {DISTRIBUTIONS.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
-                </TextField>
-              </TableCell>
-              <TableCell><TextField size="small" sx={{ width: 70 }} value={c.divisor ?? ''} onChange={(e) => setC(i, { divisor: e.target.value })} /></TableCell>
-              <TableCell><TextField size="small" sx={{ width: 70 }} value={c.sensitivity ?? 1} onChange={(e) => setC(i, { sensitivity: e.target.value })} /></TableCell>
-            </TableRow>
-          ))}
-          {contributors.length === 0 && <TableRow><TableCell colSpan={7}>Load defaults or add contributors above.</TableCell></TableRow>}
-        </TableBody>
-      </Table>
-      <Button variant="contained" sx={{ mt: 2 }} disabled={!contributors.length || computeMut.isPending} onClick={() => computeMut.mutate()}>
+    <div>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col>
+          <Text strong>Uncertainty Budget (GUM) </Text>
+          {unit && <Tag color="cyan">{unit}</Tag>}
+        </Col>
+      </Row>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Button
+          type="primary"
+          ghost
+          onClick={loadDefaults}
+        >
+          Load {procedure ? procedure.label : 'default'} contributors
+        </Button>
+        <Button
+          icon={<PlusOutlined />}
+          onClick={() => add({ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit })}
+        >
+          + Type A
+        </Button>
+        <Button
+          icon={<PlusOutlined />}
+          onClick={() => add({ source: '', type: 'B', value: '', distribution: 'normal', divisor: 2, sensitivity: 1, unit })}
+        >
+          + Type B
+        </Button>
+      </Space>
+
+      {contributors.length === 0 ? (
+        <Alert
+          type="info"
+          message="No contributors yet"
+          description='Click "Load contributors" to auto-populate from the instrument procedure, or add them manually.'
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      ) : (
+        <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+          <Table
+            columns={contribColumns}
+            dataSource={contributors}
+            rowKey={(_, i) => String(i)}
+            size="small"
+            pagination={false}
+          />
+        </div>
+      )}
+
+      <Button
+        type="primary"
+        icon={<CalculatorOutlined />}
+        loading={computeMut.isPending}
+        disabled={!contributors.length}
+        onClick={() => computeMut.mutate()}
+      >
         Compute Combined & Expanded Uncertainty
       </Button>
+
       {result && (
-        <Box sx={{ mt: 2 }}>
-          <Divider sx={{ mb: 1 }} />
-          <Typography variant="body2">Combined standard uncertainty u_c = <b>{Number(result.combinedUncertainty).toExponential(3)} {unit}</b></Typography>
-          <Typography variant="body2">Coverage factor k = <b>{Number(result.coverageFactor).toFixed(2)}</b></Typography>
-          <Typography variant="body1">Expanded uncertainty U = <b>±{Number(result.expandedUncertainty).toExponential(3)} {unit}</b> (≈95%)</Typography>
-        </Box>
+        <Card
+          style={{ marginTop: 20, borderRadius: 8, background: '#f6ffed', border: '1px solid #b7eb8f' }}
+          size="small"
+        >
+          <Title level={5} style={{ color: '#389e0d', marginBottom: 12 }}>GUM Uncertainty Results</Title>
+          <Row gutter={32}>
+            <Col>
+              <Text type="secondary" style={{ fontSize: 12 }}>Combined Standard Uncertainty</Text>
+              <div><Text strong>u_c = {Number(result.combinedUncertainty).toExponential(3)} {unit}</Text></div>
+            </Col>
+            <Col>
+              <Text type="secondary" style={{ fontSize: 12 }}>Coverage Factor</Text>
+              <div><Text strong>k = {Number(result.coverageFactor).toFixed(2)}</Text></div>
+            </Col>
+            <Col>
+              <Text type="secondary" style={{ fontSize: 12 }}>Expanded Uncertainty (≈95%)</Text>
+              <div>
+                <Tag color="green" style={{ fontSize: 14, padding: '4px 12px' }}>
+                  U = ±{Number(result.expandedUncertainty).toExponential(3)} {unit}
+                </Tag>
+              </div>
+            </Col>
+          </Row>
+        </Card>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -270,36 +565,118 @@ function CertificateTab({ job, onChanged }: any) {
 
   if (!cert) {
     return (
-      <Paper sx={{ p: 2 }}>
-        {job.status === 'APPROVED'
-          ? <Button variant="contained" disabled={genMut.isPending} onClick={() => genMut.mutate()}>Generate Certificate</Button>
-          : <Alert severity="info">Advance the job to <b>APPROVED</b> (Jobs page → status buttons) to generate the certificate. Current: {job.status}</Alert>}
-      </Paper>
+      <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        {job.status === 'APPROVED' ? (
+          <Space direction="vertical" size={16}>
+            <SafetyCertificateOutlined style={{ fontSize: 48, color: '#1677ff' }} />
+            <Text>Ready to generate the calibration certificate</Text>
+            <Button
+              type="primary"
+              size="large"
+              icon={<SafetyCertificateOutlined />}
+              loading={genMut.isPending}
+              onClick={() => genMut.mutate()}
+            >
+              Generate Certificate
+            </Button>
+          </Space>
+        ) : (
+          <Alert
+            type="info"
+            message="Certificate not yet available"
+            description={
+              <>
+                Advance the job to <Tag color="green">APPROVED</Tag> status (Jobs page → actions menu) to generate the certificate.
+                Current status: <Tag color="orange">{job.status?.replace(/_/g, ' ')}</Tag>
+              </>
+            }
+            showIcon
+          />
+        )}
+      </div>
     );
   }
 
-  const signed = (cert.signatures || []).map((s: any) => s.stage);
+  const signed: string[] = (cert.signatures || []).map((s: any) => s.stage);
   const next = SIG_STAGES[signed.length];
+
+  const stepItems = SIG_STAGES.map((st) => {
+    const sig = (cert.signatures || []).find((s: any) => s.stage === st);
+    return {
+      title: STAGE_LABELS[st],
+      description: sig ? <Text type="success" style={{ fontSize: 11 }}>by {sig.signedByName}</Text> : undefined,
+      icon: sig
+        ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
+        : (SIG_STAGES.indexOf(st) === signed.length ? <ClockCircleOutlined style={{ color: '#1677ff' }} /> : undefined),
+      status: sig ? 'finish' as const : (SIG_STAGES.indexOf(st) === signed.length ? 'process' as const : 'wait' as const),
+    };
+  });
+
   return (
-    <Paper sx={{ p: 2 }}>
-      <Typography variant="subtitle1">{cert.certificateNumber} — {cert.type}</Typography>
-      <Typography variant="body2" gutterBottom>Locked (immutable): <b>{cert.isLocked ? 'Yes' : 'No'}</b></Typography>
-      <Stack spacing={1} sx={{ my: 1 }}>
-        {SIG_STAGES.map((st) => {
-          const sig = (cert.signatures || []).find((s: any) => s.stage === st);
-          return (
-            <Box key={st} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Chip size="small" color={sig ? 'success' : 'default'} label={st} />
-              <Typography variant="caption">{sig ? `signed by ${sig.signedByName}` : 'pending'}</Typography>
-            </Box>
-          );
-        })}
-      </Stack>
-      <Stack direction="row" spacing={1}>
-        {!cert.isLocked && next && <Button variant="contained" disabled={signMut.isPending} onClick={() => signMut.mutate(next)}>Sign as {next}</Button>}
-        <Button variant="outlined" onClick={() => openCertificateReport(cert.id)}>Open printable certificate</Button>
-      </Stack>
-      {cert.isLocked && <Chip color="success" label="Finalised & immutable" sx={{ mt: 2 }} />}
-    </Paper>
+    <div>
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={8}>
+          <Card size="small" style={{ borderRadius: 8, background: '#f0f5ff' }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>Certificate No.</Text>
+            <div><Text strong style={{ color: '#1677ff' }}>{cert.certificateNumber}</Text></div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card size="small" style={{ borderRadius: 8, background: '#f0f5ff' }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>Type</Text>
+            <div><Tag color="blue">{cert.type}</Tag></div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card size="small" style={{ borderRadius: 8, background: cert.isLocked ? '#f6ffed' : '#fffbe6' }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>Status</Text>
+            <div>
+              {cert.isLocked
+                ? <Tag color="green" icon={<LockOutlined />}>Finalised & Locked</Tag>
+                : <Tag color="orange">Pending Signatures</Tag>}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Text strong style={{ display: 'block', marginBottom: 16 }}>Signature Workflow</Text>
+      <Steps
+        items={stepItems}
+        current={signed.length}
+        style={{ marginBottom: 24 }}
+        size="small"
+      />
+
+      <Divider />
+      <Space>
+        {!cert.isLocked && next && (
+          <Button
+            type="primary"
+            icon={<CheckCircleOutlined />}
+            loading={signMut.isPending}
+            onClick={() => signMut.mutate(next)}
+          >
+            Sign as {STAGE_LABELS[next] || next}
+          </Button>
+        )}
+        <Button
+          icon={<PrinterOutlined />}
+          onClick={() => openCertificateReport(cert.id)}
+        >
+          Open Printable Certificate
+        </Button>
+      </Space>
+
+      {cert.isLocked && (
+        <Alert
+          type="success"
+          message="Certificate is finalised and immutable"
+          description="This certificate has completed all signature stages and is now permanently locked."
+          showIcon
+          icon={<LockOutlined />}
+          style={{ marginTop: 16 }}
+        />
+      )}
+    </div>
   );
 }

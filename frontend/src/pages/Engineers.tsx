@@ -1,62 +1,130 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
-} from '@mui/material';
+  Button, Card, Col, Form, Input, Modal, Row, Space, Table, Tag, Typography,
+} from 'antd';
+import { PlusOutlined, UserOutlined } from '@ant-design/icons';
 import { createEngineer, getEngineers } from '../api';
+
+const { Title, Text } = Typography;
 
 export default function Engineers() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<any>({ employeeCode: '', fullName: '', email: '', skills: '' });
+  const [form] = Form.useForm();
 
-  const { data = [] } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
+  const { data = [], isLoading } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
+
   const mut = useMutation({
-    mutationFn: () => createEngineer({ ...form, skills: form.skills ? form.skills.split(',').map((s: string) => s.trim()) : [] }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['engineers'] }); setOpen(false); setForm({ employeeCode: '', fullName: '', email: '', skills: '' }); },
+    mutationFn: () => {
+      const values = form.getFieldsValue();
+      return createEngineer({
+        ...values,
+        skills: values.skills ? values.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['engineers'] });
+      setOpen(false);
+      form.resetFields();
+    },
   });
 
-  return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5">Engineers</Typography>
-        <Button variant="contained" onClick={() => setOpen(true)}>+ New Engineer</Button>
-      </Box>
-      <Paper>
-        <Table size="small">
-          <TableHead><TableRow>
-            <TableCell>Employee Code</TableCell><TableCell>Name</TableCell><TableCell>Email</TableCell><TableCell>Skills</TableCell>
-          </TableRow></TableHead>
-          <TableBody>
-            {data.map((e: any) => (
-              <TableRow key={e.id} hover>
-                <TableCell>{e.employeeCode}</TableCell>
-                <TableCell>{e.user?.fullName}</TableCell>
-                <TableCell>{e.user?.email}</TableCell>
-                <TableCell>{(e.skills || []).join(', ') || '—'}</TableCell>
-              </TableRow>
-            ))}
-            {data.length === 0 && <TableRow><TableCell colSpan={4}>No engineers yet.</TableCell></TableRow>}
-          </TableBody>
-        </Table>
-      </Paper>
+  const columns = [
+    {
+      title: 'Employee Code',
+      dataIndex: 'employeeCode',
+      key: 'employeeCode',
+      width: 140,
+      render: (v: string) => <Tag color="blue">{v}</Tag>,
+    },
+    {
+      title: 'Name',
+      dataIndex: ['user', 'fullName'],
+      key: 'name',
+      render: (v: string) => <Text strong>{v || '—'}</Text>,
+    },
+    {
+      title: 'Email',
+      dataIndex: ['user', 'email'],
+      key: 'email',
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Skills',
+      dataIndex: 'skills',
+      key: 'skills',
+      render: (skills: string[]) => (
+        <Space size={4} wrap>
+          {(skills || []).map((s) => <Tag key={s} color="geekblue">{s}</Tag>)}
+          {(!skills || skills.length === 0) && <Text type="secondary">—</Text>}
+        </Space>
+      ),
+    },
+  ];
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>New Engineer</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="Employee Code *" size="small" value={form.employeeCode} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })} />
-            <TextField label="Full Name *" size="small" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
-            <TextField label="Email" size="small" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <TextField label="Skills (comma separated)" size="small" value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" disabled={!form.employeeCode || !form.fullName || mut.isPending} onClick={() => mut.mutate()}>Create</Button>
-        </DialogActions>
-      </Dialog>
-    </>
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={3} style={{ margin: 0 }}>
+              <Space>
+                <UserOutlined style={{ color: '#1677ff' }} />
+                Engineers
+              </Space>
+            </Title>
+            <Text type="secondary">Manage calibration engineers and their skill profiles</Text>
+          </Col>
+          <Col>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
+              New Engineer
+            </Button>
+          </Col>
+        </Row>
+      </div>
+
+      <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <Table
+          columns={columns}
+          dataSource={data}
+          rowKey="id"
+          loading={isLoading}
+          pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} engineers` }}
+          size="middle"
+        />
+      </Card>
+
+      <Modal
+        title={<Space><UserOutlined /><span>New Engineer</span></Space>}
+        open={open}
+        onCancel={() => { setOpen(false); form.resetFields(); }}
+        onOk={() => form.validateFields().then(() => mut.mutate())}
+        okText="Create Engineer"
+        confirmLoading={mut.isPending}
+        width={480}
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="employeeCode" label="Employee Code" rules={[{ required: true }]}>
+                <Input placeholder="ENG-001" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="fullName" label="Full Name" rules={[{ required: true }]}>
+                <Input placeholder="John Doe" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="email" label="Email">
+            <Input placeholder="engineer@lab.com" type="email" />
+          </Form.Item>
+          <Form.Item name="skills" label="Skills (comma separated)">
+            <Input placeholder="Mechanical, Thermal, Pressure..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 }
