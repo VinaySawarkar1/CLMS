@@ -43,15 +43,3 @@ CREATE UNIQUE INDEX "Quotation_labId_quoteNumber_key" ON "Quotation"("labId", "q
 
 ALTER TABLE "Quotation" ADD CONSTRAINT "Quotation_labId_fkey" FOREIGN KEY ("labId") REFERENCES "Lab"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "Quotation" ADD CONSTRAINT "Quotation_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- Certificate fields on Job
-ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "challanNo" TEXT;
-ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "poNumber" TEXT;
-ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "conditionOfItem" TEXT DEFAULT 'OK (As Received)';
-ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "calibrationProcedureNo" TEXT;
-ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "referenceDocumentNo" TEXT;
-ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "calibrationProcedure" TEXT;
-
--- Lab ID No. and quantity on Instrument
-ALTER TABLE "Instrument" ADD COLUMN IF NOT EXISTS "labIdNo" TEXT;
-ALTER TABLE "Instrument" ADD COLUMN IF NOT EXISTS "quantity" INTEGER;
