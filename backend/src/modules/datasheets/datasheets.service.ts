@@ -116,6 +116,57 @@ export class DatasheetsService {
     return this.findOne(id);
   }
 
+  /** Auto-build GUM uncertainty budget from job references & instrument resolution. */
+  async autoUncertainty(id: string) {
+    const ds = await this.prisma.datasheet.findUnique({
+      where: { id },
+      include: {
+        observations: true,
+        job: {
+          include: {
+            instrument: true,
+            references: { include: { master: true } },
+          },
+        },
+      },
+    });
+    if (!ds) throw new NotFoundException('Datasheet not found');
+
+    // Type A: max uA across all observations
+    const maxUA = ds.observations.reduce((m, o) => {
+      const uA = Number((o.data as any)?.uA ?? 0);
+      return uA > m ? uA : m;
+    }, 0);
+
+    // Type B 1: reference standard uncertainty (parse numeric from e.g. "±0.10 µm")
+    let refUncertainty = 0;
+    const ref = ds.job.references[0]?.master;
+    if (ref?.uncertainty) {
+      const match = ref.uncertainty.match(/[\d.]+/);
+      if (match) refUncertainty = parseFloat(match[0]);
+    }
+
+    // Type B 2: resolution uncertainty = (leastCount/2) / sqrt(3)
+    let resolutionUncertainty = 0;
+    const lcStr = ds.job.instrument?.leastCount;
+    if (lcStr) {
+      const match = lcStr.match(/[\d.]+/);
+      if (match) {
+        const lc = parseFloat(match[0]);
+        resolutionUncertainty = (lc / 2) / Math.sqrt(3);
+      }
+    }
+
+    const unit = ds.observations[0]?.unit ?? '';
+    const contributors: UncertaintyContributor[] = [
+      { source: 'Repeatability (Type A)', type: 'A', value: maxUA, divisor: 1, sensitivity: 1, unit },
+      { source: 'Reference standard uncertainty', type: 'B', value: refUncertainty, distribution: 'normal', divisor: 2, sensitivity: 1, unit },
+      { source: 'Resolution of UUC', type: 'B', value: resolutionUncertainty, distribution: 'rectangular', divisor: 1, sensitivity: 1, unit },
+    ];
+
+    return this.computeBudget(id, contributors);
+  }
+
   /** Compute and persist the uncertainty budget for a datasheet. */
   async computeBudget(id: string, contributors: UncertaintyContributor[]) {
     await this.findOne(id);

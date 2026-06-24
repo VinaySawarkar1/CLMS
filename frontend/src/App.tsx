@@ -25,6 +25,7 @@ import ReferenceStandards from './pages/ReferenceStandards';
 import Quotations from './pages/Quotations';
 import Reports from './pages/Reports';
 import VerifyCertificate from './pages/VerifyCertificate';
+import CustomerPortal from './pages/CustomerPortal';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
@@ -39,6 +40,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/verify/:id" element={<VerifyCertificate />} />
+          <Route path="/portal" element={<CustomerPortal />} />
           <Route path="/register-lab" element={<RegisterLab />} />
           <Route path="/login" element={<LoginRoute onSuccess={() => setAuthed(true)} />} />
           <Route path="*" element={<LoginRoute onSuccess={() => setAuthed(true)} />} />
@@ -64,6 +66,7 @@ export default function App() {
           ) : (
             <>
               <Route path="/verify/:id" element={<VerifyCertificate />} />
+              <Route path="/portal" element={<CustomerPortal />} />
               <Route path="/" element={<Dashboard />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/instruments" element={<Instruments />} />

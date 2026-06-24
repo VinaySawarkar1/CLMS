@@ -119,6 +119,11 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
               ISO/IEC 17025 · NABL Accredited System
             </Text>
           </div>
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <Link to="/portal" style={{ color: '#52c41a', fontSize: 13 }}>
+              Customer Portal →
+            </Link>
+          </div>
         </Card>
 
         <div style={{ textAlign: 'center', marginTop: 20 }}>

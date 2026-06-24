@@ -43,4 +43,10 @@ export class DatasheetsController {
   ) {
     return this.datasheets.computeBudget(id, contributors);
   }
+
+  @Post(':id/auto-uncertainty')
+  @Roles(Role.SUPER_ADMIN, Role.CALIBRATION_ENGINEER, Role.TECHNICAL_MANAGER)
+  autoUncertainty(@Param('id') id: string) {
+    return this.datasheets.autoUncertainty(id);
+  }
 }

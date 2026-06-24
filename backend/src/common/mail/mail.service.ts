@@ -45,4 +45,15 @@ export class MailService {
 
     this.logger.log(`[mail] Certificate ${certNumber} sent to ${to}`);
   }
+
+  async sendRecallReminder(to: string, subject: string, htmlContent: string): Promise<void> {
+    if (!this.transporter) {
+      this.logger.warn(`[mail] SMTP not configured, skipping recall reminder to ${to}`);
+      return;
+    }
+
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    await this.transporter.sendMail({ from, to, subject, html: htmlContent });
+    this.logger.log(`[mail] Recall reminder sent to ${to}: ${subject}`);
+  }
 }

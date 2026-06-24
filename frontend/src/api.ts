@@ -131,6 +131,7 @@ export const getDatasheet = (id: string) => get(`/datasheets/${id}`);
 export const recalcDatasheet = (id: string, formulas: any) => post(`/datasheets/${id}/recalculate`, { formulas });
 export const computeDatasheet = (id: string) => post(`/datasheets/${id}/compute`);
 export const computeUncertainty = (id: string, contributors: any) => post(`/datasheets/${id}/uncertainty`, { contributors });
+export const autoUncertainty = (id: string) => post(`/datasheets/${id}/auto-uncertainty`);
 
 // Open the printable certificate report (auth-protected) in a new tab.
 export async function openCertificateReport(certificateId: string) {
@@ -184,7 +185,23 @@ export const deleteMaster = (id: string) => del(`/masters/${id}`);
 // Instrument calibration recall (due / overdue)
 export const getRecallDue = (days?: number) => get('/instruments/due/recall', { days });
 
+// Notifications — recall trigger
+export const triggerRecallCheck = () => post('/notifications/trigger-recall');
+
 // Quotations
 export const getQuotations = () => get('/quotations');
 export const createQuotation = (b: any) => post('/quotations', b);
 export const setQuotationStatus = (id: string, status: string) => patch(`/quotations/${id}/status`, { status });
+
+// Documents
+export const getDocuments = () => get('/documents');
+export const createDocument = (b: any) => post('/documents', b);
+export const updateDocument = (id: string, b: any) => patch(`/documents/${id}`, b);
+export const deleteDocument = (id: string) => del(`/documents/${id}`);
+
+// Audit Plans (Internal Audit)
+export const getAuditPlans = () => get('/audit-plans');
+export const createAuditPlan = (b: any) => post('/audit-plans', b);
+export const updateAuditPlan = (id: string, b: any) => patch(`/audit-plans/${id}`, b);
+export const addAuditFinding = (id: string, b: any) => post(`/audit-plans/${id}/findings`, b);
+export const updateAuditFinding = (id: string, fid: string, b: any) => patch(`/audit-plans/${id}/findings/${fid}`, b);

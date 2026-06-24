@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './common/prisma/prisma.module';
@@ -24,12 +25,15 @@ import { PortalModule } from './modules/portal/portal.module';
 import { LabsModule } from './modules/labs/labs.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
 import { HealthController } from './health.controller';
 
 @Module({
   controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     // Serve the built frontend (copied to /app/public in the Docker image).
     // API routes live under /api and are excluded from static handling.
     ServeStaticModule.forRoot({
@@ -58,6 +62,8 @@ import { HealthController } from './health.controller';
     LabsModule,
     MastersModule,
     QuotationsModule,
+    DocumentsModule,
+    AuditPlansModule,
   ],
 })
 export class AppModule {}

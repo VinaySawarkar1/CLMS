@@ -5,13 +5,18 @@ import {
   Module,
   Param,
   Patch,
+  Post,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/rbac/roles.guard';
+import { Roles } from '../../common/rbac/roles.decorator';
+import { MailModule } from '../../common/mail/mail.module';
+import { RecallScheduler } from './recall.scheduler';
 
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH';
 export type NotificationEvent =
@@ -72,10 +77,13 @@ export class NotificationsService {
   }
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('notifications')
 class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly recall: RecallScheduler,
+  ) {}
 
   @Get()
   list(@Request() req: any, @Query('userId') userId?: string) {
@@ -86,11 +94,19 @@ class NotificationsController {
   markRead(@Param('id') id: string) {
     return this.notifications.markRead(id);
   }
+
+  @Post('trigger-recall')
+  @Roles(Role.LAB_ADMIN)
+  async triggerRecall() {
+    const result = await this.recall.runRecallCheck();
+    return { ...result, triggeredAt: new Date().toISOString() };
+  }
 }
 
 @Module({
+  imports: [MailModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService],
+  providers: [NotificationsService, RecallScheduler],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}

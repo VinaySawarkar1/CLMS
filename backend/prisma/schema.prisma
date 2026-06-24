@@ -96,6 +96,8 @@ model Lab {
   auditLogs           AuditLog[]
   notifications       Notification[]
   rolePermissions     LabRolePermission[]
+  labDocuments        LabDocument[]
+  internalAudits      InternalAudit[]
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 }
@@ -541,4 +543,57 @@ model Setting {
   id    String @id @default(uuid())
   key   String @unique
   value Json
+}
+
+// ─────────────────── Document Control ────────────────────────────
+
+model LabDocument {
+  id          String    @id @default(uuid())
+  labId       String
+  lab         Lab       @relation(fields: [labId], references: [id])
+  docNumber   String
+  title       String
+  category    String
+  revision    String    @default("00")
+  status      String    @default("ACTIVE")
+  content     String?
+  approvedBy  String?
+  approvedAt  DateTime?
+  reviewDueAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([labId])
+}
+
+// ─────────────────── Internal Audit ──────────────────────────────
+
+model InternalAudit {
+  id            String         @id @default(uuid())
+  labId         String
+  lab           Lab            @relation(fields: [labId], references: [id])
+  auditNumber   String
+  plannedDate   DateTime
+  conductedDate DateTime?
+  auditor       String
+  scope         String
+  status        String         @default("PLANNED")
+  findings      AuditFinding[]
+  createdAt     DateTime       @default(now())
+
+  @@index([labId])
+}
+
+model AuditFinding {
+  id          String        @id @default(uuid())
+  auditId     String
+  audit       InternalAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  clause      String
+  category    String
+  description String
+  rootCause   String?
+  correction  String?
+  status      String        @default("OPEN")
+  dueDate     DateTime?
+  closedAt    DateTime?
 }

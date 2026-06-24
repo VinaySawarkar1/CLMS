@@ -11,10 +11,10 @@ import {
   PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined,
 } from '@ant-design/icons';
 import {
-  computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
+  autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, openCertificateReport, signCertificate,
 } from '../api';
-import { findProcedure, groupedProcedures, Procedure } from '../procedures';
+import { findProcedure, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
@@ -69,7 +69,7 @@ export default function JobWorkspace() {
           Datasheet
         </Space>
       ),
-      children: <DatasheetTab job={job} datasheet={datasheet} onChanged={invalidate} />,
+      children: <DatasheetTab job={job} datasheet={datasheet} allDatasheets={job.datasheets ?? []} onChanged={invalidate} />,
     },
     {
       key: 'uncertainty',
@@ -133,11 +133,33 @@ export default function JobWorkspace() {
   );
 }
 
-function DatasheetTab({ job, datasheet, onChanged }: any) {
+function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const [procId, setProcId] = useState('');
   const [unit, setUnit] = useState('');
   const [env, setEnv] = useState({ temperature: '23', humidity: '50', pressure: '101.3' });
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  // Version history: which datasheet id to view (null = latest)
+  const [viewDsId, setViewDsId] = useState<string | null>(null);
+
+  const { data: viewedDatasheet } = useQuery({
+    queryKey: ['datasheet', viewDsId],
+    queryFn: () => getDatasheet(viewDsId!),
+    enabled: !!viewDsId,
+  });
+
+  // Currently displayed datasheet — either a selected older version or the latest
+  const displayedDatasheet = viewDsId ? (viewedDatasheet ?? datasheet) : datasheet;
+
+  // Auto-select procedure based on instrument discipline when no datasheet yet
+  useEffect(() => {
+    if (!datasheet && !procId && job?.instrument?.discipline) {
+      const match = PROCEDURES.find(
+        (p) => p.discipline.toLowerCase() === (job.instrument.discipline as string).toLowerCase(),
+      );
+      if (match) applyProcedure(match.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.instrument?.discipline]);
 
   const applyProcedure = (id: string) => {
     setProcId(id);
@@ -173,7 +195,13 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
 
-  if (datasheet) {
+  if (displayedDatasheet) {
+    const hasMultiple = (allDatasheets as any[]).length > 1;
+    const versionOptions = (allDatasheets as any[]).map((ds: any) => ({
+      value: ds.id,
+      label: `v${ds.version}${ds.id === (datasheet?.id) ? ' (latest)' : ''}`,
+    }));
+
     const obsColumns = [
       { title: 'Point', dataIndex: 'pointLabel', key: 'point', render: (v: string) => v || '—' },
       { title: 'Unit', dataIndex: 'unit', key: 'unit', render: (v: string) => v ? <Tag color="cyan">{v}</Tag> : '—' },
@@ -190,22 +218,33 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
 
     return (
       <div>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Row gutter={16} style={{ marginBottom: 16 }} align="middle">
           <Col>
-            <Text strong>{datasheet.templateName}</Text>
-            <Text type="secondary" style={{ marginLeft: 8 }}>v{datasheet.version}</Text>
+            <Text strong>{displayedDatasheet.templateName}</Text>
+            <Text type="secondary" style={{ marginLeft: 8 }}>v{displayedDatasheet.version}</Text>
           </Col>
+          {hasMultiple && (
+            <Col>
+              <Select
+                size="small"
+                style={{ width: 130, marginLeft: 8 }}
+                value={viewDsId ?? datasheet?.id}
+                onChange={(v: string) => setViewDsId(v === datasheet?.id ? null : v)}
+                options={versionOptions}
+              />
+            </Col>
+          )}
           <Col>
-            <Space size={4} style={{ marginLeft: 16 }}>
-              <Tag icon={<ThunderboltOutlined />} color="blue">{datasheet.environmental?.temperature ?? '—'} °C</Tag>
-              <Tag color="cyan">{datasheet.environmental?.humidity ?? '—'} %RH</Tag>
-              <Tag color="purple">{datasheet.environmental?.pressure ?? '—'} kPa</Tag>
+            <Space size={4} style={{ marginLeft: 8 }}>
+              <Tag icon={<ThunderboltOutlined />} color="blue">{displayedDatasheet.environmental?.temperature ?? '—'} °C</Tag>
+              <Tag color="cyan">{displayedDatasheet.environmental?.humidity ?? '—'} %RH</Tag>
+              <Tag color="purple">{displayedDatasheet.environmental?.pressure ?? '—'} kPa</Tag>
             </Space>
           </Col>
         </Row>
         <Table
           columns={obsColumns}
-          dataSource={datasheet.observations}
+          dataSource={displayedDatasheet.observations}
           rowKey="id"
           size="small"
           pagination={false}
@@ -217,6 +256,7 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
             icon={<CalculatorOutlined />}
             loading={computeMut.isPending}
             onClick={() => computeMut.mutate()}
+            disabled={!!viewDsId && viewDsId !== datasheet?.id}
           >
             Calculate (mean · correction · error · repeatability)
           </Button>
@@ -231,16 +271,6 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
     );
   }
 
-  const procedureOptions = Object.entries(groupedProcedures()).flatMap(([discipline, subs]) =>
-    Object.entries(subs as any).flatMap(([sub, procs]: [string, any]) =>
-      (procs as Procedure[]).map((p) => ({
-        value: p.id,
-        label: `${p.label} (${p.unit})`,
-        group: `${discipline} › ${sub}`,
-      }))
-    )
-  );
-
   const groupedOptions = Object.entries(groupedProcedures()).map(([discipline, subs]) => ({
     label: discipline,
     options: Object.entries(subs as any).flatMap(([sub, procs]: [string, any]) =>
@@ -250,6 +280,15 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
       }))
     ),
   }));
+
+  // Live error preview: Error = mean(readings) - standardValue
+  const liveError = (row: Row): string => {
+    const nums = row.readings.map(Number).filter((n) => !Number.isNaN(n) && n !== 0);
+    const std = Number(row.standardValue);
+    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return '—';
+    const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+    return (mean - std).toFixed(4);
+  };
 
   const inputCols = [
     {
@@ -282,6 +321,18 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
         <Input size="small" value={rows[i].readings[j]} onChange={(e) => setReading(i, j, e.target.value)} />
       ),
     })),
+    {
+      title: 'Error (preview)', key: 'error_preview', width: 110,
+      render: (_: any, _row: any, i: number) => {
+        const err = liveError(rows[i]);
+        const num = Number(err);
+        return (
+          <Tag color={err === '—' ? 'default' : num === 0 ? 'green' : Math.abs(num) < 0.01 ? 'orange' : 'red'}>
+            {err}
+          </Tag>
+        );
+      },
+    },
   ];
 
   return (
@@ -392,6 +443,11 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
     onSuccess: (res: any) => { setResult(res.result); onChanged(); },
   });
 
+  const autoMut = useMutation({
+    mutationFn: () => autoUncertainty(datasheet.id),
+    onSuccess: (res: any) => { setResult(res.result); setContributors([]); onChanged(); },
+  });
+
   if (!datasheet) return (
     <Alert
       type="warning"
@@ -479,6 +535,15 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
       <Space style={{ marginBottom: 16 }} wrap>
         <Button
           type="primary"
+          icon={<ThunderboltOutlined />}
+          loading={autoMut.isPending}
+          onClick={() => autoMut.mutate()}
+          title="Automatically builds uncertainty budget from reference standard certificates and instrument resolution"
+        >
+          Auto-Calculate from Reference Standards
+        </Button>
+        <Button
+          type="primary"
           ghost
           onClick={loadDefaults}
         >
@@ -560,8 +625,17 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
 
 function CertificateTab({ job, onChanged }: any) {
   const cert = job.certificate;
+  const [finalLockEmail, setFinalLockEmail] = useState<string | null>(null);
   const genMut = useMutation({ mutationFn: () => generateCertificate({ jobId: job.id, type: 'NABL' }), onSuccess: onChanged });
-  const signMut = useMutation({ mutationFn: (stage: string) => signCertificate(cert.id, stage), onSuccess: onChanged });
+  const signMut = useMutation({
+    mutationFn: (stage: string) => signCertificate(cert.id, stage),
+    onSuccess: (_data, stage) => {
+      if (stage === 'FINAL_LOCK' && job.customer?.email) {
+        setFinalLockEmail(job.customer.email);
+      }
+      onChanged();
+    },
+  });
 
   if (!cert) {
     return (
@@ -675,6 +749,17 @@ function CertificateTab({ job, onChanged }: any) {
           showIcon
           icon={<LockOutlined />}
           style={{ marginTop: 16 }}
+        />
+      )}
+
+      {finalLockEmail && (
+        <Alert
+          type="success"
+          message={`Certificate finalised and emailed to ${finalLockEmail}`}
+          showIcon
+          closable
+          onClose={() => setFinalLockEmail(null)}
+          style={{ marginTop: 12 }}
         />
       )}
     </div>
