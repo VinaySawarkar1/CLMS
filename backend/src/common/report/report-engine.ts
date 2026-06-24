@@ -8,6 +8,7 @@
 
 export interface ReportObservation {
   pointLabel?: string | null;
+  unit?: string | null;
   nominal?: number | null;
   standardValue?: number | null;
   observedValue?: number | null;
@@ -52,6 +53,7 @@ function observationRows(rows: ReportObservation[]): string {
     .map(
       (o) => `<tr>
         <td>${esc(o.pointLabel)}</td>
+        <td>${esc(o.unit)}</td>
         <td>${num(o.nominal)}</td>
         <td>${num(o.standardValue)}</td>
         <td>${num(o.observedValue)}</td>
@@ -109,14 +111,14 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   <div class="section">
     <table class="data">
       <thead><tr>
-        <th>Point</th><th>Nominal</th><th>Standard</th><th>Observed</th><th>Correction</th><th>Error</th>
+        <th>Point</th><th>Unit</th><th>Nominal</th><th>Standard</th><th>Observed</th><th>Correction</th><th>Error</th>
       </tr></thead>
       <tbody>${observationRows(d.observations)}</tbody>
     </table>
   </div>
 
   <div class="section">
-    <div class="label">Expanded Uncertainty: <b>±${num(d.expandedUncertainty)}</b>
+    <div class="label">Expanded Uncertainty: <b>±${num(d.expandedUncertainty)} ${esc(d.observations[0]?.unit)}</b>
       (k = ${num(d.coverageFactor, 2)}, ~95.45% confidence)</div>
     ${d.decisionRule ? `<div class="label">Decision Rule: ${esc(d.decisionRule)}</div>` : ''}
     ${d.traceability ? `<div class="label">Traceability: ${esc(d.traceability)}</div>` : ''}

@@ -180,6 +180,7 @@ model Instrument {
   model         String?
   serialNumber  String?
   range         String?
+  unit          String?
   leastCount    String?
   idNumber      String?
   jobs          Job[]
@@ -255,6 +256,7 @@ model Observation {
   datasheetId   String
   datasheet     Datasheet @relation(fields: [datasheetId], references: [id], onDelete: Cascade)
   pointLabel    String?
+  unit          String?   // unit of measurement for this point (e.g. mm, bar, °C)
   nominal       Float?
   standardValue Float?
   observedValue Float?

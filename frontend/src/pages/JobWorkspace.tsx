@@ -2,20 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Box, Button, Chip, Divider, IconButton, MenuItem, Paper, Stack, Tab, Table,
+  Alert, Box, Button, Chip, Divider, MenuItem, Paper, Stack, Tab, Table,
   TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
 import {
   computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, openCertificateReport, signCertificate,
 } from '../api';
+import { findProcedure, PROCEDURES, Procedure } from '../procedures';
 
 const SIG_STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
 const NREAD = 5;
 
-type Row = { pointLabel: string; nominal: string; standardValue: string; readings: string[] };
-const emptyRow = (): Row => ({ pointLabel: '', nominal: '', standardValue: '', readings: Array(NREAD).fill('') });
+type Row = { pointLabel: string; unit: string; nominal: string; standardValue: string; readings: string[] };
+const emptyRow = (unit = ''): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(NREAD).fill('') });
 
 export default function JobWorkspace() {
   const { id } = useParams();
@@ -29,6 +30,10 @@ export default function JobWorkspace() {
   const { data: datasheet } = useQuery({ queryKey: ['datasheet', datasheetId], queryFn: () => getDatasheet(datasheetId!), enabled: !!datasheetId });
 
   if (!job) return <Typography>Loading…</Typography>;
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['job-detail', jobId] });
+    qc.invalidateQueries({ queryKey: ['datasheet', datasheetId] });
+  };
 
   return (
     <>
@@ -42,26 +47,35 @@ export default function JobWorkspace() {
         <Tab label="2. Uncertainty" />
         <Tab label="3. Certificate" />
       </Tabs>
-      {tab === 0 && <DatasheetTab job={job} datasheet={datasheet} onChanged={() => { qc.invalidateQueries({ queryKey: ['job-detail', jobId] }); qc.invalidateQueries({ queryKey: ['datasheet', datasheetId] }); }} />}
-      {tab === 1 && <UncertaintyTab datasheet={datasheet} onChanged={() => qc.invalidateQueries({ queryKey: ['datasheet', datasheetId] })} />}
+      {tab === 0 && <DatasheetTab job={job} datasheet={datasheet} onChanged={invalidate} />}
+      {tab === 1 && <UncertaintyTab datasheet={datasheet} onChanged={invalidate} />}
       {tab === 2 && <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />}
     </>
   );
 }
 
 function DatasheetTab({ job, datasheet, onChanged }: any) {
+  const [procId, setProcId] = useState('');
+  const [unit, setUnit] = useState('');
   const [env, setEnv] = useState({ temperature: '23', humidity: '50', pressure: '101.3' });
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
+
+  const applyProcedure = (id: string) => {
+    setProcId(id);
+    const p = findProcedure(id);
+    if (!p) return;
+    setUnit(p.unit);
+    setRows(p.points.map((pt) => ({ pointLabel: pt.label, unit: p.unit, nominal: String(pt.nominal), standardValue: String(pt.nominal), readings: Array(NREAD).fill('') })));
+  };
 
   const createMut = useMutation({
     mutationFn: () => createDatasheet({
       jobId: job.id,
-      templateName: `${job.instrument?.name || 'Instrument'} Calibration`,
-      environmental: {
-        temperature: Number(env.temperature), humidity: Number(env.humidity), pressure: Number(env.pressure),
-      },
+      templateName: findProcedure(procId)?.label || `${job.instrument?.name || 'Instrument'} Calibration`,
+      environmental: { temperature: Number(env.temperature), humidity: Number(env.humidity), pressure: Number(env.pressure) },
       observations: rows.filter((r) => r.standardValue !== '').map((r) => ({
         pointLabel: r.pointLabel,
+        unit: r.unit || unit,
         nominal: r.nominal ? Number(r.nominal) : undefined,
         standardValue: Number(r.standardValue),
         data: { readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)) },
@@ -75,7 +89,6 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
 
   if (datasheet) {
-    // Datasheet already created — show readings + computed results
     return (
       <Paper sx={{ p: 2 }}>
         <Typography variant="subtitle1" gutterBottom>{datasheet.templateName} (v{datasheet.version})</Typography>
@@ -84,19 +97,20 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
         </Typography>
         <Table size="small">
           <TableHead><TableRow>
-            <TableCell>Point</TableCell><TableCell>Nominal</TableCell><TableCell>Standard</TableCell>
+            <TableCell>Point</TableCell><TableCell>Unit</TableCell><TableCell>Nominal</TableCell><TableCell>Standard</TableCell>
             <TableCell>Observed (mean)</TableCell><TableCell>Correction</TableCell><TableCell>Error</TableCell><TableCell>uA</TableCell>
           </TableRow></TableHead>
           <TableBody>
             {datasheet.observations.map((o: any) => (
               <TableRow key={o.id}>
                 <TableCell>{o.pointLabel || '—'}</TableCell>
+                <TableCell>{o.unit || '—'}</TableCell>
                 <TableCell>{o.nominal ?? '—'}</TableCell>
                 <TableCell>{o.standardValue ?? '—'}</TableCell>
                 <TableCell>{o.observedValue?.toFixed?.(4) ?? '—'}</TableCell>
                 <TableCell>{o.correction?.toFixed?.(4) ?? '—'}</TableCell>
                 <TableCell>{o.error?.toFixed?.(4) ?? '—'}</TableCell>
-                <TableCell>{o.data?.uA != null ? Number(o.data.uA).toFixed(5) : '—'}</TableCell>
+                <TableCell>{o.data?.uA != null ? Number(o.data.uA).toExponential(2) : '—'}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -104,30 +118,37 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
         <Button variant="contained" sx={{ mt: 2 }} disabled={computeMut.isPending} onClick={() => computeMut.mutate()}>
           Calculate (mean · correction · error · repeatability)
         </Button>
-        <Alert severity="info" sx={{ mt: 2 }}>Datasheet saved. Use “Calculate”, then move to the Uncertainty tab.</Alert>
+        <Alert severity="info" sx={{ mt: 2 }}>Saved. Use “Calculate”, then go to the Uncertainty tab.</Alert>
       </Paper>
     );
   }
 
   return (
     <Paper sx={{ p: 2 }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center">
+        <TextField select label="Procedure / Instrument type" size="small" value={procId} onChange={(e) => applyProcedure(e.target.value)} sx={{ minWidth: 280 }}>
+          {PROCEDURES.map((p: Procedure) => <MenuItem key={p.id} value={p.id}>{p.label} ({p.discipline}, {p.unit})</MenuItem>)}
+        </TextField>
+        <TextField label="Unit of measurement" size="small" value={unit} onChange={(e) => setUnit(e.target.value)} sx={{ width: 160 }} />
+      </Stack>
       <Typography variant="subtitle1" gutterBottom>Environmental conditions</Typography>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
         <TextField label="Temp °C" size="small" value={env.temperature} onChange={(e) => setEnv({ ...env, temperature: e.target.value })} />
-        <TextField label="Humidity %" size="small" value={env.humidity} onChange={(e) => setEnv({ ...env, humidity: e.target.value })} />
+        <TextField label="Humidity %RH" size="small" value={env.humidity} onChange={(e) => setEnv({ ...env, humidity: e.target.value })} />
         <TextField label="Pressure kPa" size="small" value={env.pressure} onChange={(e) => setEnv({ ...env, pressure: e.target.value })} />
       </Stack>
-      <Typography variant="subtitle1" gutterBottom>Measurement points & readings</Typography>
+      <Typography variant="subtitle1" gutterBottom>Measurement points & readings {unit && `(${unit})`}</Typography>
       <Box sx={{ overflowX: 'auto' }}>
         <Table size="small">
           <TableHead><TableRow>
-            <TableCell>Point</TableCell><TableCell>Nominal</TableCell><TableCell>Standard</TableCell>
+            <TableCell>Point</TableCell><TableCell>Unit</TableCell><TableCell>Nominal</TableCell><TableCell>Standard</TableCell>
             {Array.from({ length: NREAD }).map((_, j) => <TableCell key={j}>R{j + 1}</TableCell>)}
           </TableRow></TableHead>
           <TableBody>
             {rows.map((r, i) => (
               <TableRow key={i}>
                 <TableCell><TextField size="small" sx={{ width: 90 }} value={r.pointLabel} onChange={(e) => setRow(i, { pointLabel: e.target.value })} /></TableCell>
+                <TableCell><TextField size="small" sx={{ width: 60 }} value={r.unit} onChange={(e) => setRow(i, { unit: e.target.value })} /></TableCell>
                 <TableCell><TextField size="small" sx={{ width: 80 }} value={r.nominal} onChange={(e) => setRow(i, { nominal: e.target.value })} /></TableCell>
                 <TableCell><TextField size="small" sx={{ width: 80 }} value={r.standardValue} onChange={(e) => setRow(i, { standardValue: e.target.value })} /></TableCell>
                 {r.readings.map((rv, j) => (
@@ -139,7 +160,7 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
         </Table>
       </Box>
       <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-        <Button onClick={() => setRows([...rows, emptyRow()])}>+ Add Point</Button>
+        <Button onClick={() => setRows([...rows, emptyRow(unit)])}>+ Add Point</Button>
         <Button variant="contained" disabled={createMut.isPending || !rows.some((r) => r.standardValue !== '')} onClick={() => createMut.mutate()}>Save Datasheet</Button>
       </Stack>
     </Paper>
@@ -149,6 +170,8 @@ function DatasheetTab({ job, datasheet, onChanged }: any) {
 function UncertaintyTab({ datasheet, onChanged }: any) {
   const [contributors, setContributors] = useState<any[]>([]);
   const [result, setResult] = useState<any>(null);
+  const procedure = useMemo(() => findProcedure(datasheet?.templateName), [datasheet?.templateName]);
+  const unit = datasheet?.observations?.[0]?.unit || procedure?.unit || '';
 
   useEffect(() => {
     if (datasheet?.uncertainty) {
@@ -169,28 +192,32 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
     mutationFn: () => computeUncertainty(datasheet.id, contributors.map((c) => ({
       source: c.source, type: c.type, value: Number(c.value),
       distribution: c.distribution || undefined, divisor: c.divisor ? Number(c.divisor) : undefined,
-      sensitivity: c.sensitivity ? Number(c.sensitivity) : 1,
+      sensitivity: c.sensitivity ? Number(c.sensitivity) : 1, unit: c.unit,
     }))),
     onSuccess: (res: any) => { setResult(res.result); onChanged(); },
   });
 
   if (!datasheet) return <Alert severity="warning">Create and calculate a datasheet first (tab 1).</Alert>;
 
-  const add = (c: any) => setContributors([...contributors, c]);
+  const add = (c: any) => setContributors((cs) => [...cs, c]);
   const setC = (i: number, patch: any) => setContributors(contributors.map((c, idx) => idx === i ? { ...c, ...patch } : c));
+  const loadDefaults = () => {
+    const list: any[] = [{ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit }];
+    if (procedure) procedure.typeB.forEach((b) => list.push({ ...b, type: 'B', value: String(b.value) }));
+    setContributors(list);
+  };
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Typography variant="subtitle1" gutterBottom>Uncertainty budget (GUM)</Typography>
-      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-        <Button onClick={() => add({ source: 'Repeatability', type: 'A', value: maxUA.toFixed(5), divisor: 1, sensitivity: 1 })}>
-          + Type A (repeatability {maxUA.toExponential(2)})
-        </Button>
-        <Button onClick={() => add({ source: 'Master uncertainty', type: 'B', value: '', distribution: 'normal', divisor: 2, sensitivity: 1 })}>+ Type B</Button>
+      <Typography variant="subtitle1" gutterBottom>Uncertainty budget (GUM) {unit && `— ${unit}`}</Typography>
+      <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
+        <Button variant="outlined" onClick={loadDefaults}>Load {procedure ? procedure.label : 'default'} contributors</Button>
+        <Button onClick={() => add({ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit })}>+ Type A</Button>
+        <Button onClick={() => add({ source: '', type: 'B', value: '', distribution: 'normal', divisor: 2, sensitivity: 1, unit })}>+ Type B</Button>
       </Stack>
       <Table size="small">
         <TableHead><TableRow>
-          <TableCell>Source</TableCell><TableCell>Type</TableCell><TableCell>Value</TableCell>
+          <TableCell>Source</TableCell><TableCell>Type</TableCell><TableCell>Value</TableCell><TableCell>Unit</TableCell>
           <TableCell>Distribution</TableCell><TableCell>Divisor</TableCell><TableCell>Sensitivity</TableCell>
         </TableRow></TableHead>
         <TableBody>
@@ -198,7 +225,8 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
             <TableRow key={i}>
               <TableCell><TextField size="small" value={c.source} onChange={(e) => setC(i, { source: e.target.value })} /></TableCell>
               <TableCell>{c.type}</TableCell>
-              <TableCell><TextField size="small" sx={{ width: 90 }} value={c.value} onChange={(e) => setC(i, { value: e.target.value })} /></TableCell>
+              <TableCell><TextField size="small" sx={{ width: 100 }} value={c.value} onChange={(e) => setC(i, { value: e.target.value })} /></TableCell>
+              <TableCell><TextField size="small" sx={{ width: 60 }} value={c.unit || ''} onChange={(e) => setC(i, { unit: e.target.value })} /></TableCell>
               <TableCell>
                 <TextField select size="small" sx={{ width: 120 }} value={c.distribution || ''} onChange={(e) => setC(i, { distribution: e.target.value })}>
                   <MenuItem value="">—</MenuItem>
@@ -209,7 +237,7 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
               <TableCell><TextField size="small" sx={{ width: 70 }} value={c.sensitivity ?? 1} onChange={(e) => setC(i, { sensitivity: e.target.value })} /></TableCell>
             </TableRow>
           ))}
-          {contributors.length === 0 && <TableRow><TableCell colSpan={6}>Add contributors above.</TableCell></TableRow>}
+          {contributors.length === 0 && <TableRow><TableCell colSpan={7}>Load defaults or add contributors above.</TableCell></TableRow>}
         </TableBody>
       </Table>
       <Button variant="contained" sx={{ mt: 2 }} disabled={!contributors.length || computeMut.isPending} onClick={() => computeMut.mutate()}>
@@ -218,9 +246,9 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
       {result && (
         <Box sx={{ mt: 2 }}>
           <Divider sx={{ mb: 1 }} />
-          <Typography variant="body2">Combined standard uncertainty u_c = <b>{Number(result.combinedUncertainty).toExponential(3)}</b></Typography>
+          <Typography variant="body2">Combined standard uncertainty u_c = <b>{Number(result.combinedUncertainty).toExponential(3)} {unit}</b></Typography>
           <Typography variant="body2">Coverage factor k = <b>{Number(result.coverageFactor).toFixed(2)}</b></Typography>
-          <Typography variant="body1">Expanded uncertainty U = <b>±{Number(result.expandedUncertainty).toExponential(3)}</b> (≈95%)</Typography>
+          <Typography variant="body1">Expanded uncertainty U = <b>±{Number(result.expandedUncertainty).toExponential(3)} {unit}</b> (≈95%)</Typography>
         </Box>
       )}
     </Paper>
@@ -229,7 +257,6 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
 
 function CertificateTab({ job, onChanged }: any) {
   const cert = job.certificate;
-  const qc = useQueryClient();
   const genMut = useMutation({ mutationFn: () => generateCertificate({ jobId: job.id, type: 'NABL' }), onSuccess: onChanged });
   const signMut = useMutation({ mutationFn: (stage: string) => signCertificate(cert.id, stage), onSuccess: onChanged });
 
@@ -238,7 +265,7 @@ function CertificateTab({ job, onChanged }: any) {
       <Paper sx={{ p: 2 }}>
         {job.status === 'APPROVED'
           ? <Button variant="contained" disabled={genMut.isPending} onClick={() => genMut.mutate()}>Generate Certificate</Button>
-          : <Alert severity="info">Advance the job to <b>APPROVED</b> (Jobs page) to generate the certificate. Current: {job.status}</Alert>}
+          : <Alert severity="info">Advance the job to <b>APPROVED</b> (Jobs page → status buttons) to generate the certificate. Current: {job.status}</Alert>}
       </Paper>
     );
   }

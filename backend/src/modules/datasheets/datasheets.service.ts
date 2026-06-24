@@ -28,6 +28,7 @@ export class DatasheetsService {
           ? {
               create: dto.observations.map((o) => ({
                 pointLabel: o.pointLabel,
+                unit: o.unit,
                 nominal: o.nominal,
                 standardValue: o.standardValue,
                 observedValue: o.observedValue,

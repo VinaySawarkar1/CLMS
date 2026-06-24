@@ -13,6 +13,7 @@ export class CreateInstrumentDto {
   @IsOptional() @IsString() model?: string;
   @IsOptional() @IsString() serialNumber?: string;
   @IsOptional() @IsString() range?: string;
+  @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsString() leastCount?: string;
   @IsOptional() @IsString() idNumber?: string;
 }

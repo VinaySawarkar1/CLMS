@@ -9,7 +9,7 @@ import { createInstrument, getCustomers, getInstruments } from '../api';
 export default function Instruments() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<any>({ customerId: '', name: '', make: '', model: '', serialNumber: '', range: '', leastCount: '', idNumber: '' });
+  const [form, setForm] = useState<any>({ customerId: '', name: '', make: '', model: '', serialNumber: '', range: '', unit: '', leastCount: '', idNumber: '' });
 
   const { data = [] } = useQuery({ queryKey: ['instruments'], queryFn: () => getInstruments() });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
@@ -32,16 +32,16 @@ export default function Instruments() {
         <Table size="small">
           <TableHead><TableRow>
             <TableCell>Name</TableCell><TableCell>Make</TableCell><TableCell>Model</TableCell>
-            <TableCell>Serial</TableCell><TableCell>Range</TableCell>
+            <TableCell>Serial</TableCell><TableCell>Range</TableCell><TableCell>Unit</TableCell>
           </TableRow></TableHead>
           <TableBody>
             {data.map((i: any) => (
               <TableRow key={i.id} hover>
                 <TableCell>{i.name}</TableCell><TableCell>{i.make || '—'}</TableCell><TableCell>{i.model || '—'}</TableCell>
-                <TableCell>{i.serialNumber || '—'}</TableCell><TableCell>{i.range || '—'}</TableCell>
+                <TableCell>{i.serialNumber || '—'}</TableCell><TableCell>{i.range || '—'}</TableCell><TableCell>{i.unit || '—'}</TableCell>
               </TableRow>
             ))}
-            {data.length === 0 && <TableRow><TableCell colSpan={5}>No instruments yet.</TableCell></TableRow>}
+            {data.length === 0 && <TableRow><TableCell colSpan={6}>No instruments yet.</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Paper>
@@ -59,6 +59,7 @@ export default function Instruments() {
             {field('model', 'Model')}
             {field('serialNumber', 'Serial Number')}
             {field('range', 'Range')}
+            {field('unit', 'Unit of Measurement (e.g. mm, bar, °C)')}
             {field('leastCount', 'Least Count')}
             {field('idNumber', 'ID Number')}
           </Stack>

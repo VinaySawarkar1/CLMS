@@ -56,7 +56,7 @@ export class JobsService {
         instrument: true,
         engineer: true,
         datasheets: true,
-        certificate: true,
+        certificate: { include: { signatures: { orderBy: { signedAt: 'asc' } } } },
       },
     });
     if (!job) throw new NotFoundException('Job not found');

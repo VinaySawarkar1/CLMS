@@ -11,6 +11,7 @@ import {
 
 export class ObservationDto {
   @IsOptional() @IsString() pointLabel?: string;
+  @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsNumber() nominal?: number;
   @IsOptional() @IsNumber() standardValue?: number;
   @IsOptional() @IsNumber() observedValue?: number;
