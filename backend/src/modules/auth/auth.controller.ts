@@ -1,15 +1,20 @@
 import { Body, Controller, Get, Post, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshDto, RegisterDto } from './dto';
+import { LoginDto, RefreshDto, RegisterDto, RegisterLabDto } from './dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { LabsService } from '../labs/labs.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly labs: LabsService,
+  ) {}
 
-  @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto);
+  /** Public: register a new lab + its LAB_ADMIN user */
+  @Post('register-lab')
+  registerLab(@Body() dto: RegisterLabDto) {
+    return this.labs.registerLab(dto);
   }
 
   @Post('login')
@@ -25,6 +30,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@Request() req: any) {
-    return req.user;
+    return this.auth.getMe(req.user.id);
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Injectable, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Injectable, Post, Request, UseGuards } from '@nestjs/common';
 import { Module } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -12,17 +12,9 @@ import { Roles } from '../../common/rbac/roles.decorator';
 class EngineersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Create an engineer. If no userId is given, a backing user account is
-   * created automatically (role CALIBRATION_ENGINEER) from the supplied name.
-   */
-  async create(data: {
-    userId?: string;
-    fullName?: string;
-    email?: string;
-    employeeCode: string;
-    skills?: string[];
-    authorizations?: string[];
+  async create(labId: string, data: {
+    userId?: string; fullName?: string; email?: string;
+    employeeCode: string; skills?: string[]; authorizations?: string[];
   }) {
     let userId = data.userId;
     if (!userId) {
@@ -30,10 +22,10 @@ class EngineersService {
       const passwordHash = await bcrypt.hash(randomBytes(6).toString('hex'), 10);
       const user = await this.prisma.user.create({
         data: {
-          email,
-          passwordHash,
+          email, passwordHash,
           fullName: data.fullName || data.employeeCode,
           role: Role.CALIBRATION_ENGINEER,
+          labId,
         },
       });
       userId = user.id;
@@ -45,12 +37,13 @@ class EngineersService {
         skills: data.skills ?? [],
         authorizations: data.authorizations ?? [],
       },
-      include: { user: { select: { fullName: true, email: true } } },
+      include: { user: { select: { fullName: true, email: true, labId: true } } },
     });
   }
 
-  findAll() {
+  findAll(labId: string) {
     return this.prisma.engineer.findMany({
+      where: { user: { labId } },
       include: { user: { select: { fullName: true, email: true } } },
     });
   }
@@ -62,14 +55,14 @@ class EngineersController {
   constructor(private readonly engineers: EngineersService) {}
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.TECHNICAL_MANAGER)
-  create(@Body() body: any) {
-    return this.engineers.create(body);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
+  create(@Request() req: any, @Body() body: any) {
+    return this.engineers.create(req.user.labId, body);
   }
 
   @Get()
-  findAll() {
-    return this.engineers.findAll();
+  findAll(@Request() req: any) {
+    return this.engineers.findAll(req.user.labId);
   }
 }
 

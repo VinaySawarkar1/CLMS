@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Request, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
@@ -11,9 +11,10 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.LAB_DIRECTOR, Role.QUALITY_MANAGER)
-  findAll() {
-    return this.users.findAll();
+  @Roles(Role.SUPER_ADMIN, Role.LAB_ADMIN)
+  findAll(@Request() req: any) {
+    const labId = req.user.role === Role.SUPER_ADMIN ? undefined : req.user.labId;
+    return this.users.findAll(labId);
   }
 
   @Get(':id')
@@ -22,13 +23,13 @@ export class UsersController {
   }
 
   @Patch(':id/role')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.LAB_ADMIN)
   updateRole(@Param('id') id: string, @Body('role') role: Role) {
     return this.users.updateRole(id, role);
   }
 
   @Patch(':id/active')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.LAB_ADMIN)
   setActive(@Param('id') id: string, @Body('isActive') isActive: boolean) {
     return this.users.setActive(id, isActive);
   }

@@ -1,14 +1,5 @@
 import {
-  Body,
-  Controller,
-  Get,
-  Injectable,
-  Module,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
+  Body, Controller, Get, Injectable, Module, Param, Patch, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Role } from '@prisma/client';
@@ -17,52 +8,41 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 
-/**
- * Inventory of standards, fixtures, accessories and consumables.
- * Items and stock movements are stored in the Setting-backed key space until a
- * dedicated table group is migrated; this keeps the API stable for the UI.
- */
-const ITEM_KEY = (id: string) => `inventory:item:${id}`;
+const ITEM_KEY = (labId: string, id: string) => `inventory:${labId}:item:${id}`;
+const ITEM_PREFIX = (labId: string) => `inventory:${labId}:item:`;
 
 @Injectable()
 class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async upsertItem(item: {
-    id?: string;
-    name: string;
-    category: string; // STANDARD | FIXTURE | ACCESSORY | CONSUMABLE
-    quantity: number;
-    location?: string;
+  async upsertItem(labId: string, item: {
+    id?: string; name: string; category: string; quantity: number; location?: string;
   }) {
     const id = item.id ?? randomUUID();
+    const key = ITEM_KEY(labId, id);
     await this.prisma.setting.upsert({
-      where: { key: ITEM_KEY(id) },
-      create: { key: ITEM_KEY(id), value: { ...item, id } },
-      update: { value: { ...item, id } },
+      where: { key },
+      create: { key, value: { ...item, id, labId } },
+      update: { value: { ...item, id, labId } },
     });
     return { ...item, id };
   }
 
-  async list(category?: string) {
+  async list(labId: string, category?: string) {
     const rows = await this.prisma.setting.findMany({
-      where: { key: { startsWith: 'inventory:item:' } },
+      where: { key: { startsWith: ITEM_PREFIX(labId) } },
     });
     const items = rows.map((r) => r.value as any);
-    return category ? items.filter((i) => i.category === category) : items;
+    return category ? items.filter((i: any) => i.category === category) : items;
   }
 
-  async adjustStock(id: string, delta: number) {
-    const row = await this.prisma.setting.findUnique({
-      where: { key: ITEM_KEY(id) },
-    });
+  async adjustStock(labId: string, id: string, delta: number) {
+    const key = ITEM_KEY(labId, id);
+    const row = await this.prisma.setting.findUnique({ where: { key } });
     const item = (row?.value as any) ?? null;
     if (!item) return null;
     item.quantity = (item.quantity ?? 0) + delta;
-    await this.prisma.setting.update({
-      where: { key: ITEM_KEY(id) },
-      data: { value: item },
-    });
+    await this.prisma.setting.update({ where: { key }, data: { value: item } });
     return item;
   }
 }
@@ -73,20 +53,20 @@ class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
 
   @Post('items')
-  @Roles(Role.SUPER_ADMIN, Role.STORE_MANAGER)
-  upsert(@Body() body: any) {
-    return this.inventory.upsertItem(body);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
+  upsert(@Request() req: any, @Body() body: any) {
+    return this.inventory.upsertItem(req.user.labId, body);
   }
 
   @Get('items')
-  list(@Query('category') category?: string) {
-    return this.inventory.list(category);
+  list(@Request() req: any, @Query('category') category?: string) {
+    return this.inventory.list(req.user.labId, category);
   }
 
   @Patch('items/:id/stock')
-  @Roles(Role.SUPER_ADMIN, Role.STORE_MANAGER)
-  adjust(@Param('id') id: string, @Body('delta') delta: number) {
-    return this.inventory.adjustStock(id, delta);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
+  adjust(@Request() req: any, @Param('id') id: string, @Body('delta') delta: number) {
+    return this.inventory.adjustStock(req.user.labId, id, delta);
   }
 }
 

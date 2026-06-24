@@ -7,7 +7,6 @@ import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateJobDto } from './dto';
 
-/** Allowed status transitions for the calibration workflow. */
 const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   RECEIVED: ['WAITING', 'ASSIGNED'],
   WAITING: ['ASSIGNED'],
@@ -25,32 +24,31 @@ const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
 export class JobsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateJobDto) {
-    const jobNumber = await this.nextJobNumber();
-    const job = await this.prisma.job.create({
+  async create(labId: string, dto: CreateJobDto) {
+    const jobNumber = await this.nextJobNumber(labId);
+    return this.prisma.job.create({
       data: {
         jobNumber,
+        labId,
         customerId: dto.customerId,
         instrumentId: dto.instrumentId,
-        branchId: dto.branchId,
         remarks: dto.remarks,
         status: 'RECEIVED',
       },
     });
-    return job;
   }
 
-  findAll(status?: JobStatus) {
+  findAll(labId: string, status?: JobStatus) {
     return this.prisma.job.findMany({
-      where: status ? { status } : undefined,
+      where: { labId, ...(status ? { status } : {}) },
       include: { customer: true, instrument: true, engineer: true },
       orderBy: { receivedAt: 'desc' },
     });
   }
 
-  async findOne(id: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id },
+  async findOne(id: string, labId: string) {
+    const job = await this.prisma.job.findFirst({
+      where: { id, labId },
       include: {
         customer: true,
         instrument: true,
@@ -63,33 +61,24 @@ export class JobsService {
     return job;
   }
 
-  async assignEngineer(id: string, engineerId: string) {
-    const job = await this.findOne(id);
-    const next = job.status === 'RECEIVED' || job.status === 'WAITING'
-      ? 'ASSIGNED'
-      : job.status;
-    return this.prisma.job.update({
-      where: { id },
-      data: { engineerId, status: next },
-    });
+  async assignEngineer(id: string, labId: string, engineerId: string) {
+    const job = await this.findOne(id, labId);
+    const next = job.status === 'RECEIVED' || job.status === 'WAITING' ? 'ASSIGNED' : job.status;
+    return this.prisma.job.update({ where: { id }, data: { engineerId, status: next } });
   }
 
-  async updateStatus(id: string, status: JobStatus) {
-    const job = await this.findOne(id);
+  async updateStatus(id: string, labId: string, status: JobStatus) {
+    const job = await this.findOne(id, labId);
     if (!TRANSITIONS[job.status].includes(status)) {
-      throw new BadRequestException(
-        `Invalid transition ${job.status} → ${status}`,
-      );
+      throw new BadRequestException(`Invalid transition ${job.status} → ${status}`);
     }
     return this.prisma.job.update({ where: { id }, data: { status } });
   }
 
-  private async nextJobNumber(): Promise<string> {
+  private async nextJobNumber(labId: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `JOB-${year}-`;
-    const count = await this.prisma.job.count({
-      where: { jobNumber: { startsWith: prefix } },
-    });
+    const count = await this.prisma.job.count({ where: { labId, jobNumber: { startsWith: prefix } } });
     return `${prefix}${String(count + 1).padStart(5, '0')}`;
   }
 }

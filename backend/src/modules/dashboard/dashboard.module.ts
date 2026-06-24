@@ -3,6 +3,7 @@ import {
   Get,
   Injectable,
   Module,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -12,7 +13,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async widgets() {
+  async widgets(labId: string) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -24,22 +25,23 @@ class DashboardService {
       dueInstruments,
       customers,
     ] = await Promise.all([
-      this.prisma.job.count({ where: { receivedAt: { gte: startOfDay } } }),
+      this.prisma.job.count({ where: { labId, receivedAt: { gte: startOfDay } } }),
       this.prisma.job.count({
-        where: { status: { in: ['RECEIVED', 'WAITING', 'ASSIGNED'] } },
+        where: { labId, status: { in: ['RECEIVED', 'WAITING', 'ASSIGNED'] } },
       }),
       this.prisma.job.count({
-        where: { dueDate: { lt: new Date() }, status: { not: 'CLOSED' } },
+        where: { labId, dueDate: { lt: new Date() }, status: { not: 'CLOSED' } },
       }),
-      this.prisma.certificate.count(),
+      this.prisma.certificate.count({ where: { job: { labId } } }),
       this.prisma.masterInstrument.count({
-        where: { calibrationDue: { lt: new Date() } },
+        where: { labId, calibrationDue: { lt: new Date() } },
       }),
-      this.prisma.customer.count(),
+      this.prisma.customer.count({ where: { labId } }),
     ]);
 
     const byStatus = await this.prisma.job.groupBy({
       by: ['status'],
+      where: { labId },
       _count: { _all: true },
     });
 
@@ -63,8 +65,8 @@ class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @Get()
-  widgets() {
-    return this.dashboard.widgets();
+  widgets(@Request() req: any) {
+    return this.dashboard.widgets(req.user.labId);
   }
 }
 

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -30,6 +31,7 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async notify(params: {
+    labId?: string;
     userId?: string;
     channel: NotificationChannel;
     event: NotificationEvent;
@@ -37,6 +39,7 @@ export class NotificationsService {
   }) {
     const record = await this.prisma.notification.create({
       data: {
+        labId: params.labId,
         userId: params.userId,
         channel: params.channel,
         event: params.event,
@@ -47,9 +50,9 @@ export class NotificationsService {
     return record;
   }
 
-  list(userId?: string) {
+  list(labId?: string, userId?: string) {
     return this.prisma.notification.findMany({
-      where: userId ? { userId } : undefined,
+      where: { ...(labId ? { labId } : {}), ...(userId ? { userId } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
@@ -75,8 +78,8 @@ class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
-  list(@Query('userId') userId?: string) {
-    return this.notifications.list(userId);
+  list(@Request() req: any, @Query('userId') userId?: string) {
+    return this.notifications.list(req.user.labId, userId);
   }
 
   @Patch(':id/read')

@@ -4,9 +4,10 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { LabsModule } from '../labs/labs.module';
 
 @Module({
-  imports: [PassportModule, JwtModule.register({})],
+  imports: [PassportModule, JwtModule.register({}), LabsModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],

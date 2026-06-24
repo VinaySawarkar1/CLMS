@@ -1,12 +1,5 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Query,
-  UseGuards,
+  Body, Controller, Delete, Get, Param, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -21,24 +14,24 @@ export class InstrumentsController {
   constructor(private readonly instruments: InstrumentsService) {}
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.DATA_ENTRY_OPERATOR, Role.STORE_MANAGER)
-  create(@Body() dto: CreateInstrumentDto) {
-    return this.instruments.create(dto);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  create(@Request() req: any, @Body() dto: CreateInstrumentDto) {
+    return this.instruments.create(req.user.labId, dto);
   }
 
   @Get()
-  findAll(@Query('customerId') customerId?: string) {
-    return this.instruments.findAll(customerId);
+  findAll(@Request() req: any, @Query('customerId') customerId?: string) {
+    return this.instruments.findAll(req.user.labId, customerId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.instruments.findOne(id);
+  findOne(@Request() req: any, @Param('id') id: string) {
+    return this.instruments.findOne(id, req.user.labId);
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.instruments.remove(id);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.instruments.remove(id, req.user.labId);
   }
 }

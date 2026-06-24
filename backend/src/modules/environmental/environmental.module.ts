@@ -1,17 +1,9 @@
 import {
-  Body,
-  Controller,
-  Get,
-  Injectable,
-  Module,
-  Post,
-  Query,
-  UseGuards,
+  Body, Controller, Get, Injectable, Module, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-/** Acceptable environmental limits per location (override via Settings). */
 const DEFAULT_LIMITS = {
   temperature: { min: 18, max: 27 },
   humidity: { min: 30, max: 70 },
@@ -21,20 +13,16 @@ const DEFAULT_LIMITS = {
 class EnvironmentalService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(data: {
-    location: string;
-    temperature?: number;
-    humidity?: number;
-    pressure?: number;
-    operator?: string;
+  async record(labId: string, data: {
+    location: string; temperature?: number; humidity?: number; pressure?: number; operator?: string;
   }) {
-    const record = await this.prisma.environmentalRecord.create({ data });
+    const record = await this.prisma.environmentalRecord.create({ data: { ...data, labId } });
     return { record, alerts: this.checkLimits(data) };
   }
 
-  list(location?: string) {
+  list(labId: string, location?: string) {
     return this.prisma.environmentalRecord.findMany({
-      where: location ? { location } : undefined,
+      where: { labId, ...(location ? { location } : {}) },
       orderBy: { recordedAt: 'desc' },
       take: 200,
     });
@@ -59,13 +47,13 @@ class EnvironmentalController {
   constructor(private readonly environmental: EnvironmentalService) {}
 
   @Post()
-  record(@Body() body: any) {
-    return this.environmental.record(body);
+  record(@Request() req: any, @Body() body: any) {
+    return this.environmental.record(req.user.labId, body);
   }
 
   @Get()
-  list(@Query('location') location?: string) {
-    return this.environmental.list(location);
+  list(@Request() req: any, @Query('location') location?: string) {
+    return this.environmental.list(req.user.labId, location);
   }
 }
 

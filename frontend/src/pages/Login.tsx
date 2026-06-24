@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { Card, Form, Input, Button, Typography, Alert, Space } from 'antd';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Card, Form, Input, Button, Typography, Alert, Divider } from 'antd';
 import { UserOutlined, LockOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { login } from '../api';
 
@@ -102,6 +103,15 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
               </Button>
             </Form.Item>
           </Form>
+
+          <Divider style={{ margin: '24px 0 16px' }} plain>
+            <Text style={{ color: '#999', fontSize: 12 }}>New to CLMS?</Text>
+          </Divider>
+          <Link to="/register-lab">
+            <Button block style={{ height: 42, borderRadius: 8, fontWeight: 500 }}>
+              Register Your Calibration Lab
+            </Button>
+          </Link>
 
           <div style={{ textAlign: 'center', marginTop: 20 }}>
             <Text style={{ color: '#999', fontSize: 12 }}>

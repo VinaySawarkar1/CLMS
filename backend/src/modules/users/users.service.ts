@@ -8,7 +8,7 @@ const PUBLIC_SELECT = {
   fullName: true,
   role: true,
   isActive: true,
-  branchId: true,
+  labId: true,
   createdAt: true,
 };
 
@@ -16,34 +16,26 @@ const PUBLIC_SELECT = {
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.user.findMany({ select: PUBLIC_SELECT });
+  findAll(labId?: string) {
+    return this.prisma.user.findMany({
+      where: labId ? { labId } : undefined,
+      select: PUBLIC_SELECT,
+    });
   }
 
   async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: PUBLIC_SELECT,
-    });
+    const user = await this.prisma.user.findUnique({ where: { id }, select: PUBLIC_SELECT });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
   async updateRole(id: string, role: Role) {
     await this.findOne(id);
-    return this.prisma.user.update({
-      where: { id },
-      data: { role },
-      select: PUBLIC_SELECT,
-    });
+    return this.prisma.user.update({ where: { id }, data: { role }, select: PUBLIC_SELECT });
   }
 
   async setActive(id: string, isActive: boolean) {
     await this.findOne(id);
-    return this.prisma.user.update({
-      where: { id },
-      data: { isActive },
-      select: PUBLIC_SELECT,
-    });
+    return this.prisma.user.update({ where: { id }, data: { isActive }, select: PUBLIC_SELECT });
   }
 }

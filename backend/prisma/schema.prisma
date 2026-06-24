@@ -1,7 +1,6 @@
 // CLMS — Calibration Laboratory Management System
-// Prisma schema modeling the core of each major table group.
-// Specialised engine tables (measurement points, uncertainty parameters,
-// observations, etc.) are scaffolded here and extended as engines are built.
+// Multi-tenant schema: each Lab is an isolated tenant.
+// SUPER_ADMIN is platform-level (labId = null); all other roles belong to a Lab.
 
 generator client {
   provider = "prisma-client-js"
@@ -16,17 +15,18 @@ datasource db {
 
 enum Role {
   SUPER_ADMIN
-  LAB_DIRECTOR
-  QUALITY_MANAGER
+  LAB_ADMIN
   TECHNICAL_MANAGER
   CALIBRATION_ENGINEER
-  REVIEWER
+  SERVICE_ENGINEER
   DATA_ENTRY_OPERATOR
-  SALES
-  ACCOUNTS
-  STORE_MANAGER
-  CUSTOMER
-  AUDITOR
+}
+
+enum LabStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
 }
 
 enum JobStatus {
@@ -66,39 +66,64 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+// ───────────────────────── Labs (Tenants) ────────────────────────
+
+model Lab {
+  id                  String     @id @default(uuid())
+  name                String
+  accreditationNumber String?
+  address             String?
+  contactEmail        String?
+  status              LabStatus  @default(PENDING)
+  users               User[]
+  customers           Customer[]
+  instruments         Instrument[]
+  jobs                Job[]
+  invoices            Invoice[]
+  tasks               Task[]
+  ncrs                NCR[]
+  environmentalRecords EnvironmentalRecord[]
+  masterInstruments   MasterInstrument[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  rolePermissions     LabRolePermission[]
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+// Per-lab, per-role permission toggles (LAB_ADMIN configures these)
+model LabRolePermission {
+  id            String  @id @default(uuid())
+  labId         String
+  lab           Lab     @relation(fields: [labId], references: [id], onDelete: Cascade)
+  role          Role
+  permissionKey String  // customers | instruments | jobs | certificates | billing |
+                        // tasks | engineers | inventory | environmental | quality |
+                        // audit | notifications
+  granted       Boolean @default(true)
+
+  @@unique([labId, role, permissionKey])
+  @@index([labId, role])
+}
+
 // ──────────────────────── Identity & Access ──────────────────────
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  fullName     String
-  role         Role     @default(DATA_ENTRY_OPERATOR)
-  isActive     Boolean  @default(true)
-  branchId     String?
-  branch       Branch?  @relation(fields: [branchId], references: [id])
-  permissions  UserPermission[]
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  fullName      String
+  role          Role     @default(DATA_ENTRY_OPERATOR)
+  isActive      Boolean  @default(true)
+  labId         String?  // null only for SUPER_ADMIN
+  lab           Lab?     @relation(fields: [labId], references: [id])
   refreshTokens RefreshToken[]
-  auditLogs    AuditLog[]
-  engineer     Engineer?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
+  auditLogs     AuditLog[]
+  engineer      Engineer?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-model Permission {
-  id          String           @id @default(uuid())
-  key         String           @unique // e.g. "jobs.create"
-  description String?
-  users       UserPermission[]
-}
-
-model UserPermission {
-  userId       String
-  permissionId String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@id([userId, permissionId])
+  @@index([labId])
 }
 
 model RefreshToken {
@@ -111,21 +136,13 @@ model RefreshToken {
   createdAt DateTime @default(now())
 }
 
-model Branch {
-  id        String   @id @default(uuid())
-  name      String
-  code      String   @unique
-  address   String?
-  users     User[]
-  jobs      Job[]
-  createdAt DateTime @default(now())
-}
-
 // ─────────────────────────── CRM ─────────────────────────────────
 
 model Customer {
-  id          String    @id @default(uuid())
-  code        String    @unique
+  id          String     @id @default(uuid())
+  labId       String
+  lab         Lab        @relation(fields: [labId], references: [id])
+  code        String
   name        String
   gstin       String?
   email       String?
@@ -135,26 +152,30 @@ model Customer {
   instruments Instrument[]
   jobs        Job[]
   invoices    Invoice[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([labId, code])
+  @@index([labId])
 }
 
 model Contact {
-  id         String   @id @default(uuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  name       String
-  email      String?
-  phone      String?
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  phone       String?
   designation String?
 }
 
 // ─────────────────────── Disciplines & Instruments ───────────────
+// Disciplines are global reference data (shared across all labs)
 
 model Discipline {
-  id          String       @id @default(uuid())
-  name        String       @unique // Mechanical, Electrical, Pressure, ...
-  code        String       @unique
+  id          String               @id @default(uuid())
+  name        String               @unique
+  code        String               @unique
   categories  InstrumentCategory[]
   instruments Instrument[]
 }
@@ -168,11 +189,13 @@ model InstrumentCategory {
 }
 
 model Instrument {
-  id            String   @id @default(uuid())
+  id            String              @id @default(uuid())
+  labId         String
+  lab           Lab                 @relation(fields: [labId], references: [id])
   customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id])
+  customer      Customer            @relation(fields: [customerId], references: [id])
   disciplineId  String?
-  discipline    Discipline? @relation(fields: [disciplineId], references: [id])
+  discipline    Discipline?         @relation(fields: [disciplineId], references: [id])
   categoryId    String?
   category      InstrumentCategory? @relation(fields: [categoryId], references: [id])
   name          String
@@ -184,36 +207,43 @@ model Instrument {
   leastCount    String?
   idNumber      String?
   jobs          Job[]
-  createdAt     DateTime @default(now())
+  createdAt     DateTime            @default(now())
+
+  @@index([labId])
 }
 
 // ─────────────────────── Master / Reference Standards ────────────
 
 model MasterInstrument {
-  id              String   @id @default(uuid())
-  name            String
-  idNumber        String   @unique
-  make            String?
-  model           String?
-  serialNumber    String?
-  traceability    String?
-  calibrationDue  DateTime?
-  location        String?
-  references      ReferenceStandardOnJob[]
-  createdAt       DateTime @default(now())
+  id             String                   @id @default(uuid())
+  labId          String
+  lab            Lab                      @relation(fields: [labId], references: [id])
+  name           String
+  idNumber       String
+  make           String?
+  model          String?
+  serialNumber   String?
+  traceability   String?
+  calibrationDue DateTime?
+  location       String?
+  references     ReferenceStandardOnJob[]
+  createdAt      DateTime                 @default(now())
+
+  @@unique([labId, idNumber])
+  @@index([labId])
 }
 
 // ─────────────────────────── Jobs ────────────────────────────────
 
 model Job {
   id           String     @id @default(uuid())
-  jobNumber    String     @unique
+  jobNumber    String
+  labId        String
+  lab          Lab        @relation(fields: [labId], references: [id])
   customerId   String
   customer     Customer   @relation(fields: [customerId], references: [id])
   instrumentId String
   instrument   Instrument @relation(fields: [instrumentId], references: [id])
-  branchId     String?
-  branch       Branch?    @relation(fields: [branchId], references: [id])
   engineerId   String?
   engineer     Engineer?  @relation(fields: [engineerId], references: [id])
   status       JobStatus  @default(RECEIVED)
@@ -225,6 +255,9 @@ model Job {
   references   ReferenceStandardOnJob[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  @@unique([labId, jobNumber])
+  @@index([labId])
 }
 
 model ReferenceStandardOnJob {
@@ -239,16 +272,16 @@ model ReferenceStandardOnJob {
 // ─────────────────────── Datasheet engine ────────────────────────
 
 model Datasheet {
-  id              String        @id @default(uuid())
-  jobId           String
-  job             Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  templateName    String
-  version         Int           @default(1)
-  environmental   Json?         // temperature, humidity, pressure at calibration
-  observations    Observation[]
-  uncertainty     UncertaintyBudget?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id            String             @id @default(uuid())
+  jobId         String
+  job           Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  templateName  String
+  version       Int                @default(1)
+  environmental Json?
+  observations  Observation[]
+  uncertainty   UncertaintyBudget?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 model Observation {
@@ -256,57 +289,57 @@ model Observation {
   datasheetId   String
   datasheet     Datasheet @relation(fields: [datasheetId], references: [id], onDelete: Cascade)
   pointLabel    String?
-  unit          String?   // unit of measurement for this point (e.g. mm, bar, °C)
+  unit          String?
   nominal       Float?
   standardValue Float?
   observedValue Float?
   correction    Float?
   error         Float?
-  data          Json?     // free-form grid cells for dynamic columns/rows
+  data          Json?
 }
 
 // ─────────────────────── Uncertainty engine ──────────────────────
 
 model UncertaintyBudget {
-  id                  String  @id @default(uuid())
-  datasheetId         String  @unique
-  datasheet           Datasheet @relation(fields: [datasheetId], references: [id], onDelete: Cascade)
+  id                  String                 @id @default(uuid())
+  datasheetId         String                 @unique
+  datasheet           Datasheet              @relation(fields: [datasheetId], references: [id], onDelete: Cascade)
   combinedUncertainty Float?
-  coverageFactor      Float?  @default(2)
+  coverageFactor      Float?                 @default(2)
   expandedUncertainty Float?
-  confidenceLevel     Float?  @default(95.45)
+  confidenceLevel     Float?                 @default(95.45)
   parameters          UncertaintyParameter[]
 }
 
 model UncertaintyParameter {
-  id            String @id @default(uuid())
-  budgetId      String
-  budget        UncertaintyBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  source        String
-  type          String  // "A" | "B"
-  value         Float
-  distribution  String? // normal, rectangular, triangular
-  divisor       Float?
-  sensitivity   Float?  @default(1)
+  id             String            @id @default(uuid())
+  budgetId       String
+  budget         UncertaintyBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  source         String
+  type           String
+  value          Float
+  distribution   String?
+  divisor        Float?
+  sensitivity    Float?            @default(1)
   degreesFreedom Float?
-  unit          String?
+  unit           String?
 }
 
 // ─────────────────────── Certificates & signatures ───────────────
 
 model Certificate {
-  id                String          @id @default(uuid())
-  jobId             String          @unique
-  job               Job             @relation(fields: [jobId], references: [id])
-  certificateNumber String          @unique
-  type              CertificateType @default(NABL)
-  issueDate         DateTime        @default(now())
+  id                String             @id @default(uuid())
+  jobId             String             @unique
+  job               Job                @relation(fields: [jobId], references: [id])
+  certificateNumber String             @unique
+  type              CertificateType    @default(NABL)
+  issueDate         DateTime           @default(now())
   qrHash            String?
   pdfPath           String?
-  isLocked          Boolean         @default(false)
+  isLocked          Boolean            @default(false)
   decisionRule      String?
   signatures        DigitalSignature[]
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime           @default(now())
 }
 
 model DigitalSignature {
@@ -323,31 +356,37 @@ model DigitalSignature {
 // ─────────────────────── Engineers & Tasks ───────────────────────
 
 model Engineer {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id])
-  employeeCode  String   @unique
-  skills        String[]
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  employeeCode   String   @unique
+  skills         String[]
   authorizations String[]
-  jobs          Job[]
-  tasks         Task[]
+  jobs           Job[]
+  tasks          Task[]
 }
 
 model Task {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
+  labId       String
+  lab         Lab       @relation(fields: [labId], references: [id])
   title       String
   description String?
-  status      String   @default("PENDING") // PENDING, ASSIGNED, RUNNING, REVIEW, COMPLETED
+  status      String    @default("PENDING")
   engineerId  String?
   engineer    Engineer? @relation(fields: [engineerId], references: [id])
   dueDate     DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([labId])
 }
 
 // ─────────────────────────── Billing ─────────────────────────────
 
 model Invoice {
   id            String        @id @default(uuid())
+  labId         String
+  lab           Lab           @relation(fields: [labId], references: [id])
   invoiceNumber String        @unique
   customerId    String
   customer      Customer      @relation(fields: [customerId], references: [id])
@@ -358,6 +397,8 @@ model Invoice {
   payments      Payment[]
   issueDate     DateTime?
   createdAt     DateTime      @default(now())
+
+  @@index([labId])
 }
 
 model Payment {
@@ -373,58 +414,74 @@ model Payment {
 
 model EnvironmentalRecord {
   id          String   @id @default(uuid())
+  labId       String
+  lab         Lab      @relation(fields: [labId], references: [id])
   location    String
   temperature Float?
   humidity    Float?
   pressure    Float?
   operator    String?
   recordedAt  DateTime @default(now())
+
+  @@index([labId])
 }
 
 model NCR {
   id          String   @id @default(uuid())
-  reference   String   @unique
+  labId       String
+  lab         Lab      @relation(fields: [labId], references: [id])
+  reference   String
   description String
   status      String   @default("OPEN")
   raisedById  String?
   capa        CAPA?
   createdAt   DateTime @default(now())
+
+  @@unique([labId, reference])
+  @@index([labId])
 }
 
 model CAPA {
-  id            String   @id @default(uuid())
-  ncrId         String   @unique
-  ncr           NCR      @relation(fields: [ncrId], references: [id], onDelete: Cascade)
-  rootCause     String?
+  id               String   @id @default(uuid())
+  ncrId            String   @unique
+  ncr              NCR      @relation(fields: [ncrId], references: [id], onDelete: Cascade)
+  rootCause        String?
   correctiveAction String?
   preventiveAction String?
-  status        String   @default("OPEN")
-  createdAt     DateTime @default(now())
+  status           String   @default("OPEN")
+  createdAt        DateTime @default(now())
 }
 
 // ─────────────────────── Audit & Notifications ───────────────────
 
 model AuditLog {
   id        String   @id @default(uuid())
+  labId     String?
+  lab       Lab?     @relation(fields: [labId], references: [id])
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
-  action    String   // LOGIN, INSERT, UPDATE, DELETE, APPROVE, SIGNATURE, ...
+  action    String
   entity    String?
   entityId  String?
   metadata  Json?
   createdAt DateTime @default(now())
 
+  @@index([labId])
   @@index([entity, entityId])
 }
 
 model Notification {
   id        String   @id @default(uuid())
+  labId     String?
+  lab       Lab?     @relation(fields: [labId], references: [id])
   userId    String?
-  channel   String   // EMAIL, SMS, WHATSAPP, PUSH
-  event     String   // CALIBRATION_DUE, JOB_ASSIGNED, CERTIFICATE_READY, ...
+  channel   String
+  event     String
   payload   Json?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([labId])
 }
 
 model Setting {

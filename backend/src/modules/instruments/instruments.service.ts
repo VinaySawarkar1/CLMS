@@ -6,28 +6,28 @@ import { CreateInstrumentDto } from './dto';
 export class InstrumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateInstrumentDto) {
-    return this.prisma.instrument.create({ data: dto });
+  create(labId: string, dto: CreateInstrumentDto) {
+    return this.prisma.instrument.create({ data: { ...dto, labId } });
   }
 
-  findAll(customerId?: string) {
+  findAll(labId: string, customerId?: string) {
     return this.prisma.instrument.findMany({
-      where: customerId ? { customerId } : undefined,
+      where: { labId, ...(customerId ? { customerId } : {}) },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string) {
-    const instrument = await this.prisma.instrument.findUnique({
-      where: { id },
+  async findOne(id: string, labId: string) {
+    const instrument = await this.prisma.instrument.findFirst({
+      where: { id, labId },
       include: { customer: true, discipline: true, category: true },
     });
     if (!instrument) throw new NotFoundException('Instrument not found');
     return instrument;
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, labId: string) {
+    await this.findOne(id, labId);
     return this.prisma.instrument.delete({ where: { id } });
   }
 }

@@ -1,14 +1,5 @@
 import {
-  Body,
-  Controller,
-  Get,
-  Injectable,
-  Module,
-  NotFoundException,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
+  Body, Controller, Get, Injectable, Module, NotFoundException, Param, Patch, Post, Request, UseGuards,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Role } from '@prisma/client';
@@ -17,14 +8,14 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 
-/** Non-Conformance Reports (NCR) and their Corrective/Preventive Actions (CAPA). */
 @Injectable()
 class QualityService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async raiseNcr(data: { description: string; raisedById?: string }) {
+  async raiseNcr(labId: string, data: { description: string; raisedById?: string }) {
     return this.prisma.nCR.create({
       data: {
+        labId,
         reference: `NCR/${new Date().getFullYear()}/${randomUUID().slice(0, 8)}`,
         description: data.description,
         raisedById: data.raisedById,
@@ -32,8 +23,9 @@ class QualityService {
     });
   }
 
-  listNcr() {
+  listNcr(labId: string) {
     return this.prisma.nCR.findMany({
+      where: { labId },
       include: { capa: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -53,10 +45,7 @@ class QualityService {
   }
 
   closeNcr(ncrId: string) {
-    return this.prisma.nCR.update({
-      where: { id: ncrId },
-      data: { status: 'CLOSED' },
-    });
+    return this.prisma.nCR.update({ where: { id: ncrId }, data: { status: 'CLOSED' } });
   }
 }
 
@@ -66,24 +55,24 @@ class QualityController {
   constructor(private readonly quality: QualityService) {}
 
   @Post('ncr')
-  @Roles(Role.SUPER_ADMIN, Role.QUALITY_MANAGER, Role.AUDITOR, Role.REVIEWER)
-  raise(@Body() body: any) {
-    return this.quality.raiseNcr(body);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.CALIBRATION_ENGINEER)
+  raise(@Request() req: any, @Body() body: any) {
+    return this.quality.raiseNcr(req.user.labId, { ...body, raisedById: req.user.id });
   }
 
   @Get('ncr')
-  list() {
-    return this.quality.listNcr();
+  list(@Request() req: any) {
+    return this.quality.listNcr(req.user.labId);
   }
 
   @Post('ncr/:id/capa')
-  @Roles(Role.SUPER_ADMIN, Role.QUALITY_MANAGER)
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
   addCapa(@Param('id') id: string, @Body() body: any) {
     return this.quality.addCapa(id, body);
   }
 
   @Patch('ncr/:id/close')
-  @Roles(Role.SUPER_ADMIN, Role.QUALITY_MANAGER)
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
   close(@Param('id') id: string) {
     return this.quality.closeNcr(id);
   }

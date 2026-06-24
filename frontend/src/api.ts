@@ -27,16 +27,48 @@ api.interceptors.response.use(
   },
 );
 
+export interface CurrentUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  labId: string | null;
+  lab?: { id: string; name: string; status: string; accreditationNumber?: string | null } | null;
+  permissions: string[];
+}
+
 export async function login(email: string, password: string) {
   const { data } = await api.post('/auth/login', { email, password });
   localStorage.setItem('clms_access_token', data.accessToken);
   localStorage.setItem('clms_refresh_token', data.refreshToken);
-  return data.user;
+  // Fetch full profile (role + lab + permissions) and cache it.
+  const me = await fetchMe();
+  return me;
+}
+
+export async function fetchMe(): Promise<CurrentUser> {
+  const { data } = await api.get('/auth/me');
+  localStorage.setItem('clms_user', JSON.stringify(data));
+  return data;
+}
+
+export function getUser(): CurrentUser | null {
+  const raw = localStorage.getItem('clms_user');
+  return raw ? (JSON.parse(raw) as CurrentUser) : null;
+}
+
+/** True if the current user can access a module/permission key. */
+export function hasPermission(key: string): boolean {
+  const user = getUser();
+  if (!user) return false;
+  if (user.permissions?.includes('*')) return true;
+  return user.permissions?.includes(key) ?? false;
 }
 
 export function logout() {
   localStorage.removeItem('clms_access_token');
   localStorage.removeItem('clms_refresh_token');
+  localStorage.removeItem('clms_user');
 }
 
 export function isAuthed() {
@@ -46,6 +78,27 @@ export function isAuthed() {
 const get = (url: string, params?: any) => api.get(url, { params }).then((r) => r.data);
 const post = (url: string, body?: any) => api.post(url, body).then((r) => r.data);
 const patch = (url: string, body?: any) => api.patch(url, body).then((r) => r.data);
+const put = (url: string, body?: any) => api.put(url, body).then((r) => r.data);
+
+// Public lab registration (no auth)
+export const registerLab = (b: any) => post('/auth/register-lab', b);
+
+// Labs (SUPER_ADMIN)
+export const getLabs = (status?: string) => get('/labs', { status });
+export const getLab = (id: string) => get(`/labs/${id}`);
+export const updateLabStatus = (id: string, status: string) => patch(`/labs/${id}/status`, { status });
+
+// Lab users (LAB_ADMIN)
+export const getLabUsers = (labId: string) => get(`/labs/${labId}/users`);
+export const createLabUser = (labId: string, b: any) => post(`/labs/${labId}/users`, b);
+export const updateLabUserRole = (labId: string, userId: string, role: string) =>
+  patch(`/labs/${labId}/users/${userId}/role`, { role });
+export const setLabUserActive = (labId: string, userId: string, isActive: boolean) =>
+  patch(`/labs/${labId}/users/${userId}/active`, { isActive });
+
+// Lab role permissions (LAB_ADMIN)
+export const getLabPermissions = (labId: string) => get(`/labs/${labId}/permissions`);
+export const saveLabPermissions = (labId: string, matrix: any[]) => put(`/labs/${labId}/permissions`, matrix);
 
 // Dashboard
 export const getDashboard = () => get('/dashboard');

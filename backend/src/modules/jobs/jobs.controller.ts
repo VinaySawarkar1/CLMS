@@ -1,12 +1,5 @@
 import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
+  Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { JobStatus, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -21,29 +14,29 @@ export class JobsController {
   constructor(private readonly jobs: JobsService) {}
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.DATA_ENTRY_OPERATOR, Role.STORE_MANAGER)
-  create(@Body() dto: CreateJobDto) {
-    return this.jobs.create(dto);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  create(@Request() req: any, @Body() dto: CreateJobDto) {
+    return this.jobs.create(req.user.labId, dto);
   }
 
   @Get()
-  findAll(@Query('status') status?: JobStatus) {
-    return this.jobs.findAll(status);
+  findAll(@Request() req: any, @Query('status') status?: JobStatus) {
+    return this.jobs.findAll(req.user.labId, status);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.jobs.findOne(id);
+  findOne(@Request() req: any, @Param('id') id: string) {
+    return this.jobs.findOne(id, req.user.labId);
   }
 
   @Patch(':id/assign')
-  @Roles(Role.SUPER_ADMIN, Role.TECHNICAL_MANAGER, Role.QUALITY_MANAGER)
-  assign(@Param('id') id: string, @Body() dto: AssignEngineerDto) {
-    return this.jobs.assignEngineer(id, dto.engineerId);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
+  assign(@Request() req: any, @Param('id') id: string, @Body() dto: AssignEngineerDto) {
+    return this.jobs.assignEngineer(id, req.user.labId, dto.engineerId);
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
-    return this.jobs.updateStatus(id, dto.status);
+  updateStatus(@Request() req: any, @Param('id') id: string, @Body() dto: UpdateStatusDto) {
+    return this.jobs.updateStatus(id, req.user.labId, dto.status);
   }
 }

@@ -23,9 +23,9 @@ export class CertificatesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Generate a certificate for an approved job. */
-  async generate(jobId: string, type: CertificateType, decisionRule?: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
+  async generate(jobId: string, labId: string, type: CertificateType, decisionRule?: string) {
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, labId },
       include: {
         customer: true,
         instrument: true,
@@ -41,7 +41,7 @@ export class CertificatesService {
       throw new BadRequestException('Job must be APPROVED before certificate generation');
     }
 
-    const certificateNumber = await this.nextCertificateNumber();
+    const certificateNumber = await this.nextCertificateNumber(labId);
     const hash = contentHash({
       job: job.jobNumber,
       customer: job.customer.name,
@@ -134,11 +134,14 @@ export class CertificatesService {
     };
   }
 
-  private async nextCertificateNumber(): Promise<string> {
+  private async nextCertificateNumber(labId?: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `CC/${year}/`;
     const count = await this.prisma.certificate.count({
-      where: { certificateNumber: { startsWith: prefix } },
+      where: {
+        certificateNumber: { startsWith: prefix },
+        ...(labId ? { job: { labId } } : {}),
+      },
     });
     return `${prefix}${String(count + 1).padStart(5, '0')}`;
   }

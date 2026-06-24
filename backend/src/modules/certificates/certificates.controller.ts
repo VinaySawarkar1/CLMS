@@ -1,11 +1,5 @@
 import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Request,
-  UseGuards,
+  Body, Controller, Get, Param, Post, Request, UseGuards,
 } from '@nestjs/common';
 import { CertificateType, Role, SignatureStage } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -19,23 +13,20 @@ export class CertificatesController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('generate')
-  @Roles(Role.SUPER_ADMIN, Role.QUALITY_MANAGER, Role.TECHNICAL_MANAGER)
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
   generate(
+    @Request() req: any,
     @Body('jobId') jobId: string,
     @Body('type') type: CertificateType,
     @Body('decisionRule') decisionRule?: string,
   ) {
-    return this.certificates.generate(jobId, type ?? 'NABL', decisionRule);
+    return this.certificates.generate(jobId, req.user.labId, type ?? 'NABL', decisionRule);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':id/sign')
   @Roles(
-    Role.SUPER_ADMIN,
-    Role.CALIBRATION_ENGINEER,
-    Role.REVIEWER,
-    Role.TECHNICAL_MANAGER,
-    Role.QUALITY_MANAGER,
+    Role.LAB_ADMIN, Role.CALIBRATION_ENGINEER, Role.TECHNICAL_MANAGER,
   )
   sign(
     @Param('id') id: string,

@@ -1,13 +1,5 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
+  Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,30 +14,30 @@ export class CustomersController {
   constructor(private readonly customers: CustomersService) {}
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.SALES, Role.DATA_ENTRY_OPERATOR)
-  create(@Body() dto: CreateCustomerDto) {
-    return this.customers.create(dto);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  create(@Request() req: any, @Body() dto: CreateCustomerDto) {
+    return this.customers.create(req.user.labId, dto);
   }
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.customers.findAll(search);
+  findAll(@Request() req: any, @Query('search') search?: string) {
+    return this.customers.findAll(req.user.labId, search);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.customers.findOne(id);
+  findOne(@Request() req: any, @Param('id') id: string) {
+    return this.customers.findOne(id, req.user.labId);
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.SALES, Role.DATA_ENTRY_OPERATOR)
-  update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
-    return this.customers.update(id, dto);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  update(@Request() req: any, @Param('id') id: string, @Body() dto: UpdateCustomerDto) {
+    return this.customers.update(id, req.user.labId, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.customers.remove(id);
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.customers.remove(id, req.user.labId);
   }
 }

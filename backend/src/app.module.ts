@@ -21,6 +21,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { EnvironmentalModule } from './modules/environmental/environmental.module';
 import { PortalModule } from './modules/portal/portal.module';
+import { LabsModule } from './modules/labs/labs.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -52,6 +53,7 @@ import { HealthController } from './health.controller';
     QualityModule,
     EnvironmentalModule,
     PortalModule,
+    LabsModule,
   ],
 })
 export class AppModule {}

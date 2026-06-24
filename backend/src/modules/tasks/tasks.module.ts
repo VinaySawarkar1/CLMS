@@ -1,13 +1,5 @@
 import {
-  Body,
-  Controller,
-  Get,
-  Injectable,
-  Module,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
+  Body, Controller, Get, Injectable, Module, Param, Patch, Post, Request, UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,20 +10,21 @@ const TASK_STATES = ['PENDING', 'ASSIGNED', 'RUNNING', 'REVIEW', 'COMPLETED'];
 class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: { title: string; description?: string; engineerId?: string; dueDate?: string }) {
+  create(labId: string, data: { title: string; description?: string; engineerId?: string; dueDate?: string }) {
     return this.prisma.task.create({
       data: {
+        labId,
         title: data.title,
         description: data.description,
-        engineerId: data.engineerId,
+        engineerId: data.engineerId ?? null,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       },
     });
   }
 
-  /** Kanban board: tasks grouped by status column. */
-  async board() {
+  async board(labId: string) {
     const tasks = await this.prisma.task.findMany({
+      where: { labId },
       orderBy: { createdAt: 'desc' },
     });
     const columns: Record<string, typeof tasks> = {};
@@ -51,13 +44,13 @@ class TasksController {
   constructor(private readonly tasks: TasksService) {}
 
   @Post()
-  create(@Body() body: any) {
-    return this.tasks.create(body);
+  create(@Request() req: any, @Body() body: any) {
+    return this.tasks.create(req.user.labId, body);
   }
 
   @Get('board')
-  board() {
-    return this.tasks.board();
+  board(@Request() req: any) {
+    return this.tasks.board(req.user.labId);
   }
 
   @Patch(':id/status')
