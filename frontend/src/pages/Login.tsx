@@ -17,8 +17,9 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
     try {
       await login(values.email, values.password);
       onSuccess();
-    } catch {
-      setError('Invalid email or password. Please try again.');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      setError(msg || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
