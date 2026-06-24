@@ -24,7 +24,7 @@ import {
 } from '../../common/qr/qr-engine';
 
 @Injectable()
-class ReportsService {
+export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async certificateHtml(certificateId: string): Promise<string> {
@@ -241,5 +241,6 @@ class PortalController {
 @Module({
   controllers: [ReportsController, PortalController],
   providers: [ReportsService],
+  exports: [ReportsService],
 })
 export class ReportsModule {}

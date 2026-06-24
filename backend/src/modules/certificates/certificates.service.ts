@@ -8,6 +8,8 @@ import { createHash } from 'crypto';
 import { CertificateType, SignatureStage } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { buildQrPayload, contentHash } from '../../common/qr/qr-engine';
+import { MailService } from '../../common/mail/mail.service';
+import { ReportsService } from '../reports/reports.module';
 
 /** The signature workflow order. Each stage must sign before the next. */
 const SIGNATURE_ORDER: SignatureStage[] = [
@@ -20,7 +22,11 @@ const SIGNATURE_ORDER: SignatureStage[] = [
 
 @Injectable()
 export class CertificatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly reports: ReportsService,
+  ) {}
 
   /** Generate a certificate for an approved job. */
   async generate(jobId: string, labId: string, type: CertificateType, decisionRule?: string) {
@@ -104,12 +110,33 @@ export class CertificatesService {
       data: { certificateId: id, stage, signedById, signedByName, signatureHash },
     });
 
-    // FINAL_LOCK makes the certificate immutable.
+    // FINAL_LOCK makes the certificate immutable, then auto-emails the customer.
     if (stage === 'FINAL_LOCK') {
       await this.prisma.certificate.update({
         where: { id },
         data: { isLocked: true },
       });
+
+      // Fetch customer email for the job linked to this certificate.
+      const jobWithCustomer = await this.prisma.job.findUnique({
+        where: { id: cert.jobId },
+        include: { customer: true },
+      });
+
+      if (jobWithCustomer?.customer?.email) {
+        try {
+          const htmlContent = await this.reports.certificateHtml(id);
+          await this.mail.sendCertificate(
+            jobWithCustomer.customer.email,
+            cert.certificateNumber,
+            (cert.job as any)?.jobNumber ?? id,
+            htmlContent,
+          );
+        } catch (err) {
+          // Email failure must never block certificate finalisation
+          console.error('[certificates] Email send failed:', err);
+        }
+      }
     }
 
     return this.findOne(id);
