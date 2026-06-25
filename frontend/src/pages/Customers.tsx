@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Form, Input, Modal, Space, Table, Tag, Typography, Row, Col,
 } from 'antd';
-import { PlusOutlined, TeamOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, TeamOutlined, SearchOutlined, ExportOutlined } from '@ant-design/icons';
 import { createCustomer, getCustomers } from '../api';
+import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -83,14 +84,29 @@ export default function Customers() {
             <Text type="secondary">Manage laboratory customers and client details</Text>
           </Col>
           <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setOpen(true)}
-              size="large"
-            >
-              New Customer
-            </Button>
+            <Space>
+              <Button
+                icon={<ExportOutlined />}
+                onClick={() => exportToCsv('customers.csv', data as any[], [
+                  { key: 'name', label: 'Name' },
+                  { key: 'code', label: 'Code' },
+                  { key: 'gstin', label: 'GSTIN' },
+                  { key: 'email', label: 'Email' },
+                  { key: 'phone', label: 'Phone' },
+                  { key: 'address', label: 'Address' },
+                ])}
+              >
+                Export CSV
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setOpen(true)}
+                size="large"
+              >
+                New Customer
+              </Button>
+            </Space>
           </Col>
         </Row>
       </div>

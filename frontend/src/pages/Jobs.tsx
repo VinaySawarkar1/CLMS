@@ -7,12 +7,13 @@ import {
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined,
+  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import {
   assignJob, createJob, generateCertificate, getCustomers, getEngineers,
   getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
+import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -249,7 +250,7 @@ export default function Jobs() {
 
       {/* Filter + Table */}
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
           <Select
             placeholder="Filter by status"
             allowClear
@@ -258,6 +259,19 @@ export default function Jobs() {
             style={{ width: 240 }}
             options={STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
           />
+          <Button
+            icon={<ExportOutlined />}
+            onClick={() => exportToCsv('jobs.csv', data as any[], [
+              { key: 'jobNumber', label: 'Job No' },
+              { key: 'customer.name', label: 'Customer' },
+              { key: 'instrument.name', label: 'Instrument' },
+              { key: 'engineer.user.fullName', label: 'Engineer' },
+              { key: 'status', label: 'Status' },
+              { key: 'createdAt', label: 'Created At' },
+            ])}
+          >
+            Export CSV
+          </Button>
         </div>
         <Table
           columns={columns}

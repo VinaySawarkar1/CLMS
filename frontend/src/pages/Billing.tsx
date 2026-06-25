@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Col, Form, InputNumber, Modal, Row, Select, Space, Table, Tag, Typography,
 } from 'antd';
-import { PlusOutlined, DollarOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, DollarOutlined, CheckOutlined, ExportOutlined } from '@ant-design/icons';
 import { createInvoice, getCustomers, getInvoices, payInvoice } from '../api';
+import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -98,9 +99,23 @@ export default function Billing() {
             <Text type="secondary">Manage invoices and payment records</Text>
           </Col>
           <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
-              New Invoice
-            </Button>
+            <Space>
+              <Button
+                icon={<ExportOutlined />}
+                onClick={() => exportToCsv('invoices.csv', data as any[], [
+                  { key: 'invoiceNumber', label: 'Invoice No' },
+                  { key: 'customer.name', label: 'Customer' },
+                  { key: 'amount', label: 'Amount' },
+                  { key: 'status', label: 'Status' },
+                  { key: 'dueDate', label: 'Due Date' },
+                ])}
+              >
+                Export CSV
+              </Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
+                New Invoice
+              </Button>
+            </Space>
           </Col>
         </Row>
       </div>
