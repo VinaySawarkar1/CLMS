@@ -56,9 +56,19 @@ export class JobsService {
     throw new Error('Could not allocate a unique job number');
   }
 
-  findAll(labId: string, status?: JobStatus) {
+  async findAll(labId: string, status?: JobStatus, user?: { id: string; role: string }) {
+    // Engineers only see jobs assigned to them; managers/admins see all.
+    let engineerFilter = {};
+    if (user && (user.role === 'CALIBRATION_ENGINEER' || user.role === 'SERVICE_ENGINEER')) {
+      const engineer = await this.prisma.engineer.findFirst({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      // If the user isn't linked to an engineer record, they see nothing.
+      engineerFilter = { engineerId: engineer?.id ?? '__none__' };
+    }
     return this.prisma.job.findMany({
-      where: { labId, ...(status ? { status } : {}) },
+      where: { labId, ...(status ? { status } : {}), ...engineerFilter },
       include: { customer: true, instrument: true, engineer: true },
       orderBy: { receivedAt: 'desc' },
     });

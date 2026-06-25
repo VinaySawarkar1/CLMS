@@ -21,7 +21,7 @@ export class JobsController {
 
   @Get()
   findAll(@Request() req: any, @Query('status') status?: JobStatus) {
-    return this.jobs.findAll(req.user.labId, status);
+    return this.jobs.findAll(req.user.labId, status, { id: req.user.id, role: req.user.role });
   }
 
   @Get(':id')

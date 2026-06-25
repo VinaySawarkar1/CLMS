@@ -13,18 +13,21 @@ class EngineersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(labId: string, data: {
-    userId?: string; fullName?: string; email?: string;
+    userId?: string; fullName?: string; email?: string; password?: string; role?: Role;
     employeeCode: string; skills?: string[]; authorizations?: string[];
   }) {
     let userId = data.userId;
     if (!userId) {
       const email = data.email || `${data.employeeCode.toLowerCase()}@clms.local`;
-      const passwordHash = await bcrypt.hash(randomBytes(6).toString('hex'), 10);
+      // Use the admin-provided password so the engineer can log in; otherwise
+      // generate a random one (admin can set it later via reset-password).
+      const passwordHash = await bcrypt.hash(data.password || randomBytes(6).toString('hex'), 10);
+      const role = data.role === Role.SERVICE_ENGINEER ? Role.SERVICE_ENGINEER : Role.CALIBRATION_ENGINEER;
       const user = await this.prisma.user.create({
         data: {
           email, passwordHash,
           fullName: data.fullName || data.employeeCode,
-          role: Role.CALIBRATION_ENGINEER,
+          role,
           labId,
         },
       });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Form, Input, Modal, Row, Space, Table, Tag, Typography,
+  Button, Card, Col, Form, Input, Modal, Row, Space, Table, Tag, Typography, Select, Alert,
 } from 'antd';
 import { PlusOutlined, UserOutlined } from '@ant-design/icons';
 import { createEngineer, getEngineers } from '../api';
@@ -117,12 +117,34 @@ export default function Engineers() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="email" label="Email">
-            <Input placeholder="engineer@lab.com" type="email" />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="email" label="Login Email" rules={[{ required: true, message: 'Email is the login id' }]}>
+                <Input placeholder="engineer@lab.com" type="email" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="password" label="Login Password" rules={[{ required: true, min: 6, message: 'Min 6 characters' }]}>
+                <Input.Password placeholder="Set a password" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="role" label="Role" initialValue="CALIBRATION_ENGINEER">
+            <Select
+              options={[
+                { value: 'CALIBRATION_ENGINEER', label: 'Calibration Engineer' },
+                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="skills" label="Skills (comma separated)">
             <Input placeholder="Mechanical, Thermal, Pressure..." />
           </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            message="The engineer logs in with this email & password and will only see jobs assigned to them."
+          />
         </Form>
       </Modal>
     </div>
