@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Card, Table, Tag, Button, Space, Typography, Modal, Form, Input, Select, Switch, message,
+  Card, Table, Tag, Button, Space, Typography, Modal, Form, Input, Select, Switch, message, Divider,
 } from 'antd';
 import { UsergroupAddOutlined, PlusOutlined } from '@ant-design/icons';
 import { getUser, getLabUsers, createLabUser, updateLabUserRole, setLabUserActive } from '../api';
@@ -23,12 +23,15 @@ const ROLE_COLOR: Record<string, string> = {
   DATA_ENTRY_OPERATOR: 'default',
 };
 
+const ENGINEER_ROLES = new Set(['CALIBRATION_ENGINEER', 'SERVICE_ENGINEER']);
+
 export default function Users() {
   const qc = useQueryClient();
   const me = getUser();
   const labId = me?.labId ?? '';
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
+  const selectedRole = Form.useWatch('role', form);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['lab-users', labId],
@@ -43,6 +46,7 @@ export default function Users() {
       setOpen(false);
       form.resetFields();
       qc.invalidateQueries({ queryKey: ['lab-users'] });
+      qc.invalidateQueries({ queryKey: ['engineers'] });
     },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to create user'),
   });
@@ -52,6 +56,7 @@ export default function Users() {
     onSuccess: () => {
       message.success('Role updated');
       qc.invalidateQueries({ queryKey: ['lab-users'] });
+      qc.invalidateQueries({ queryKey: ['engineers'] });
     },
   });
 
@@ -123,12 +128,18 @@ export default function Users() {
       <Modal
         title="Add Team Member"
         open={open}
-        onCancel={() => setOpen(false)}
+        onCancel={() => { setOpen(false); form.resetFields(); }}
         onOk={() => form.submit()}
         confirmLoading={createMut.isPending}
         okText="Create User"
       >
-        <Form form={form} layout="vertical" onFinish={(v) => createMut.mutate(v)}>
+        <Form form={form} layout="vertical" onFinish={(v) => {
+          const payload: any = { ...v };
+          if (payload.skills) {
+            payload.skills = String(payload.skills).split(',').map((s: string) => s.trim()).filter(Boolean);
+          }
+          createMut.mutate(payload);
+        }}>
           <Form.Item name="fullName" label="Full Name" rules={[{ required: true }]}>
             <Input placeholder="Jane Doe" />
           </Form.Item>
@@ -141,6 +152,17 @@ export default function Users() {
           <Form.Item name="role" label="Role" rules={[{ required: true }]} initialValue="DATA_ENTRY_OPERATOR">
             <Select options={ASSIGNABLE_ROLES} />
           </Form.Item>
+          {ENGINEER_ROLES.has(selectedRole) && (
+            <>
+              <Divider plain style={{ margin: '8px 0 12px' }}>Engineer Details</Divider>
+              <Form.Item name="employeeCode" label="Employee Code" extra="Leave blank to auto-generate (e.g. ENG-001)">
+                <Input placeholder="ENG-001" />
+              </Form.Item>
+              <Form.Item name="skills" label="Skills (comma separated)">
+                <Input placeholder="Mechanical, Thermal, Pressure..." />
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
     </Space>

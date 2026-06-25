@@ -151,7 +151,10 @@ export class LabsService {
   }
 
   /** LAB_ADMIN: create a user in their lab */
-  async createLabUser(labId: string, data: { email: string; fullName: string; password: string; role: Role }) {
+  async createLabUser(labId: string, data: {
+    email: string; fullName: string; password: string; role: Role;
+    employeeCode?: string; skills?: string[];
+  }) {
     const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -160,15 +163,40 @@ export class LabsService {
       throw new ForbiddenException('Cannot assign this role');
     }
 
-    return this.prisma.user.create({
-      data: {
-        email: data.email,
-        fullName: data.fullName,
-        passwordHash: await bcrypt.hash(data.password, 10),
-        role: data.role,
-        labId,
-      },
-      select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true },
+    const isEngineerRole = data.role === Role.CALIBRATION_ENGINEER || data.role === Role.SERVICE_ENGINEER;
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          fullName: data.fullName,
+          passwordHash: await bcrypt.hash(data.password, 10),
+          role: data.role,
+          labId,
+        },
+        select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true },
+      });
+
+      if (isEngineerRole) {
+        let employeeCode = data.employeeCode?.trim();
+        if (!employeeCode) {
+          const count = await tx.engineer.count({ where: { user: { labId } } });
+          employeeCode = `ENG-${String(count + 1).padStart(3, '0')}`;
+        }
+        const codeExists = await tx.engineer.findFirst({ where: { employeeCode, user: { labId } } });
+        if (codeExists) throw new ConflictException(`Employee code ${employeeCode} already exists`);
+
+        await tx.engineer.create({
+          data: {
+            userId: user.id,
+            employeeCode,
+            skills: data.skills ?? [],
+            authorizations: [],
+          },
+        });
+      }
+
+      return user;
     });
   }
 
@@ -180,10 +208,27 @@ export class LabsService {
     const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
     if (!allowedRoles.includes(role)) throw new ForbiddenException('Cannot assign this role');
 
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { role },
-      select: { id: true, email: true, fullName: true, role: true, isActive: true },
+    const isEngineerRole = role === Role.CALIBRATION_ENGINEER || role === Role.SERVICE_ENGINEER;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { role },
+        select: { id: true, email: true, fullName: true, role: true, isActive: true },
+      });
+
+      if (isEngineerRole) {
+        const existing = await tx.engineer.findUnique({ where: { userId } });
+        if (!existing) {
+          const count = await tx.engineer.count({ where: { user: { labId } } });
+          const employeeCode = `ENG-${String(count + 1).padStart(3, '0')}`;
+          await tx.engineer.create({
+            data: { userId, employeeCode, skills: [], authorizations: [] },
+          });
+        }
+      }
+
+      return updated;
     });
   }
 

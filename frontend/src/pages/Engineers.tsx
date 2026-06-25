@@ -1,34 +1,14 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Form, Input, Modal, Row, Space, Table, Tag, Typography, Select, Alert,
+  Alert, Card, Col, Row, Space, Table, Tag, Typography,
 } from 'antd';
-import { PlusOutlined, UserOutlined } from '@ant-design/icons';
-import { createEngineer, getEngineers } from '../api';
+import { InfoCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { getEngineers } from '../api';
 
 const { Title, Text } = Typography;
 
 export default function Engineers() {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [form] = Form.useForm();
-
   const { data = [], isLoading } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
-
-  const mut = useMutation({
-    mutationFn: () => {
-      const values = form.getFieldsValue();
-      return createEngineer({
-        ...values,
-        skills: values.skills ? values.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['engineers'] });
-      setOpen(false);
-      form.resetFields();
-    },
-  });
 
   const columns = [
     {
@@ -74,15 +54,18 @@ export default function Engineers() {
                 Engineers
               </Space>
             </Title>
-            <Text type="secondary">Manage calibration engineers and their skill profiles</Text>
-          </Col>
-          <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
-              New Engineer
-            </Button>
+            <Text type="secondary">All calibration and service engineers in your lab</Text>
           </Col>
         </Row>
       </div>
+
+      <Alert
+        icon={<InfoCircleOutlined />}
+        showIcon
+        type="info"
+        message="To add an engineer, go to Team Members and create a user with the Calibration Engineer or Service Engineer role."
+        style={{ marginBottom: 16, borderRadius: 8 }}
+      />
 
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Table
@@ -94,59 +77,6 @@ export default function Engineers() {
           size="middle"
         />
       </Card>
-
-      <Modal
-        title={<Space><UserOutlined /><span>New Engineer</span></Space>}
-        open={open}
-        onCancel={() => { setOpen(false); form.resetFields(); }}
-        onOk={() => form.validateFields().then(() => mut.mutate())}
-        okText="Create Engineer"
-        confirmLoading={mut.isPending}
-        width={480}
-      >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="employeeCode" label="Employee Code" rules={[{ required: true }]}>
-                <Input placeholder="ENG-001" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="fullName" label="Full Name" rules={[{ required: true }]}>
-                <Input placeholder="John Doe" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="email" label="Login Email" rules={[{ required: true, message: 'Email is the login id' }]}>
-                <Input placeholder="engineer@lab.com" type="email" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="password" label="Login Password" rules={[{ required: true, min: 6, message: 'Min 6 characters' }]}>
-                <Input.Password placeholder="Set a password" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="role" label="Role" initialValue="CALIBRATION_ENGINEER">
-            <Select
-              options={[
-                { value: 'CALIBRATION_ENGINEER', label: 'Calibration Engineer' },
-                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="skills" label="Skills (comma separated)">
-            <Input placeholder="Mechanical, Thermal, Pressure..." />
-          </Form.Item>
-          <Alert
-            type="info"
-            showIcon
-            message="The engineer logs in with this email & password and will only see jobs assigned to them."
-          />
-        </Form>
-      </Modal>
     </div>
   );
 }
