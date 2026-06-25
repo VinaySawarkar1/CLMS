@@ -90,6 +90,7 @@ function buildMenu(role: string): MenuProps['items'] {
       children: [
         { key: '/users', label: 'Users', icon: <UsergroupAddOutlined /> },
         { key: '/permissions', label: 'Role Permissions', icon: <KeyOutlined /> },
+        { key: '/settings', label: 'Lab Settings', icon: <SettingOutlined /> },
       ],
     });
   }
@@ -126,6 +127,8 @@ export default function Layout({ children, onLogout }: { children: ReactNode; on
     if (key === 'logout') {
       logout();
       onLogout();
+    } else if (key === 'settings') {
+      nav('/settings');
     }
   };
 

@@ -28,6 +28,7 @@ import VerifyCertificate from './pages/VerifyCertificate';
 import Documents from './pages/Documents';
 import InternalAudit from './pages/InternalAudit';
 import CustomerPortal from './pages/CustomerPortal';
+import Settings from './pages/Settings';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
@@ -90,6 +91,7 @@ export default function App() {
               <Route path="/notifications" element={<Notifications />} />
               {isLabAdmin && <Route path="/users" element={<Users />} />}
               {isLabAdmin && <Route path="/permissions" element={<Permissions />} />}
+              {isLabAdmin && <Route path="/settings" element={<Settings />} />}
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}

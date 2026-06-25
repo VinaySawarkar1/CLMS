@@ -27,6 +27,7 @@ import { MastersModule } from './modules/masters/masters.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
+import { SeedModule } from './modules/seed/seed.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -64,6 +65,7 @@ import { HealthController } from './health.controller';
     QuotationsModule,
     DocumentsModule,
     AuditPlansModule,
+    SeedModule,
   ],
 })
 export class AppModule {}
