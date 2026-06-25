@@ -15,14 +15,12 @@ import Engineers from './pages/Engineers';
 import Inventory from './pages/Inventory';
 import Environmental from './pages/Environmental';
 import Quality from './pages/Quality';
-import Billing from './pages/Billing';
 import Audit from './pages/Audit';
 import Notifications from './pages/Notifications';
 import Labs from './pages/Labs';
 import Users from './pages/Users';
 import Permissions from './pages/Permissions';
 import ReferenceStandards from './pages/ReferenceStandards';
-import Quotations from './pages/Quotations';
 import Reports from './pages/Reports';
 import VerifyCertificate from './pages/VerifyCertificate';
 import Documents from './pages/Documents';
@@ -74,7 +72,6 @@ export default function App() {
               <Route path="/customers" element={<Customers />} />
               <Route path="/instruments" element={<Instruments />} />
               <Route path="/reference-standards" element={<ReferenceStandards />} />
-              <Route path="/quotations" element={<Quotations />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/:id" element={<JobWorkspace />} />
@@ -84,7 +81,6 @@ export default function App() {
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/environmental" element={<Environmental />} />
               <Route path="/quality" element={<Quality />} />
-              <Route path="/billing" element={<Billing />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/internal-audit" element={<InternalAudit />} />

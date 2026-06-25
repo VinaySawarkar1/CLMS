@@ -6,11 +6,11 @@ import type { MenuProps } from 'antd';
 import {
   DashboardOutlined, TeamOutlined, ToolOutlined, FileTextOutlined,
   SafetyCertificateOutlined, CheckSquareOutlined, UserOutlined,
-  DatabaseOutlined, CloudOutlined, AlertOutlined, DollarOutlined,
+  DatabaseOutlined, CloudOutlined, AlertOutlined,
   HistoryOutlined, BellOutlined, LogoutOutlined, ExperimentOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
-  GoldOutlined, FileDoneOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
+  GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -46,11 +46,9 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'quality', label: 'Quality & Finance',
+    key: 'quality', label: 'Quality & Compliance',
     children: [
       { key: '/quality', label: 'NCR / CAPA', icon: <AlertOutlined />, perm: 'quality' },
-      { key: '/quotations', label: 'Quotations', icon: <FileDoneOutlined />, perm: 'billing' },
-      { key: '/billing', label: 'Billing', icon: <DollarOutlined />, perm: 'billing' },
       { key: '/reports', label: 'Reports', icon: <BarChartOutlined />, perm: 'jobs' },
       { key: '/audit', label: 'Audit Trail', icon: <HistoryOutlined />, perm: 'audit' },
       { key: '/documents', label: 'Documents', icon: <FileSyncOutlined />, perm: 'quality' },
