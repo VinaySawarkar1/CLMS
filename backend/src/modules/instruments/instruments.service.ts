@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { CreateInstrumentDto } from './dto';
+import { CreateInstrumentDto, UpdateInstrumentDto } from './dto';
 
 @Injectable()
 export class InstrumentsService {
@@ -53,6 +53,36 @@ export class InstrumentsService {
     });
     if (!instrument) throw new NotFoundException('Instrument not found');
     return instrument;
+  }
+
+  async update(id: string, labId: string, dto: UpdateInstrumentDto) {
+    await this.findOne(id, labId);
+    const { lastCalibrationDate, calibrationIntervalMonths, ...rest } = dto;
+    const last = lastCalibrationDate ? new Date(lastCalibrationDate) : undefined;
+    const nextDueDate = last !== undefined
+      ? this.computeNextDue(last, calibrationIntervalMonths)
+      : undefined;
+    return this.prisma.instrument.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(calibrationIntervalMonths !== undefined ? { calibrationIntervalMonths } : {}),
+        ...(last !== undefined ? { lastCalibrationDate: last } : {}),
+        ...(nextDueDate !== undefined ? { nextDueDate } : {}),
+      },
+    });
+  }
+
+  async bulkCreate(labId: string, records: CreateInstrumentDto[]) {
+    const results: any[] = [];
+    for (const dto of records) {
+      try {
+        results.push(await this.create(labId, dto));
+      } catch (e: any) {
+        results.push({ error: e?.message, input: dto });
+      }
+    }
+    return { imported: results.filter((r: any) => !r.error).length, errors: results.filter((r: any) => r.error) };
   }
 
   async remove(id: string, labId: string) {

@@ -278,6 +278,10 @@ model Job {
   calibrationProcedureNo  String?
   referenceDocumentNo  String?
   calibrationProcedure String?   // Procedure description text
+  // Locked calibration procedure (set at job creation, immutable thereafter)
+  procedureId          String?   // ID from the frontend procedures library
+  procedureRangeIndex  Int?      // Selected range index (0-based); null = first/only range
+  unitOfMeasurement    String?   // Unit locked at job creation
   // Onsite calibration
   isOnsite     Boolean    @default(false)
   siteAddress  String?

@@ -1,6 +1,7 @@
 import {
-  Body, Controller, Get, Injectable, Module, Post, Query, Request, UseGuards,
+  Body, Controller, Delete, Get, Injectable, Module, Param, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -28,6 +29,24 @@ class EnvironmentalService {
     });
   }
 
+  async remove(labId: string, id: string) {
+    const rec = await this.prisma.environmentalRecord.findFirst({ where: { id, labId } });
+    if (!rec) throw new NotFoundException('Record not found');
+    return this.prisma.environmentalRecord.delete({ where: { id } });
+  }
+
+  async bulkRecord(labId: string, records: any[]) {
+    const results: any[] = [];
+    for (const r of records) {
+      try {
+        results.push(await this.record(labId, r));
+      } catch (e: any) {
+        results.push({ error: e?.message, input: r });
+      }
+    }
+    return { imported: results.filter((r: any) => !r.error).length, errors: results.filter((r: any) => r.error) };
+  }
+
   private checkLimits(d: { temperature?: number; humidity?: number }): string[] {
     const alerts: string[] = [];
     const { temperature: t, humidity: h } = DEFAULT_LIMITS;
@@ -51,9 +70,19 @@ class EnvironmentalController {
     return this.environmental.record(req.user.labId, body);
   }
 
+  @Post('import')
+  bulkImport(@Request() req: any, @Body() body: { records: any[] }) {
+    return this.environmental.bulkRecord(req.user.labId, body.records);
+  }
+
   @Get()
   list(@Request() req: any, @Query('location') location?: string) {
     return this.environmental.list(req.user.labId, location);
+  }
+
+  @Delete(':id')
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.environmental.remove(req.user.labId, id);
   }
 }
 

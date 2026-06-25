@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, ExceptionFilter, Catch, ArgumentsHost, HttpException, Logger } from '@nestjs/common';
+import * as express from 'express';
 import { AppModule } from './app.module';
 
 /**
@@ -38,6 +39,9 @@ class AllExceptionsFilter implements ExceptionFilter {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Increase body size limit to support base64-encoded file uploads in documents.
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.setGlobalPrefix('api');
   app.enableCors();
   app.useGlobalPipes(

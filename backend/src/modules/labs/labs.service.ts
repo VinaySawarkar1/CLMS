@@ -257,6 +257,26 @@ export class LabsService {
     });
   }
 
+  /** LAB_ADMIN: get lab settings */
+  async getSettings(labId: string) {
+    const key = `lab_settings:${labId}`;
+    const row = await this.prisma.setting.findUnique({ where: { key } });
+    return (row?.value as any) ?? {};
+  }
+
+  /** LAB_ADMIN: merge into lab settings */
+  async updateSettings(labId: string, body: any) {
+    const key = `lab_settings:${labId}`;
+    const existing = await this.prisma.setting.findUnique({ where: { key } });
+    const merged = { ...((existing?.value as any) ?? {}), ...body };
+    await this.prisma.setting.upsert({
+      where: { key },
+      create: { key, value: merged },
+      update: { value: merged },
+    });
+    return merged;
+  }
+
   private hash(value: string) {
     return createHash('sha256').update(value).digest('hex');
   }

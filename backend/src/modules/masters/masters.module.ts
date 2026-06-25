@@ -94,6 +94,19 @@ class MastersController {
   remove(@Request() req: any, @Param('id') id: string) {
     return this.masters.remove(id, req.user.labId);
   }
+
+  @Post('import')
+  async bulkImport(@Request() req: any, @Body() body: { records: MasterInput[] }) {
+    const results: any[] = [];
+    for (const r of body.records) {
+      try {
+        results.push(await this.masters.create(req.user.labId, r));
+      } catch (e: any) {
+        results.push({ error: e?.message, input: r });
+      }
+    }
+    return { imported: results.filter((r: any) => !r.error).length, errors: results.filter((r: any) => r.error) };
+  }
 }
 
 @Module({
