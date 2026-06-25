@@ -2,26 +2,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Row, Select,
+  Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Row, Select,
   Space, Spin, Steps, Table, Tabs, Tag, Typography,
 } from 'antd';
 import {
   ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
-  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined,
+  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined, EditOutlined,
 } from '@ant-design/icons';
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
+  updateDatasheetEnvironmental,
 } from '../api';
 import { findProcedure, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
-const SIG_STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
+const SIG_STAGES = ['TECHNICAL_MANAGER', 'QUALITY_MANAGER'];
 const STAGE_LABELS: Record<string, string> = {
-  ENGINEER: 'Engineer', REVIEWER: 'Reviewer', TECHNICAL_MANAGER: 'Tech Manager',
-  QUALITY_MANAGER: 'QA Manager', FINAL_LOCK: 'Final Lock',
+  TECHNICAL_MANAGER: 'Technical Manager',
+  QUALITY_MANAGER: 'QA Manager',
 };
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
 const NREAD = 5;
@@ -155,6 +156,8 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
   // Version history: which datasheet id to view (null = latest)
   const [viewDsId, setViewDsId] = useState<string | null>(null);
+  const [envEditOpen, setEnvEditOpen] = useState(false);
+  const [envEditForm] = Form.useForm();
 
   const { data: viewedDatasheet } = useQuery({
     queryKey: ['datasheet', viewDsId],
@@ -230,6 +233,10 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     onSuccess: onChanged,
   });
   const computeMut = useMutation({ mutationFn: () => computeDatasheet(datasheet.id), onSuccess: onChanged });
+  const envMut = useMutation({
+    mutationFn: (environmental: any) => updateDatasheetEnvironmental(datasheet.id, environmental),
+    onSuccess: () => { setEnvEditOpen(false); onChanged(); },
+  });
 
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
@@ -299,9 +306,45 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
               <Tag icon={<ThunderboltOutlined />} color="blue">{displayedDatasheet.environmental?.temperature ?? '—'} °C</Tag>
               <Tag color="cyan">{displayedDatasheet.environmental?.humidity ?? '—'} %RH</Tag>
               <Tag color="purple">{displayedDatasheet.environmental?.pressure ?? '—'} kPa</Tag>
+              {(!viewDsId || viewDsId === datasheet?.id) && (
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    envEditForm.setFieldsValue({
+                      temperature: displayedDatasheet.environmental?.temperature ?? 23,
+                      humidity: displayedDatasheet.environmental?.humidity ?? 50,
+                      pressure: displayedDatasheet.environmental?.pressure ?? 101.3,
+                    });
+                    setEnvEditOpen(true);
+                  }}
+                >
+                  Edit Env
+                </Button>
+              )}
             </Space>
           </Col>
         </Row>
+        <Modal
+          title="Edit Environmental Conditions"
+          open={envEditOpen}
+          onCancel={() => setEnvEditOpen(false)}
+          onOk={() => envEditForm.validateFields().then((vals) => envMut.mutate(vals))}
+          confirmLoading={envMut.isPending}
+          okText="Save"
+        >
+          <Form form={envEditForm} layout="vertical" style={{ marginTop: 16 }}>
+            <Form.Item name="temperature" label="Temperature (°C)" rules={[{ required: true }]}>
+              <InputNumber style={{ width: '100%' }} step={0.1} />
+            </Form.Item>
+            <Form.Item name="humidity" label="Humidity (%RH)" rules={[{ required: true }]}>
+              <InputNumber style={{ width: '100%' }} step={0.1} min={0} max={100} />
+            </Form.Item>
+            <Form.Item name="pressure" label="Pressure (kPa)" rules={[{ required: true }]}>
+              <InputNumber style={{ width: '100%' }} step={0.1} />
+            </Form.Item>
+          </Form>
+        </Modal>
         <Table
           columns={obsColumns}
           dataSource={displayedDatasheet.observations}

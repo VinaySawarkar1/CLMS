@@ -15,7 +15,6 @@ import Engineers from './pages/Engineers';
 import Inventory from './pages/Inventory';
 import Environmental from './pages/Environmental';
 import Quality from './pages/Quality';
-import Audit from './pages/Audit';
 import Notifications from './pages/Notifications';
 import Labs from './pages/Labs';
 import Users from './pages/Users';
@@ -81,7 +80,6 @@ export default function App() {
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/environmental" element={<Environmental />} />
               <Route path="/quality" element={<Quality />} />
-              <Route path="/audit" element={<Audit />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/internal-audit" element={<InternalAudit />} />
               <Route path="/notifications" element={<Notifications />} />

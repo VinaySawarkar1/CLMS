@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
@@ -27,6 +27,12 @@ export class DatasheetsController {
   @Header('Content-Type', 'text/html')
   report(@Param('id') id: string) {
     return this.datasheets.buildReport(id);
+  }
+
+  @Patch(':id/environmental')
+  @Roles(Role.SUPER_ADMIN, Role.CALIBRATION_ENGINEER, Role.DATA_ENTRY_OPERATOR)
+  updateEnvironmental(@Param('id') id: string, @Body('environmental') environmental: any) {
+    return this.datasheets.updateEnvironmental(id, environmental);
   }
 
   @Post(':id/recalculate')

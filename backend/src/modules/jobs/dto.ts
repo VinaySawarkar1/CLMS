@@ -24,6 +24,8 @@ export class CreateJobDto {
   @IsOptional() @IsString() procedureId?: string;
   @IsOptional() @IsInt() procedureRangeIndex?: number;
   @IsOptional() @IsString() unitOfMeasurement?: string;
+  // Master/reference instrument selected at job creation
+  @IsOptional() @IsUUID() masterInstrumentId?: string;
 }
 
 export class AssignEngineerDto {

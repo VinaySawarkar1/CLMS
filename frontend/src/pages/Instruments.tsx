@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select,
+  AutoComplete, Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select,
   Space, Table, Tag, Typography, DatePicker, message,
 } from 'antd';
 import { PlusOutlined, ToolOutlined, EditOutlined, DeleteOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons';
@@ -11,6 +11,7 @@ import {
 } from '../api';
 import { exportToCsv } from '../utils/export';
 import ImportModal from '../components/ImportModal';
+import { PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
@@ -196,7 +197,14 @@ export default function Instruments() {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="name" label="Instrument Name" rules={[{ required: true }]}>
-                <Input placeholder="e.g. Vernier Caliper" />
+                <AutoComplete
+                  placeholder="e.g. Vernier Caliper"
+                  options={PROCEDURES.map((p) => ({ value: p.label, label: p.label }))}
+                  filterOption={(input, option) =>
+                    String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  allowClear
+                />
               </Form.Item>
             </Col>
             <Col span={12}>

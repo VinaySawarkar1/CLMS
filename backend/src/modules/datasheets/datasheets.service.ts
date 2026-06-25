@@ -50,6 +50,16 @@ export class DatasheetsService {
     return ds;
   }
 
+  /** Update environmental conditions on an existing datasheet. */
+  async updateEnvironmental(id: string, environmental: any) {
+    await this.findOne(id);
+    return this.prisma.datasheet.update({
+      where: { id },
+      data: { environmental },
+      include: { observations: true, uncertainty: { include: { parameters: true } } },
+    });
+  }
+
   /** Apply formula columns to every observation row using the formula engine. */
   async recalculate(id: string, dto: RecalcDto) {
     const ds = await this.findOne(id);

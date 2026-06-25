@@ -257,6 +257,16 @@ export class LabsService {
     });
   }
 
+  /** LAB_ADMIN: update lab details (name, address, logo, etc.) */
+  async updateDetails(labId: string, body: any) {
+    const allowed = ['name', 'accreditationNumber', 'address', 'contactEmail', 'phone', 'website', 'city', 'state', 'pinCode', 'logoUrl'];
+    const data: any = {};
+    for (const key of allowed) {
+      if (body[key] !== undefined) data[key] = body[key];
+    }
+    return this.prisma.lab.update({ where: { id: labId }, data });
+  }
+
   /** LAB_ADMIN: get lab settings */
   async getSettings(labId: string) {
     const key = `lab_settings:${labId}`;
