@@ -61,7 +61,7 @@ class BillingService {
     const year = new Date().getFullYear();
     const prefix = `INV/${year}/`;
     const existing = await this.prisma.invoice.findMany({
-      where: { labId, invoiceNumber: { startsWith: prefix } },
+      where: { invoiceNumber: { startsWith: prefix } },
       select: { invoiceNumber: true },
     });
     let max = 0;
