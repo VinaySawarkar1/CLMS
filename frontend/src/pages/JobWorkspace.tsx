@@ -429,7 +429,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
             <Select
               placeholder="Select discipline / instrument..."
               value={procId || undefined}
-              onChange={isProcedureLocked ? undefined : applyProcedure}
+              onChange={isProcedureLocked ? undefined : (id: string) => applyProcedure(id)}
               disabled={isProcedureLocked}
               options={groupedOptions}
               showSearch
