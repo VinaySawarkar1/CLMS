@@ -5,9 +5,10 @@ import {
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined,
+  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import { getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser } from '../api';
+import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -101,6 +102,21 @@ export default function Certificates() {
         <Text type="secondary">
           Review, approve, and sign calibration certificates
         </Text>
+      </div>
+      <div style={{ marginBottom: 16, textAlign: 'right' }}>
+        <Button
+          icon={<ExportOutlined />}
+          onClick={() => exportToCsv('certificates.csv', certJobs as any[], [
+            { key: 'jobNumber', label: 'Job No' },
+            { key: 'certificate.certificateNumber', label: 'Cert Number' },
+            { key: 'customer.name', label: 'Customer' },
+            { key: 'instrument.name', label: 'Instrument' },
+            { key: 'status', label: 'Status' },
+            { key: 'certificate.isLocked', label: 'Locked' },
+          ])}
+        >
+          Export CSV
+        </Button>
       </div>
 
       {/* Info banner */}
