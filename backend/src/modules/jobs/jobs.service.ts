@@ -39,6 +39,7 @@ export class JobsService {
       procedureId: dto.procedureId,
       procedureRangeIndex: dto.procedureRangeIndex,
       unitOfMeasurement: dto.unitOfMeasurement,
+      masterInstrumentId: dto.masterInstrumentId,
       isOnsite: dto.isOnsite ?? false,
       siteAddress: dto.siteAddress,
       siteContact: dto.siteContact,
@@ -72,7 +73,7 @@ export class JobsService {
     }
     return this.prisma.job.findMany({
       where: { labId, ...(status ? { status } : {}), ...engineerFilter },
-      include: { customer: true, instrument: true, engineer: true, certificate: true },
+      include: { customer: true, instrument: true, engineer: true, certificate: true, masterInstrument: true },
       orderBy: { receivedAt: 'desc' },
     });
   }
@@ -84,6 +85,7 @@ export class JobsService {
         customer: true,
         instrument: true,
         engineer: true,
+        masterInstrument: true,
         datasheets: true,
         certificate: { include: { signatures: { orderBy: { signedAt: 'asc' } } } },
       },

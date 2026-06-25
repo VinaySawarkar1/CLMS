@@ -58,6 +58,12 @@ export class LabsController {
   }
 
   @Roles(Role.LAB_ADMIN)
+  @Patch(':id/details')
+  updateDetails(@Param('id') id: string, @Body() body: any) {
+    return this.labs.updateDetails(id, body);
+  }
+
+  @Roles(Role.LAB_ADMIN)
   @Put(':id/permissions')
   savePermissions(
     @Param('id') id: string,

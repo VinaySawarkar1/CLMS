@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Row, Space, Steps, Tag, Typography, message, Spin,
+  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Row, Space, Steps, Tag, Typography, message, Spin,
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
@@ -12,13 +12,10 @@ import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
-const STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
+const STAGES = ['TECHNICAL_MANAGER', 'QUALITY_MANAGER'];
 const STAGE_LABELS: Record<string, string> = {
-  ENGINEER: 'Engineer Sign-off',
-  REVIEWER: 'Reviewer',
   TECHNICAL_MANAGER: 'Technical Manager',
   QUALITY_MANAGER: 'QA Manager',
-  FINAL_LOCK: 'Final Lock & Issue',
 };
 const CERT_STATUSES = ['CERTIFICATE_GENERATED', 'DELIVERED', 'CLOSED'];
 
@@ -32,13 +29,25 @@ export default function Certificates() {
   const qc = useQueryClient();
   const me = getUser();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ['jobs', ''],
     queryFn: () => getJobs(),
   });
 
-  const certJobs = jobs.filter((j: any) => CERT_STATUSES.includes(j.status));
+  const certJobs = (jobs as any[]).filter((j: any) => CERT_STATUSES.includes(j.status)).filter((j: any) => {
+    if (!searchText) return true;
+    const q = searchText.toLowerCase();
+    return (
+      j.jobNumber?.toLowerCase().includes(q) ||
+      j.customer?.name?.toLowerCase().includes(q) ||
+      j.instrument?.name?.toLowerCase().includes(q) ||
+      j.certificate?.certificateNumber?.toLowerCase().includes(q)
+    );
+  });
 
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ['job-detail', selectedJobId],
@@ -104,7 +113,14 @@ export default function Certificates() {
           Review, approve, and sign calibration certificates
         </Text>
       </div>
-      <div style={{ marginBottom: 16, textAlign: 'right' }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <Input.Search
+          placeholder="Search by job no., customer, instrument, cert no..."
+          allowClear
+          value={searchText}
+          onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
+          style={{ width: 340 }}
+        />
         <Button
           icon={<ExportOutlined />}
           onClick={() => exportToCsv('certificates.csv', certJobs as any[], [
@@ -146,7 +162,7 @@ export default function Certificates() {
       )}
 
       <Row gutter={[16, 16]}>
-        {certJobs.map((job: any) => {
+        {certJobs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((job: any) => {
           const sigs: any[] = job.certificate?.signatures || [];
           const sigCount = sigs.length;
           const isLocked = job.certificate?.isLocked;
@@ -218,6 +234,21 @@ export default function Certificates() {
           );
         })}
       </Row>
+
+      {certJobs.length > PAGE_SIZE && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Button.Group>
+            <Button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Previous</Button>
+            <Button disabled>{currentPage} / {Math.ceil(certJobs.length / PAGE_SIZE)}</Button>
+            <Button disabled={currentPage >= Math.ceil(certJobs.length / PAGE_SIZE)} onClick={() => setCurrentPage(p => p + 1)}>Next</Button>
+          </Button.Group>
+          <div style={{ marginTop: 8 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, certJobs.length)} of {certJobs.length}
+            </Text>
+          </div>
+        </div>
+      )}
 
       {/* ── Certificate Review Drawer ── */}
       <Drawer

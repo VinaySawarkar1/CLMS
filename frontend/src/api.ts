@@ -88,6 +88,7 @@ export const registerLab = (b: any) => post('/auth/register-lab', b);
 export const getLabs = (status?: string) => get('/labs', { status });
 export const getLab = (id: string) => get(`/labs/${id}`);
 export const updateLabStatus = (id: string, status: string) => patch(`/labs/${id}/status`, { status });
+export const updateLabDetails = (id: string, b: any) => patch(`/labs/${id}/details`, b);
 
 // Lab users (LAB_ADMIN or SUPER_ADMIN)
 export const getLabUsers = (labId: string) => get(`/labs/${labId}/users`);
@@ -138,6 +139,7 @@ export const recalcDatasheet = (id: string, formulas: any) => post(`/datasheets/
 export const computeDatasheet = (id: string) => post(`/datasheets/${id}/compute`);
 export const computeUncertainty = (id: string, contributors: any) => post(`/datasheets/${id}/uncertainty`, { contributors });
 export const autoUncertainty = (id: string) => post(`/datasheets/${id}/auto-uncertainty`);
+export const updateDatasheetEnvironmental = (id: string, environmental: any) => patch(`/datasheets/${id}/environmental`, { environmental });
 
 // Open the printable certificate report (auth-protected) in a new tab.
 export async function openCertificateReport(certificateId: string) {

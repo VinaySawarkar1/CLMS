@@ -43,11 +43,8 @@ enum JobStatus {
 }
 
 enum SignatureStage {
-  ENGINEER
-  REVIEWER
   TECHNICAL_MANAGER
   QUALITY_MANAGER
-  FINAL_LOCK
 }
 
 enum CertificateType {
@@ -82,6 +79,12 @@ model Lab {
   accreditationNumber String?
   address             String?
   contactEmail        String?
+  phone               String?
+  website             String?
+  city                String?
+  state               String?
+  pinCode             String?
+  logoUrl             String?   // Base64 data-URL or object path for lab logo
   status              LabStatus  @default(PENDING)
   users               User[]
   customers           Customer[]
@@ -248,6 +251,7 @@ model MasterInstrument {
   calibrationDue    DateTime?
   location          String?
   references        ReferenceStandardOnJob[]
+  jobs              Job[]
   createdAt         DateTime                 @default(now())
 
   @@unique([labId, idNumber])
@@ -282,6 +286,9 @@ model Job {
   procedureId          String?   // ID from the frontend procedures library
   procedureRangeIndex  Int?      // Selected range index (0-based); null = first/only range
   unitOfMeasurement    String?   // Unit locked at job creation
+  // Master instrument selected at job creation
+  masterInstrumentId   String?
+  masterInstrument     MasterInstrument? @relation(fields: [masterInstrumentId], references: [id])
   // Onsite calibration
   isOnsite     Boolean    @default(false)
   siteAddress  String?

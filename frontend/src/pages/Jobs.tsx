@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons';
 import {
   assignJob, createJob, generateCertificate, getCustomers, getEngineers,
-  getInstruments, getJobs, setJobStatus, getUser,
+  getInstruments, getJobs, setJobStatus, getUser, getMasters,
 } from '../api';
 import { exportToCsv } from '../utils/export';
 import { findProcedure, groupedProcedures, Procedure } from '../procedures';
@@ -54,6 +54,7 @@ export default function Jobs() {
   const isAdmin = me?.role === 'LAB_ADMIN' || me?.role === 'TECHNICAL_MANAGER';
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [searchText, setSearchText] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<any>(null);
   const [statusTarget, setStatusTarget] = useState<any>(null);
@@ -99,6 +100,7 @@ export default function Jobs() {
   });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
   const { data: engineers = [] } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
+  const { data: masters = [] } = useQuery({ queryKey: ['masters'], queryFn: getMasters });
   const { data: instruments = [] } = useQuery({
     queryKey: ['instruments', customerId],
     queryFn: () => getInstruments(customerId),
@@ -281,15 +283,24 @@ export default function Jobs() {
 
       {/* Filter + Table */}
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-          <Select
-            placeholder="Filter by status"
-            allowClear
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v)}
-            style={{ width: 240 }}
-            options={STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
-          />
+        <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          <Space wrap>
+            <Input.Search
+              placeholder="Search job no., customer, instrument..."
+              allowClear
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: 280 }}
+            />
+            <Select
+              placeholder="Filter by status"
+              allowClear
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v)}
+              style={{ width: 200 }}
+              options={STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
+            />
+          </Space>
           <Button
             icon={<ExportOutlined />}
             onClick={() => exportToCsv('jobs.csv', data as any[], [
@@ -306,7 +317,16 @@ export default function Jobs() {
         </div>
         <Table
           columns={columns}
-          dataSource={data}
+          dataSource={(data as any[]).filter((j: any) => {
+            if (!searchText) return true;
+            const q = searchText.toLowerCase();
+            return (
+              j.jobNumber?.toLowerCase().includes(q) ||
+              j.customer?.name?.toLowerCase().includes(q) ||
+              j.instrument?.name?.toLowerCase().includes(q) ||
+              j.engineer?.user?.fullName?.toLowerCase().includes(q)
+            );
+          })}
           rowKey="id"
           loading={isLoading}
           pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} jobs` }}
@@ -396,6 +416,17 @@ export default function Jobs() {
               <Input placeholder="mm, bar, °C..." />
             </Form.Item>
           )}
+          <Form.Item name="masterInstrumentId" label="Master / Reference Instrument" rules={[{ required: true, message: 'Select the master instrument used for calibration' }]}>
+            <Select
+              placeholder="Select master/reference instrument..."
+              showSearch
+              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              options={(masters as any[]).map((m: any) => ({
+                value: m.id,
+                label: `${m.name} (${m.idNumber})${m.make ? ` — ${m.make}` : ''}`,
+              }))}
+            />
+          </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="challanNo" label="Challan No.">

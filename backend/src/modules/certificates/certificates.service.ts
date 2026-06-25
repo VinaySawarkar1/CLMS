@@ -13,11 +13,8 @@ import { ReportsService } from '../reports/reports.module';
 
 /** The signature workflow order. Each stage must sign before the next. */
 const SIGNATURE_ORDER: SignatureStage[] = [
-  'ENGINEER',
-  'REVIEWER',
   'TECHNICAL_MANAGER',
   'QUALITY_MANAGER',
-  'FINAL_LOCK',
 ];
 
 @Injectable()
@@ -115,8 +112,9 @@ export class CertificatesService {
       data: { certificateId: id, stage, signedById, signedByName, signatureHash },
     });
 
-    // FINAL_LOCK makes the certificate immutable, then auto-emails the customer.
-    if (stage === 'FINAL_LOCK') {
+    // When the last required stage (QUALITY_MANAGER) is signed, auto-lock the certificate.
+    const isLastStage = signedStages.length + 1 === SIGNATURE_ORDER.length;
+    if (isLastStage) {
       await this.prisma.certificate.update({
         where: { id },
         data: { isLocked: true },
