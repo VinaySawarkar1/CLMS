@@ -2,6 +2,7 @@ import {
   Body, Controller, Delete, Get, Injectable, Module, NotFoundException,
   Param, Patch, Post, Request, Res, UseGuards,
 } from '@nestjs/common';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { Response } from 'express';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -12,31 +13,31 @@ import { Roles } from '../../common/rbac/roles.decorator';
 // ── DTOs ────────────────────────────────────────────────────────────────────
 
 class CreateDocumentDto {
-  docNumber!: string;
-  title!: string;
-  category!: string;
-  revision?: string;
-  content?: string;
-  fileName?: string;
-  fileBase64?: string;
-  fileMimeType?: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  reviewDueAt?: string;
+  @IsNotEmpty() @IsString() docNumber!: string;
+  @IsNotEmpty() @IsString() title!: string;
+  @IsNotEmpty() @IsString() category!: string;
+  @IsOptional() @IsString() revision?: string;
+  @IsOptional() @IsString() content?: string;
+  @IsOptional() @IsString() fileName?: string;
+  @IsOptional() @IsString() fileBase64?: string;
+  @IsOptional() @IsString() fileMimeType?: string;
+  @IsOptional() @IsString() approvedBy?: string;
+  @IsOptional() @IsString() approvedAt?: string;
+  @IsOptional() @IsString() reviewDueAt?: string;
 }
 
 class UpdateDocumentDto {
-  title?: string;
-  category?: string;
-  revision?: string;
-  status?: string;
-  content?: string;
-  fileName?: string;
-  fileBase64?: string;
-  fileMimeType?: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  reviewDueAt?: string;
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsString() revision?: string;
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() content?: string;
+  @IsOptional() @IsString() fileName?: string;
+  @IsOptional() @IsString() fileBase64?: string;
+  @IsOptional() @IsString() fileMimeType?: string;
+  @IsOptional() @IsString() approvedBy?: string;
+  @IsOptional() @IsString() approvedAt?: string;
+  @IsOptional() @IsString() reviewDueAt?: string;
 }
 
 // ── Service ─────────────────────────────────────────────────────────────────

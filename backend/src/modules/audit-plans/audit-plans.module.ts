@@ -2,6 +2,7 @@ import {
   Body, Controller, Get, Injectable, Module, NotFoundException,
   Param, Patch, Post, Request, UseGuards,
 } from '@nestjs/common';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -11,34 +12,34 @@ import { Roles } from '../../common/rbac/roles.decorator';
 // ── DTOs ────────────────────────────────────────────────────────────────────
 
 class CreateAuditDto {
-  auditNumber!: string;
-  plannedDate!: string;
-  auditor!: string;
-  scope!: string;
+  @IsNotEmpty() @IsString() auditNumber!: string;
+  @IsNotEmpty() @IsString() plannedDate!: string;
+  @IsOptional() @IsString() auditor?: string;
+  @IsOptional() @IsString() scope?: string;
 }
 
 class UpdateAuditDto {
-  status?: string;
-  conductedDate?: string;
-  auditor?: string;
-  scope?: string;
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() conductedDate?: string;
+  @IsOptional() @IsString() auditor?: string;
+  @IsOptional() @IsString() scope?: string;
 }
 
 class CreateFindingDto {
-  clause!: string;
-  category!: string;
-  description!: string;
-  rootCause?: string;
-  correction?: string;
-  dueDate?: string;
+  @IsNotEmpty() @IsString() clause!: string;
+  @IsNotEmpty() @IsString() category!: string;
+  @IsNotEmpty() @IsString() description!: string;
+  @IsOptional() @IsString() rootCause?: string;
+  @IsOptional() @IsString() correction?: string;
+  @IsOptional() @IsString() dueDate?: string;
 }
 
 class UpdateFindingDto {
-  status?: string;
-  rootCause?: string;
-  correction?: string;
-  closedAt?: string;
-  dueDate?: string;
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() rootCause?: string;
+  @IsOptional() @IsString() correction?: string;
+  @IsOptional() @IsString() closedAt?: string;
+  @IsOptional() @IsString() dueDate?: string;
 }
 
 // ── Service ─────────────────────────────────────────────────────────────────
