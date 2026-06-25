@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+**/dist/
+**/build/
+
+# Env
+.env
+.env.local
+**/.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime artifacts
+uploads/
+certificates/out/
+reports/out/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Prisma
+backend/prisma/*.db
+*.tsbuildinfo
+
+# Runtime logs
+*.out
+backend/server.log
+
+# Built frontend bundled into backend image
+backend/public/

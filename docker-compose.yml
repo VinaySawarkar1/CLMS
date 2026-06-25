@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: clms_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: clms
+      POSTGRES_PASSWORD: clms
+      POSTGRES_DB: clms
+    ports:
+      - "5432:5432"
+    volumes:
+      - clms_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clms -d clms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: clms_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    container_name: clms_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: clms
+      MINIO_ROOT_PASSWORD: clms12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - clms_minio_data:/data
+
+  backend:
+    build: ./backend
+    container_name: clms_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://clms:clms@postgres:5432/clms?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: change-me-access-secret
+      JWT_REFRESH_SECRET: change-me-refresh-secret
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build: ./frontend
+    container_name: clms_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  clms_pg_data:
+  clms_minio_data:
