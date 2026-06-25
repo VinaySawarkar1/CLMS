@@ -14,8 +14,8 @@ import { Roles } from '../../common/rbac/roles.decorator';
 class CreateAuditDto {
   @IsNotEmpty() @IsString() auditNumber!: string;
   @IsNotEmpty() @IsString() plannedDate!: string;
-  @IsOptional() @IsString() auditor?: string;
-  @IsOptional() @IsString() scope?: string;
+  @IsNotEmpty() @IsString() auditor!: string;
+  @IsNotEmpty() @IsString() scope!: string;
 }
 
 class UpdateAuditDto {
