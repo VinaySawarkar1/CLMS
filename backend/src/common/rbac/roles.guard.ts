@@ -20,7 +20,14 @@ export class RolesGuard implements CanActivate {
     if (!required || required.length === 0) return true;
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user || !required.includes(user.role)) {
+    if (!user) {
+      throw new ForbiddenException('Insufficient role for this action');
+    }
+    // LAB_ADMIN owns their tenant and may perform any lab-scoped action, even
+    // if a specific handler's @Roles list omits it. This prevents accidental
+    // 403s from per-endpoint role lists drifting out of sync.
+    if (user.role === Role.LAB_ADMIN) return true;
+    if (!required.includes(user.role)) {
       throw new ForbiddenException('Insufficient role for this action');
     }
     return true;

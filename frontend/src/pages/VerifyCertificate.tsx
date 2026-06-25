@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Card, Result, Spin, Descriptions, Tag, Typography, Space } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { api } from '../api';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -34,8 +34,7 @@ export default function VerifyCertificate() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const base = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
-    axios.get(`${base}/portal/verify/${id}?h=${hash}`)
+    api.get(`/portal/verify/${id}`, { params: { h: hash } })
       .then((r) => setResult(r.data))
       .catch(() => setResult({ valid: false, reason: 'Could not reach verification server' }))
       .finally(() => setLoading(false));

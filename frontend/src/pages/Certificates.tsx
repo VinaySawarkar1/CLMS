@@ -7,7 +7,7 @@ import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
   PrinterOutlined, LockOutlined,
 } from '@ant-design/icons';
-import { getJob, getJobs, signCertificate } from '../api';
+import { getJob, getJobs, signCertificate, openCertificateReport } from '../api';
 
 const { Title, Text } = Typography;
 
@@ -187,17 +187,7 @@ export default function Certificates() {
               )}
               <Button
                 icon={<PrinterOutlined />}
-                onClick={() => {
-                  const base = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
-                  const token = localStorage.getItem('token');
-                  const url = `${base}/reports/certificate/${cert.id}.html`;
-                  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-                    .then((r) => r.text())
-                    .then((html) => {
-                      const win = window.open('', '_blank');
-                      if (win) { win.document.write(html); win.document.close(); win.print(); }
-                    });
-                }}
+                onClick={() => openCertificateReport(cert.id)}
               >
                 Print / View Certificate
               </Button>
