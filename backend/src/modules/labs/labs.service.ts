@@ -183,7 +183,6 @@ export class LabsService {
           const count = await tx.engineer.count({ where: { user: { labId } } });
           employeeCode = `ENG-${String(count + 1).padStart(3, '0')}`;
         }
-        // Ensure employeeCode is unique within the lab
         const codeExists = await tx.engineer.findFirst({ where: { employeeCode, user: { labId } } });
         if (codeExists) throw new ConflictException(`Employee code ${employeeCode} already exists`);
 

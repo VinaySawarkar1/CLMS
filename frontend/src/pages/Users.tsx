@@ -46,6 +46,7 @@ export default function Users() {
       setOpen(false);
       form.resetFields();
       qc.invalidateQueries({ queryKey: ['lab-users'] });
+      qc.invalidateQueries({ queryKey: ['engineers'] });
     },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to create user'),
   });
@@ -55,6 +56,7 @@ export default function Users() {
     onSuccess: () => {
       message.success('Role updated');
       qc.invalidateQueries({ queryKey: ['lab-users'] });
+      qc.invalidateQueries({ queryKey: ['engineers'] });
     },
   });
 
@@ -126,7 +128,7 @@ export default function Users() {
       <Modal
         title="Add Team Member"
         open={open}
-        onCancel={() => setOpen(false)}
+        onCancel={() => { setOpen(false); form.resetFields(); }}
         onOk={() => form.submit()}
         confirmLoading={createMut.isPending}
         okText="Create User"
