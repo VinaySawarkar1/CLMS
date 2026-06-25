@@ -199,9 +199,9 @@ export default function Instruments() {
               <Form.Item name="name" label="Instrument Name" rules={[{ required: true }]}>
                 <AutoComplete
                   placeholder="e.g. Vernier Caliper"
-                  options={PROCEDURES.map((p) => ({ value: p.name, label: p.name }))}
+                  options={PROCEDURES.map((p) => ({ value: p.label, label: p.label }))}
                   filterOption={(input, option) =>
-                    (option?.value as string)?.toLowerCase().includes(input.toLowerCase())
+                    String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
                   }
                   allowClear
                 />
