@@ -41,7 +41,7 @@ function parseFileName(content: string): string {
 async function openDocFile(id: string, download = false) {
   try {
     const res = await api.get(`/documents/${id}/file`, { responseType: 'arraybuffer' });
-    const contentType = res.headers['content-type'] ?? 'application/octet-stream';
+    const contentType = String(res.headers['content-type'] ?? 'application/octet-stream');
     const blob = new Blob([res.data], { type: contentType });
     const url = URL.createObjectURL(blob);
     if (download) {
