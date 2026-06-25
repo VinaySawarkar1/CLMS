@@ -140,6 +140,13 @@ export async function openCertificateReport(certificateId: string) {
   window.open(URL.createObjectURL(blob), '_blank');
 }
 
+// Open the printable datasheet report in a new tab.
+export async function openDatasheetReport(datasheetId: string) {
+  const res = await api.get(`/datasheets/${datasheetId}/report`, { responseType: 'text' });
+  const blob = new Blob([res.data], { type: 'text/html' });
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+
 // Certificates
 export const generateCertificate = (b: any) => post('/certificates/generate', b);
 export const getCertificate = (id: string) => get(`/certificates/${id}`);

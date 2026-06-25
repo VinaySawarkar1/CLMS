@@ -167,6 +167,133 @@ export class DatasheetsService {
     return this.computeBudget(id, contributors);
   }
 
+  /** Build a printable HTML report for a datasheet. */
+  async buildReport(id: string): Promise<string> {
+    const ds = await this.prisma.datasheet.findUnique({
+      where: { id },
+      include: {
+        observations: { orderBy: { id: 'asc' } },
+        uncertainty: true,
+        job: { include: { customer: true, instrument: true, lab: true, engineer: { include: { user: true } } } },
+      },
+    });
+    if (!ds) throw new Error('Datasheet not found');
+
+    const job = ds.job as any;
+    const env = ds.environmental as any;
+    const unc = ds.uncertainty as any;
+
+    const obsRows = ds.observations.map((o) => `
+      <tr>
+        <td>${o.pointLabel || '—'}</td>
+        <td>${o.unit || '—'}</td>
+        <td>${o.nominal ?? '—'}</td>
+        <td>${o.standardValue ?? '—'}</td>
+        <td>${o.observedValue != null ? Number(o.observedValue).toFixed(4) : '—'}</td>
+        <td>${o.correction != null ? Number(o.correction).toFixed(4) : '—'}</td>
+        <td>${o.error != null ? Number(o.error).toFixed(4) : '—'}</td>
+        <td>${(o.data as any)?.uA != null ? Number((o.data as any).uA).toExponential(3) : '—'}</td>
+      </tr>`).join('');
+
+    const uncSection = unc ? `
+      <div class="section">
+        <h3>Uncertainty Budget (GUM)</h3>
+        <table>
+          <tr><th>Parameter</th><th>Value</th></tr>
+          <tr><td>Combined Standard Uncertainty (u<sub>c</sub>)</td><td>${Number(unc.combinedUncertainty).toExponential(3)}</td></tr>
+          <tr><td>Coverage Factor (k)</td><td>${Number(unc.coverageFactor).toFixed(2)}</td></tr>
+          <tr><td>Expanded Uncertainty (U, ~95%)</td><td>±${Number(unc.expandedUncertainty).toExponential(3)}</td></tr>
+          <tr><td>Confidence Level</td><td>${unc.confidenceLevel ?? '95'}%</td></tr>
+        </table>
+      </div>` : '';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Calibration Datasheet — ${ds.templateName}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #111; padding: 24px 32px; }
+    h1 { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 4px; }
+    h2 { font-size: 14px; font-weight: bold; text-align: center; color: #555; margin-bottom: 20px; }
+    h3 { font-size: 13px; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    .header { border-bottom: 2px solid #1677ff; margin-bottom: 20px; padding-bottom: 12px; }
+    .section { margin-bottom: 20px; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-bottom: 16px; }
+    .info-row { display: flex; gap: 8px; }
+    .label { color: #888; min-width: 140px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #f0f5ff; border: 1px solid #d0d7e3; padding: 6px 8px; text-align: left; font-weight: bold; }
+    td { border: 1px solid #ddd; padding: 5px 8px; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .env { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; display: flex; gap: 32px; }
+    .env-item { }
+    .env-label { font-size: 11px; color: #666; }
+    .env-value { font-weight: bold; font-size: 13px; }
+    .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 12px; font-size: 11px; color: #888; text-align: center; }
+    @media print { body { padding: 8px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${job.lab?.name || 'Calibration Laboratory'}</h1>
+    <h2>Calibration Datasheet — ${ds.templateName} (v${ds.version})</h2>
+  </div>
+
+  <div class="section">
+    <h3>Job Information</h3>
+    <div class="info-grid">
+      <div class="info-row"><span class="label">Job Number:</span><strong>${job.jobNumber}</strong></div>
+      <div class="info-row"><span class="label">Date:</span>${new Date(ds.createdAt).toLocaleDateString()}</div>
+      <div class="info-row"><span class="label">Customer:</span>${job.customer?.name || '—'}</div>
+      <div class="info-row"><span class="label">Customer Address:</span>${job.customer?.address || '—'}</div>
+      <div class="info-row"><span class="label">Instrument:</span>${job.instrument?.name || '—'}</div>
+      <div class="info-row"><span class="label">Make / Model:</span>${job.instrument?.make || '—'} / ${job.instrument?.model || '—'}</div>
+      <div class="info-row"><span class="label">Serial Number:</span>${job.instrument?.serialNumber || '—'}</div>
+      <div class="info-row"><span class="label">Range:</span>${job.instrument?.range || '—'}</div>
+      <div class="info-row"><span class="label">Least Count:</span>${job.instrument?.leastCount || '—'}</div>
+      <div class="info-row"><span class="label">Engineer:</span>${job.engineer?.user?.fullName || '—'}</div>
+      <div class="info-row"><span class="label">Condition of Item:</span>${job.conditionOfItem || '—'}</div>
+      <div class="info-row"><span class="label">Challan No.:</span>${job.challanNo || '—'}</div>
+    </div>
+  </div>
+
+  ${env ? `<div class="env">
+    <div class="env-item"><div class="env-label">Temperature</div><div class="env-value">${env.temperature ?? '—'} °C</div></div>
+    <div class="env-item"><div class="env-label">Humidity</div><div class="env-value">${env.humidity ?? '—'} %RH</div></div>
+    <div class="env-item"><div class="env-label">Pressure</div><div class="env-value">${env.pressure ?? '—'} kPa</div></div>
+  </div>` : ''}
+
+  <div class="section">
+    <h3>Measurement Observations</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Point</th>
+          <th>Unit</th>
+          <th>Nominal</th>
+          <th>Standard Value</th>
+          <th>Observed Mean</th>
+          <th>Correction</th>
+          <th>Error</th>
+          <th>u<sub>A</sub> (Repeatability)</th>
+        </tr>
+      </thead>
+      <tbody>${obsRows || '<tr><td colspan="8" style="text-align:center;color:#888">No observations recorded</td></tr>'}</tbody>
+    </table>
+  </div>
+
+  ${uncSection}
+
+  <div class="footer">
+    Generated by CLMS · ${new Date().toLocaleString()} · Datasheet ID: ${ds.id}
+  </div>
+  <script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+  }
+
   /** Compute and persist the uncertainty budget for a datasheet. */
   async computeBudget(id: string, contributors: UncertaintyContributor[]) {
     await this.findOne(id);

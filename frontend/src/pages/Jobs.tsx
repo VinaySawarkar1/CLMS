@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Form, Modal, Row, Select, Space, Table, Tag, Typography, Input, Tooltip, Dropdown,
-  Switch, DatePicker, message,
+  Button, Card, Col, Drawer, Form, Modal, Row, Select, Space, Table, Tag,
+  Typography, Input, Switch, DatePicker, message, Descriptions, Badge, Steps,
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  ArrowRightOutlined, EllipsisOutlined, EnvironmentOutlined,
+  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined,
 } from '@ant-design/icons';
 import {
   assignJob, createJob, generateCertificate, getCustomers, getEngineers,
-  getInstruments, getJobs, setJobStatus,
+  getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
 
 const { Title, Text } = Typography;
@@ -22,26 +22,49 @@ const STATUSES = [
 ];
 
 const NEXT: Record<string, string[]> = {
-  RECEIVED: ['WAITING', 'ASSIGNED'], WAITING: ['ASSIGNED'], ASSIGNED: ['IN_CALIBRATION'],
-  IN_CALIBRATION: ['PENDING_REVIEW'], PENDING_REVIEW: ['CORRECTION_REQUIRED', 'APPROVED'],
-  CORRECTION_REQUIRED: ['IN_CALIBRATION'], APPROVED: ['CERTIFICATE_GENERATED'],
-  CERTIFICATE_GENERATED: ['DELIVERED'], DELIVERED: ['CLOSED'], CLOSED: [],
+  RECEIVED: ['WAITING', 'ASSIGNED'],
+  WAITING: ['ASSIGNED'],
+  ASSIGNED: ['IN_CALIBRATION'],
+  IN_CALIBRATION: ['PENDING_REVIEW'],
+  PENDING_REVIEW: ['CORRECTION_REQUIRED', 'APPROVED'],
+  CORRECTION_REQUIRED: ['IN_CALIBRATION'],
+  APPROVED: ['CERTIFICATE_GENERATED'],
+  CERTIFICATE_GENERATED: ['DELIVERED'],
+  DELIVERED: ['CLOSED'],
+  CLOSED: [],
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  RECEIVED: 'default', WAITING: 'orange', ASSIGNED: 'blue', IN_CALIBRATION: 'processing',
-  PENDING_REVIEW: 'gold', CORRECTION_REQUIRED: 'red', APPROVED: 'green',
+  RECEIVED: 'default', WAITING: 'orange', ASSIGNED: 'blue',
+  IN_CALIBRATION: 'processing', PENDING_REVIEW: 'gold',
+  CORRECTION_REQUIRED: 'red', APPROVED: 'green',
   CERTIFICATE_GENERATED: 'cyan', DELIVERED: 'purple', CLOSED: 'default',
 };
 
+const STATUS_ORDER = [
+  'RECEIVED', 'WAITING', 'ASSIGNED', 'IN_CALIBRATION', 'PENDING_REVIEW',
+  'APPROVED', 'CERTIFICATE_GENERATED', 'DELIVERED', 'CLOSED',
+];
+
 export default function Jobs() {
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [open, setOpen] = useState(false);
-  const [form] = Form.useForm();
-  const customerId = Form.useWatch('customerId', form);
+  const me = getUser();
+  const isAdmin = me?.role === 'LAB_ADMIN' || me?.role === 'TECHNICAL_MANAGER';
 
-  const { data = [], isLoading } = useQuery({ queryKey: ['jobs', statusFilter], queryFn: () => getJobs(statusFilter) });
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<any>(null);
+  const [statusTarget, setStatusTarget] = useState<any>(null);
+  const [detailJob, setDetailJob] = useState<any>(null);
+  const [form] = Form.useForm();
+  const [assignForm] = Form.useForm();
+  const customerId = Form.useWatch('customerId', form);
+  const isOnsite = Form.useWatch('isOnsite', form);
+
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['jobs', statusFilter],
+    queryFn: () => getJobs(statusFilter),
+  });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
   const { data: engineers = [] } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
   const { data: instruments = [] } = useQuery({
@@ -50,31 +73,78 @@ export default function Jobs() {
     enabled: !!customerId,
   });
 
-  const isOnsite = Form.useWatch('isOnsite', form);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['jobs'] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['jobs'] });
+  };
+
   const createMut = useMutation({
     mutationFn: () => {
       const v = form.getFieldsValue();
       return createJob({ ...v, visitDate: v.visitDate ? v.visitDate.toISOString() : undefined });
     },
-    onSuccess: () => { refresh(); setOpen(false); form.resetFields(); message.success('Job created'); },
+    onSuccess: () => {
+      refresh();
+      setCreateOpen(false);
+      form.resetFields();
+      message.success('Job created successfully');
+    },
     onError: (e: any) => {
       const d = e?.response?.data;
-      message.error(`Job creation failed: ${d?.message ?? e?.message ?? 'Unknown error'}${d?.code ? ` (${d.code})` : ''}`, 8);
+      message.error(`Job creation failed: ${d?.message ?? e?.message ?? 'Unknown error'}`, 8);
     },
   });
-  const assignMut = useMutation({ mutationFn: (v: { id: string; engineerId: string }) => assignJob(v.id, v.engineerId), onSuccess: refresh });
-  const statusMut = useMutation({ mutationFn: (v: { id: string; s: string }) => setJobStatus(v.id, v.s), onSuccess: refresh });
-  const certMut = useMutation({ mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }), onSuccess: refresh });
+
+  const assignMut = useMutation({
+    mutationFn: ({ jobId, engineerId }: { jobId: string; engineerId: string }) =>
+      assignJob(jobId, engineerId),
+    onSuccess: () => {
+      refresh();
+      setAssignTarget(null);
+      assignForm.resetFields();
+      message.success('Engineer assigned');
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to assign engineer'),
+  });
+
+  const statusMut = useMutation({
+    mutationFn: ({ jobId, status }: { jobId: string; status: string }) =>
+      setJobStatus(jobId, status),
+    onSuccess: () => {
+      refresh();
+      setStatusTarget(null);
+      message.success('Status updated');
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to update status'),
+  });
+
+  const certMut = useMutation({
+    mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }),
+    onSuccess: () => {
+      refresh();
+      setStatusTarget(null);
+      message.success('Certificate generated');
+    },
+    onError: (e: any) => {
+      const d = e?.response?.data;
+      message.error(`Certificate generation failed: ${d?.message ?? e?.message ?? 'Unknown error'}`, 8);
+    },
+  });
+
+  const engineerName = (job: any) => {
+    if (!job.engineer) return null;
+    return job.engineer.user?.fullName || job.engineer.employeeCode;
+  };
 
   const columns = [
     {
       title: 'Job No.',
       dataIndex: 'jobNumber',
       key: 'jobNumber',
-      width: 130,
+      width: 140,
       render: (v: string, row: any) => (
-        <RouterLink to={`/jobs/${row.id}`} style={{ fontWeight: 600, color: '#1677ff' }}>{v}</RouterLink>
+        <RouterLink to={`/jobs/${row.id}`} style={{ fontWeight: 700, color: '#1677ff' }}>
+          {v}
+        </RouterLink>
       ),
     },
     {
@@ -85,81 +155,77 @@ export default function Jobs() {
     },
     {
       title: 'Instrument',
-      dataIndex: ['instrument', 'name'],
       key: 'instrument',
-      render: (v: string, row: any) => (
-        <Space>
-          <Text>{v}</Text>
-          {row.isOnsite && <Tag color="geekblue" icon={<EnvironmentOutlined />}>Onsite</Tag>}
+      render: (_: any, row: any) => (
+        <Space direction="vertical" size={0}>
+          <Text>{row.instrument?.name}</Text>
+          {row.isOnsite && (
+            <Tag color="geekblue" icon={<EnvironmentOutlined />} style={{ fontSize: 11 }}>Onsite</Tag>
+          )}
         </Space>
       ),
     },
     {
       title: 'Engineer',
       key: 'engineer',
-      width: 180,
-      render: (_: any, row: any) => (
-        <Select
-          size="small"
-          value={row.engineerId || undefined}
-          placeholder="Assign..."
-          style={{ width: '100%' }}
-          onChange={(val) => assignMut.mutate({ id: row.id, engineerId: val })}
-          options={engineers.map((en: any) => ({
-            value: en.id,
-            label: en.user?.fullName || en.employeeCode,
-          }))}
-        />
-      ),
+      width: 160,
+      render: (_: any, row: any) => {
+        const name = engineerName(row);
+        return name
+          ? <Tag color="blue" icon={<UserOutlined />}>{name}</Tag>
+          : <Tag color="default">Unassigned</Tag>;
+      },
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 160,
-      render: (v: string) => <Tag color={STATUS_COLORS[v] || 'default'}>{v.replace(/_/g, ' ')}</Tag>,
+      width: 170,
+      render: (v: string) => (
+        <Tag color={STATUS_COLORS[v] || 'default'} style={{ fontSize: 12 }}>
+          {v.replace(/_/g, ' ')}
+        </Tag>
+      ),
     },
     {
       title: 'Actions',
       key: 'actions',
-      width: 200,
-      render: (_: any, row: any) => {
-        const nextStatuses = NEXT[row.status] || [];
-        const menuItems = [
-          ...nextStatuses.map((s) => ({
-            key: s,
-            label: `→ ${s.replace(/_/g, ' ')}`,
-            icon: <ArrowRightOutlined />,
-            onClick: () => statusMut.mutate({ id: row.id, s }),
-          })),
-          ...(row.status === 'APPROVED' ? [{
-            key: 'gen-cert',
-            label: 'Generate Certificate',
-            icon: <SafetyCertificateOutlined />,
-            onClick: () => certMut.mutate(row.id),
-          }] : []),
-        ];
-
-        return (
-          <Space size="small">
-            <Tooltip title="Open calibration workspace">
-              <RouterLink to={`/jobs/${row.id}`}>
-                <Button size="small" type="primary" icon={<ThunderboltOutlined />}>Calibrate</Button>
-              </RouterLink>
-            </Tooltip>
-            {menuItems.length > 0 && (
-              <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-                <Button size="small" icon={<EllipsisOutlined />} />
-              </Dropdown>
-            )}
-          </Space>
-        );
-      },
+      width: 220,
+      render: (_: any, row: any) => (
+        <Space size={6} wrap>
+          <RouterLink to={`/jobs/${row.id}`}>
+            <Button size="small" type="primary" icon={<ThunderboltOutlined />}>
+              Open
+            </Button>
+          </RouterLink>
+          {isAdmin && (
+            <Button
+              size="small"
+              icon={<UserOutlined />}
+              onClick={() => { setAssignTarget(row); assignForm.setFieldValue('engineerId', row.engineerId || undefined); }}
+            >
+              Assign
+            </Button>
+          )}
+          {row.status !== 'CLOSED' && (
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => setStatusTarget(row)}
+            >
+              Status
+            </Button>
+          )}
+        </Space>
+      ),
     },
   ];
 
+  const currentStepIdx = (status: string) => STATUS_ORDER.indexOf(status);
+
   return (
     <div>
+      {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <Row justify="space-between" align="middle">
           <Col>
@@ -172,13 +238,16 @@ export default function Jobs() {
             <Text type="secondary">Track and manage all calibration jobs through their lifecycle</Text>
           </Col>
           <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} size="large">
-              New Job
-            </Button>
+            {isAdmin && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} size="large">
+                New Job
+              </Button>
+            )}
           </Col>
         </Row>
       </div>
 
+      {/* Filter + Table */}
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <div style={{ marginBottom: 16 }}>
           <Select
@@ -186,7 +255,7 @@ export default function Jobs() {
             allowClear
             value={statusFilter}
             onChange={(v) => setStatusFilter(v)}
-            style={{ width: 260 }}
+            style={{ width: 240 }}
             options={STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
           />
         </div>
@@ -197,64 +266,48 @@ export default function Jobs() {
           loading={isLoading}
           pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} jobs` }}
           size="middle"
-          scroll={{ x: 1000 }}
+          scroll={{ x: 900 }}
         />
       </Card>
 
+      {/* ── Create Job Modal ── */}
       <Modal
         title={<Space><PlusOutlined /><span>New Calibration Job</span></Space>}
-        open={open}
-        onCancel={() => { setOpen(false); form.resetFields(); }}
+        open={createOpen}
+        onCancel={() => { setCreateOpen(false); form.resetFields(); }}
         onOk={() => form.validateFields().then(() => createMut.mutate())}
         okText="Create Job"
         confirmLoading={createMut.isPending}
-        width={500}
+        width={540}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="customerId" label="Customer" rules={[{ required: true }]}>
-            <Select
-              placeholder="Select customer"
-              showSearch
-              options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
-              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-              onChange={() => form.setFieldValue('instrumentId', undefined)}
-            />
-          </Form.Item>
-          <Form.Item name="instrumentId" label="Instrument" rules={[{ required: true }]}>
-            <Select
-              placeholder={customerId ? 'Select instrument' : 'Select a customer first'}
-              disabled={!customerId}
-              options={instruments.map((i: any) => ({
-                value: i.id,
-                label: `${i.name}${i.serialNumber ? ` (${i.serialNumber})` : ''}`,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item name="isOnsite" label="Onsite Calibration" valuePropName="checked" initialValue={false}>
-            <Switch checkedChildren="Onsite" unCheckedChildren="In-lab" />
-          </Form.Item>
-          {isOnsite && (
-            <>
-              <Form.Item name="siteAddress" label="Site Address" rules={[{ required: true, message: 'Site address required for onsite jobs' }]}>
-                <Input.TextArea rows={2} placeholder="Customer site address" />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="customerId" label="Customer" rules={[{ required: true }]}>
+                <Select
+                  placeholder="Select customer"
+                  showSearch
+                  options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+                  filterOption={(input, opt) =>
+                    (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                  }
+                  onChange={() => form.setFieldValue('instrumentId', undefined)}
+                />
               </Form.Item>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="siteContact" label="Site Contact">
-                    <Input placeholder="Name / phone" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="visitDate" label="Planned Visit Date">
-                    <DatePicker style={{ width: '100%' }} showTime />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </>
-          )}
-          <Form.Item name="conditionOfItem" label="Condition of Item" initialValue="OK (As Received)">
-            <Input placeholder="OK (As Received)" />
-          </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="instrumentId" label="Instrument" rules={[{ required: true }]}>
+                <Select
+                  placeholder={customerId ? 'Select instrument' : 'Select customer first'}
+                  disabled={!customerId}
+                  options={instruments.map((i: any) => ({
+                    value: i.id,
+                    label: `${i.name}${i.serialNumber ? ` (${i.serialNumber})` : ''}`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="challanNo" label="Challan No.">
@@ -263,29 +316,153 @@ export default function Jobs() {
             </Col>
             <Col span={12}>
               <Form.Item name="poNumber" label="Purchase Order No.">
-                <Input placeholder="PO number (if any)" />
+                <Input placeholder="PO number" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="calibrationProcedureNo" label="Calibration Procedure No.">
+              <Form.Item name="calibrationProcedureNo" label="Procedure No.">
                 <Input placeholder="e.g. CM 45" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="referenceDocumentNo" label="Reference Document No.">
-                <Input placeholder="e.g. Comparison Method" />
+              <Form.Item name="conditionOfItem" label="Item Condition" initialValue="OK (As Received)">
+                <Input placeholder="OK (As Received)" />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="calibrationProcedure" label="Calibration Procedure (Description)">
-            <Input.TextArea rows={2} placeholder="Brief description of the calibration procedure" />
+          <Form.Item name="isOnsite" label="Onsite Calibration?" valuePropName="checked" initialValue={false}>
+            <Switch checkedChildren="Onsite" unCheckedChildren="In-lab" />
           </Form.Item>
+          {isOnsite && (
+            <Row gutter={16}>
+              <Col span={16}>
+                <Form.Item name="siteAddress" label="Site Address" rules={[{ required: true }]}>
+                  <Input.TextArea rows={2} placeholder="Customer site address" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="visitDate" label="Visit Date">
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
           <Form.Item name="remarks" label="Remarks">
-            <Input.TextArea rows={2} placeholder="Optional notes or instructions" />
+            <Input.TextArea rows={2} placeholder="Optional notes" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* ── Assign Engineer Modal ── */}
+      <Modal
+        title={
+          <Space>
+            <UserOutlined />
+            <span>Assign Engineer — {assignTarget?.jobNumber}</span>
+          </Space>
+        }
+        open={!!assignTarget}
+        onCancel={() => { setAssignTarget(null); assignForm.resetFields(); }}
+        onOk={() =>
+          assignForm.validateFields().then((v) =>
+            assignMut.mutate({ jobId: assignTarget.id, engineerId: v.engineerId })
+          )
+        }
+        okText="Assign"
+        confirmLoading={assignMut.isPending}
+        width={420}
+      >
+        <div style={{ marginBottom: 16 }}>
+          {assignTarget && (
+            <Descriptions size="small" column={1} bordered style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Customer">{assignTarget.customer?.name}</Descriptions.Item>
+              <Descriptions.Item label="Instrument">{assignTarget.instrument?.name}</Descriptions.Item>
+              <Descriptions.Item label="Current Status">
+                <Tag color={STATUS_COLORS[assignTarget.status]}>{assignTarget.status?.replace(/_/g, ' ')}</Tag>
+              </Descriptions.Item>
+            </Descriptions>
+          )}
+          <Form form={assignForm} layout="vertical">
+            <Form.Item name="engineerId" label="Select Engineer" rules={[{ required: true, message: 'Please select an engineer' }]}>
+              <Select
+                showSearch
+                placeholder="Choose engineer..."
+                options={engineers.map((e: any) => ({
+                  value: e.id,
+                  label: `${e.user?.fullName || e.employeeCode} (${e.employeeCode})`,
+                }))}
+                filterOption={(input, opt) =>
+                  (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </Form.Item>
+          </Form>
+        </div>
+      </Modal>
+
+      {/* ── Status Update Modal ── */}
+      <Modal
+        title={
+          <Space>
+            <EditOutlined />
+            <span>Update Status — {statusTarget?.jobNumber}</span>
+          </Space>
+        }
+        open={!!statusTarget}
+        onCancel={() => setStatusTarget(null)}
+        footer={null}
+        width={480}
+      >
+        {statusTarget && (
+          <div>
+            <div style={{ marginBottom: 20 }}>
+              <Steps
+                size="small"
+                current={currentStepIdx(statusTarget.status)}
+                items={STATUS_ORDER.map((s) => ({
+                  title: <span style={{ fontSize: 11 }}>{s.replace(/_/g, ' ')}</span>,
+                }))}
+                style={{ overflowX: 'auto' }}
+              />
+            </div>
+
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              Current: <Tag color={STATUS_COLORS[statusTarget.status]}>{statusTarget.status?.replace(/_/g, ' ')}</Tag>
+            </Text>
+
+            {(NEXT[statusTarget.status] || []).length === 0 ? (
+              <Tag color="default" style={{ fontSize: 13, padding: '6px 16px' }}>Job is closed — no further transitions</Tag>
+            ) : (
+              <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                <Text strong>Move to:</Text>
+                {(NEXT[statusTarget.status] || []).map((s) => (
+                  <Button
+                    key={s}
+                    icon={<ArrowRightOutlined />}
+                    style={{ width: '100%', textAlign: 'left', height: 44 }}
+                    loading={statusMut.isPending}
+                    onClick={() => statusMut.mutate({ jobId: statusTarget.id, status: s })}
+                  >
+                    {s.replace(/_/g, ' ')}
+                  </Button>
+                ))}
+                {statusTarget.status === 'APPROVED' && (
+                  <Button
+                    type="primary"
+                    icon={<SafetyCertificateOutlined />}
+                    style={{ width: '100%', textAlign: 'left', height: 44 }}
+                    loading={certMut.isPending}
+                    onClick={() => certMut.mutate(statusTarget.id)}
+                  >
+                    Generate Certificate
+                  </Button>
+                )}
+              </Space>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );
