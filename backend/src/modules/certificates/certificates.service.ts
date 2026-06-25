@@ -166,14 +166,12 @@ export class CertificatesService {
     };
   }
 
-  private async nextCertificateNumber(labId?: string): Promise<string> {
+  private async nextCertificateNumber(_labId?: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `CC/${year}/`;
+    // Count globally — certificateNumber has a global unique constraint.
     const existing = await this.prisma.certificate.findMany({
-      where: {
-        certificateNumber: { startsWith: prefix },
-        ...(labId ? { job: { labId } } : {}),
-      },
+      where: { certificateNumber: { startsWith: prefix } },
       select: { certificateNumber: true },
     });
     let max = 0;
