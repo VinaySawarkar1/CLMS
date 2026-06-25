@@ -46,6 +46,18 @@ export class LabsController {
   }
 
   @Roles(Role.LAB_ADMIN)
+  @Get(':id/settings')
+  getSettings(@Param('id') id: string) {
+    return this.labs.getSettings(id);
+  }
+
+  @Roles(Role.LAB_ADMIN)
+  @Patch(':id/settings')
+  updateSettings(@Param('id') id: string, @Body() body: any) {
+    return this.labs.updateSettings(id, body);
+  }
+
+  @Roles(Role.LAB_ADMIN)
   @Put(':id/permissions')
   savePermissions(
     @Param('id') id: string,

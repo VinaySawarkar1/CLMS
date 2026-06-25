@@ -206,6 +206,13 @@ export const createDocument = (b: any) => post('/documents', b);
 export const updateDocument = (id: string, b: any) => patch(`/documents/${id}`, b);
 export const deleteDocument = (id: string) => del(`/documents/${id}`);
 
+// Lab Settings
+export const getLabSettings = (labId: string) => get(`/labs/${labId}/settings`);
+export const updateLabSettings = (labId: string, b: any) => patch(`/labs/${labId}/settings`, b);
+
+// Seed
+export const loadSampleData = () => post('/seed/demo');
+
 // Audit Plans (Internal Audit)
 export const getAuditPlans = () => get('/audit-plans');
 export const createAuditPlan = (b: any) => post('/audit-plans', b);
