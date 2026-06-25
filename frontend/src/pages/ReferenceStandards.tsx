@@ -4,10 +4,11 @@ import {
   Card, Table, Tag, Button, Space, Typography, Modal, Form, Input, DatePicker, message, Popconfirm, Statistic, Row, Col,
 } from 'antd';
 import {
-  ExperimentOutlined, PlusOutlined, WarningOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined,
+  ExperimentOutlined, PlusOutlined, WarningOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getMasters, createMaster, updateMaster, deleteMaster } from '../api';
+import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -111,7 +112,24 @@ export default function ReferenceStandards() {
           <Title level={3} style={{ margin: 0 }}><ExperimentOutlined /> Reference Standards</Title>
           <Text type="secondary">Master instruments with traceability and calibration validity (NABL)</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>Add Standard</Button>
+        <Space>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={() => exportToCsv('reference-standards.csv', masters as any[], [
+              { key: 'name', label: 'Standard Name' },
+              { key: 'idNumber', label: 'ID Number' },
+              { key: 'make', label: 'Make' },
+              { key: 'model', label: 'Model' },
+              { key: 'serialNumber', label: 'Serial No' },
+              { key: 'traceability', label: 'Traceability' },
+              { key: 'certificateNumber', label: 'Cert No' },
+              { key: 'calibrationDue', label: 'Calibration Due' },
+            ])}
+          >
+            Export CSV
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>Add Standard</Button>
+        </Space>
       </div>
 
       <Row gutter={16}>
