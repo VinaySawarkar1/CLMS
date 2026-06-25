@@ -1,12 +1,12 @@
 import {
-  Body, Controller, Delete, Get, Param, Post, Query, Request, UseGuards,
+  Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 import { InstrumentsService } from './instruments.service';
-import { CreateInstrumentDto } from './dto';
+import { CreateInstrumentDto, UpdateInstrumentDto } from './dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('instruments')
@@ -17,6 +17,12 @@ export class InstrumentsController {
   @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
   create(@Request() req: any, @Body() dto: CreateInstrumentDto) {
     return this.instruments.create(req.user.labId, dto);
+  }
+
+  @Post('import')
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  bulkImport(@Request() req: any, @Body() body: { records: CreateInstrumentDto[] }) {
+    return this.instruments.bulkCreate(req.user.labId, body.records);
   }
 
   @Get()
@@ -32,6 +38,12 @@ export class InstrumentsController {
   @Get(':id')
   findOne(@Request() req: any, @Param('id') id: string) {
     return this.instruments.findOne(id, req.user.labId);
+  }
+
+  @Patch(':id')
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  update(@Request() req: any, @Param('id') id: string, @Body() dto: UpdateInstrumentDto) {
+    return this.instruments.update(id, req.user.labId, dto);
   }
 
   @Delete(':id')

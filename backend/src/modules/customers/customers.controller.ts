@@ -19,6 +19,12 @@ export class CustomersController {
     return this.customers.create(req.user.labId, dto);
   }
 
+  @Post('import')
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  bulkImport(@Request() req: any, @Body() body: { records: CreateCustomerDto[] }) {
+    return this.customers.bulkCreate(req.user.labId, body.records);
+  }
+
   @Get()
   findAll(@Request() req: any, @Query('search') search?: string) {
     return this.customers.findAll(req.user.labId, search);

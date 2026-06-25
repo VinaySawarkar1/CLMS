@@ -45,4 +45,16 @@ export class CustomersService {
     await this.findOne(id, labId);
     return this.prisma.customer.delete({ where: { id } });
   }
+
+  async bulkCreate(labId: string, records: CreateCustomerDto[]) {
+    const results = [];
+    for (const dto of records) {
+      try {
+        results.push(await this.create(labId, dto));
+      } catch (e: any) {
+        results.push({ error: e?.message, input: dto });
+      }
+    }
+    return { imported: results.filter((r: any) => !r.error).length, errors: results.filter((r: any) => r.error) };
+  }
 }

@@ -109,10 +109,16 @@ export const getDashboard = () => get('/dashboard');
 // Customers
 export const getCustomers = (search?: string) => get('/customers', { search });
 export const createCustomer = (b: any) => post('/customers', b);
+export const updateCustomer = (id: string, b: any) => patch(`/customers/${id}`, b);
+export const deleteCustomer = (id: string) => del(`/customers/${id}`);
+export const importCustomers = (records: any[]) => post('/customers/import', { records });
 
 // Instruments
 export const getInstruments = (customerId?: string) => get('/instruments', { customerId });
 export const createInstrument = (b: any) => post('/instruments', b);
+export const updateInstrument = (id: string, b: any) => patch(`/instruments/${id}`, b);
+export const deleteInstrument = (id: string) => del(`/instruments/${id}`);
+export const importInstruments = (records: any[]) => post('/instruments/import', { records });
 
 // Jobs
 export const getJobs = (status?: string) => get('/jobs', { status });
@@ -166,6 +172,8 @@ export const payInvoice = (id: string, b: any) => post(`/billing/invoices/${id}/
 export const getInventory = (category?: string) => get('/inventory/items', { category });
 export const upsertInventory = (b: any) => post('/inventory/items', b);
 export const adjustStock = (id: string, delta: number) => patch(`/inventory/items/${id}/stock`, { delta });
+export const deleteInventoryItem = (id: string) => del(`/inventory/items/${id}`);
+export const importInventory = (records: any[]) => post('/inventory/items/import', { records });
 
 // Quality
 export const getNcrs = () => get('/quality/ncr');
@@ -176,6 +184,8 @@ export const closeNcr = (id: string) => patch(`/quality/ncr/${id}/close`, {});
 // Environmental
 export const getEnvironmental = () => get('/environmental');
 export const recordEnvironmental = (b: any) => post('/environmental', b);
+export const deleteEnvironmental = (id: string) => del(`/environmental/${id}`);
+export const importEnvironmental = (records: any[]) => post('/environmental/import', { records });
 
 // Notifications
 export const getNotifications = () => get('/notifications');
@@ -188,6 +198,7 @@ export const getMasters = () => get('/masters');
 export const createMaster = (b: any) => post('/masters', b);
 export const updateMaster = (id: string, b: any) => patch(`/masters/${id}`, b);
 export const deleteMaster = (id: string) => del(`/masters/${id}`);
+export const importMasters = (records: any[]) => post('/masters/import', { records });
 
 // Instrument calibration recall (due / overdue)
 export const getRecallDue = (days?: number) => get('/instruments/due/recall', { days });

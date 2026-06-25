@@ -4,11 +4,12 @@ import {
   Card, Table, Tag, Button, Space, Typography, Modal, Form, Input, DatePicker, message, Popconfirm, Statistic, Row, Col,
 } from 'antd';
 import {
-  ExperimentOutlined, PlusOutlined, WarningOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, ExportOutlined,
+  ExperimentOutlined, PlusOutlined, WarningOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, ExportOutlined, ImportOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { getMasters, createMaster, updateMaster, deleteMaster } from '../api';
+import { getMasters, createMaster, updateMaster, deleteMaster, importMasters } from '../api';
 import { exportToCsv } from '../utils/export';
+import ImportModal from '../components/ImportModal';
 
 const { Title, Text } = Typography;
 
@@ -52,6 +53,7 @@ export default function ReferenceStandards() {
     setOpen(true);
   };
 
+  const [importOpen, setImportOpen] = useState(false);
   const openNew = () => { setEditing(null); form.resetFields(); setOpen(true); };
 
   const now = dayjs();
@@ -128,6 +130,7 @@ export default function ReferenceStandards() {
           >
             Export CSV
           </Button>
+          <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import CSV</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>Add Standard</Button>
         </Space>
       </div>
@@ -173,6 +176,27 @@ export default function ReferenceStandards() {
           <Form.Item name="location" label="Location"><Input placeholder="Lab room / cabinet" /></Form.Item>
         </Form>
       </Modal>
+
+      <ImportModal
+        open={importOpen}
+        onClose={() => { setImportOpen(false); qc.invalidateQueries({ queryKey: ['masters'] }); }}
+        title="Reference Standards"
+        columns={[
+          { key: 'name', label: 'Standard Name', required: true },
+          { key: 'idNumber', label: 'ID Number', required: true },
+          { key: 'make', label: 'Make' },
+          { key: 'model', label: 'Model' },
+          { key: 'serialNumber', label: 'Serial No.' },
+          { key: 'traceability', label: 'Traceability' },
+          { key: 'certificateNumber', label: 'Calibration Cert No.' },
+          { key: 'uncertainty', label: 'Uncertainty' },
+          { key: 'calibratedDate', label: 'Calibrated On (YYYY-MM-DD)' },
+          { key: 'calibrationDue', label: 'Calibration Due (YYYY-MM-DD)' },
+          { key: 'location', label: 'Location' },
+        ]}
+        onImport={(records) => importMasters(records)}
+        templateFilename="reference-standards-import-template.csv"
+      />
     </Space>
   );
 }
