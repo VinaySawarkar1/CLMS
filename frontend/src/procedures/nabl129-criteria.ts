@@ -16,8 +16,25 @@ export interface Nabl129Criteria {
   minReadings: number;           // minimum observations per calibration point
   calibrationIntervalMonths: number;
   mpe: string;                   // typical class MPE description
-  accuracyClasses?: { class: string; mpe: string }[];
+  mpeNumeric?: number;           // absolute numeric MPE value for pass/fail (same unit as measurement)
+  mpeIsPercent?: boolean;        // true when mpeNumeric is a percentage of reading
+  accuracyClasses?: { class: string; mpe: string; mpeNumeric?: number; mpeIsPercent?: boolean }[];
   keyRequirements?: string[];    // notable NABL 129 requirements for this instrument
+}
+
+/** Extract numeric MPE from NABL criteria for pass/fail comparison.
+ *  Returns { value, isPercent } or null when the MPE is formula-based. */
+export function parseMpe(criteria: Nabl129Criteria): { value: number; isPercent: boolean } | null {
+  if (criteria.mpeNumeric != null) return { value: criteria.mpeNumeric, isPercent: !!criteria.mpeIsPercent };
+  return null;
+}
+
+/** Check pass/fail: error vs numeric MPE. Returns 'pass'|'fail'|null (null = no numeric MPE). */
+export function checkMpe(error: number, nominal: number, criteria: Nabl129Criteria): 'pass' | 'fail' | null {
+  const mp = parseMpe(criteria);
+  if (!mp) return null;
+  const limit = mp.isPercent ? (Math.abs(nominal) * mp.value / 100) : mp.value;
+  return Math.abs(error) <= limit ? 'pass' : 'fail';
 }
 
 // ─── Chapter 1: Mechanical Calibration ───────────────────────────
@@ -81,6 +98,7 @@ const FORCE_PROVING: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 60,
   mpe: '±0.5% of indicated force (Class B)',
+  mpeNumeric: 0.5, mpeIsPercent: true,
   accuracyClasses: [
     { class: 'Class A', mpe: '≤0.1% of indicated force' },
     { class: 'Class B', mpe: '≤0.5% of indicated force' },
@@ -105,6 +123,7 @@ const UTM: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 12,
   mpe: '±1% of applied force (Class 1 per ISO 7500-1)',
+  mpeNumeric: 1, mpeIsPercent: true,
   accuracyClasses: [
     { class: 'Class 0.5', mpe: '±0.5% of applied force' },
     { class: 'Class 1', mpe: '±1.0% of applied force' },
@@ -170,6 +189,7 @@ const TORQUE_MEASURING: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 24,
   mpe: '±0.5% of indicated torque (Class 0.5)',
+  mpeNumeric: 0.5, mpeIsPercent: true,
   accuracyClasses: [
     { class: 'Class 0.1', mpe: '±0.1% of indicated torque' },
     { class: 'Class 0.2', mpe: '±0.2% of indicated torque' },
@@ -214,6 +234,7 @@ const PRESSURE_GAUGE: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 12,
   mpe: '±0.1% of full scale (Class B)',
+  mpeNumeric: 0.1, mpeIsPercent: true,
   accuracyClasses: [
     { class: 'Class A', mpe: '±0.05% of full scale' },
     { class: 'Class B', mpe: '±0.1% of full scale' },
@@ -239,6 +260,7 @@ const DEAD_WEIGHT_TESTER: Nabl129Criteria = {
   minReadings: 5,
   calibrationIntervalMonths: 24,
   mpe: '±0.01% of applied pressure',
+  mpeNumeric: 0.01, mpeIsPercent: true,
   keyRequirements: [
     'Reference: EURAMET cg-3 / OIML R 110',
     'Mass determination traceable to national mass standard',
@@ -273,6 +295,7 @@ const DUROMETER: Nabl129Criteria = {
   minReadings: 5,
   calibrationIntervalMonths: 12,
   mpe: '±1 Shore unit (Type A/D per ISO 7619)',
+  mpeNumeric: 1,
   accuracyClasses: [
     { class: 'Shore A (soft rubber)', mpe: '±1 Shore A unit' },
     { class: 'Shore D (hard rubber)', mpe: '±1 Shore D unit' },
@@ -380,6 +403,7 @@ const POWER_ANALYZER: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 12,
   mpe: '±0.1% of reading (active power)',
+  mpeNumeric: 0.1, mpeIsPercent: true,
   keyRequirements: [
     'Reference: Traceable power calibrator/standard',
     'Test at unity PF and at 0.5 PF (lag and lead) per range',
@@ -395,6 +419,7 @@ const THERMAL_SPRT: Nabl129Criteria = {
   minReadings: 5,
   calibrationIntervalMonths: 12,
   mpe: '±0.005 °C at fixed points',
+  mpeNumeric: 0.005,
   keyRequirements: [
     'Reference: ITS-90 fixed point cells (triple point of water, Ga, In, Sn, Zn, Al, Ag)',
     'SPRT resistance measured by AC resistance bridge',
@@ -410,6 +435,7 @@ const THERMAL_RTD: Nabl129Criteria = {
   minReadings: 5,
   calibrationIntervalMonths: 12,
   mpe: '±0.1 °C (Class A RTD) / ±0.5 °C (Class B RTD)',
+  mpeNumeric: 0.5,
   accuracyClasses: [
     { class: 'Class AA (IEC 60751)', mpe: '±(0.1 + 0.0017×|T|) °C' },
     { class: 'Class A (IEC 60751)', mpe: '±(0.15 + 0.002×|T|) °C' },
@@ -432,6 +458,7 @@ const THERMAL_THERMOCOUPLE: Nabl129Criteria = {
   minReadings: 5,
   calibrationIntervalMonths: 12,
   mpe: '±1.5 °C or ±0.4% (Type K, whichever is greater)',
+  mpeNumeric: 1.5,
   accuracyClasses: [
     { class: 'Type K, Class 1', mpe: '±1.5 °C or ±0.4% (T > 375°C)' },
     { class: 'Type K, Class 2', mpe: '±2.5 °C or ±0.75% (T > 333°C)' },
@@ -454,6 +481,7 @@ const THERMAL_LIG: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 24,
   mpe: '±0.5 °C (industrial LIG) / ±0.1 °C (precision LIG)',
+  mpeNumeric: 0.5,
   accuracyClasses: [
     { class: 'ASTM General Purpose', mpe: '±0.5 to ±1.0 °C' },
     { class: 'ASTM Precision / IP', mpe: '±0.1 to ±0.2 °C' },
@@ -474,6 +502,7 @@ const THERMAL_HUMIDITY: Nabl129Criteria = {
   minReadings: 3,
   calibrationIntervalMonths: 12,
   mpe: '±2% RH',
+  mpeNumeric: 2,
   accuracyClasses: [
     { class: 'Class A (reference hygrometer)', mpe: '±1% RH' },
     { class: 'Class B (working standard)', mpe: '±2% RH' },

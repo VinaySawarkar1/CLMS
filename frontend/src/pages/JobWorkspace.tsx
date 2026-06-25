@@ -15,7 +15,7 @@ import {
   getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
   updateDatasheetEnvironmental,
 } from '../api';
-import { findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
+import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
@@ -25,7 +25,6 @@ const STAGE_LABELS: Record<string, string> = {
   QUALITY_MANAGER: 'QA Manager',
 };
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
-const NREAD = 5;
 
 const JOB_STATUS_COLORS: Record<string, string> = {
   IN_CALIBRATION: 'processing', PENDING_REVIEW: 'gold', APPROVED: 'green',
@@ -33,7 +32,7 @@ const JOB_STATUS_COLORS: Record<string, string> = {
 };
 
 type Row = { pointLabel: string; unit: string; nominal: string; standardValue: string; readings: string[] };
-const emptyRow = (unit = ''): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(NREAD).fill('') });
+const emptyRow = (unit = '', nread = 5): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(nread).fill('') });
 
 export default function JobWorkspace() {
   const { id } = useParams();
@@ -153,7 +152,12 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const [procId, setProcId] = useState(lockedProcId || '');
   const [unit, setUnit] = useState(lockedUnit || '');
   const [env, setEnv] = useState({ temperature: '23', humidity: '50', pressure: '101.3' });
-  const [rows, setRows] = useState<Row[]>([emptyRow()]);
+
+  // NABL 129 criteria for the selected procedure
+  const nc = useMemo(() => getNabl129(procId), [procId]);
+  const nread = nc?.minReadings ?? 5;
+
+  const [rows, setRows] = useState<Row[]>([emptyRow('', nread)]);
   // Version history: which datasheet id to view (null = latest)
   const [viewDsId, setViewDsId] = useState<string | null>(null);
   const [envEditOpen, setEnvEditOpen] = useState(false);
@@ -184,14 +188,14 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
 
   const [rangeIdx, setRangeIdx] = useState(0);
 
-  const loadPoints = (u: string, points: { label: string; nominal: number }[]) => {
+  const loadPoints = (u: string, points: { label: string; nominal: number }[], readCount = nread) => {
     setUnit(u);
     setRows(points.map((pt) => ({
       pointLabel: pt.label,
       unit: u,
       nominal: String(pt.nominal),
       standardValue: String(pt.nominal),
-      readings: Array(NREAD).fill(''),
+      readings: Array(readCount).fill(''),
     })));
   };
 
@@ -200,11 +204,13 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     setRangeIdx(rangeIndex);
     const p = findProcedure(id);
     if (!p) return;
+    const crit = getNabl129(id);
+    const readCount = crit?.minReadings ?? 5;
     if (p.ranges && p.ranges.length) {
       const r = p.ranges[rangeIndex] ?? p.ranges[0];
-      loadPoints(overrideUnit || r.unit, r.points);
+      loadPoints(overrideUnit || r.unit, r.points, readCount);
     } else {
-      loadPoints(overrideUnit || p.unit, p.points);
+      loadPoints(overrideUnit || p.unit, p.points, readCount);
     }
   };
 
@@ -212,7 +218,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     setRangeIdx(idx);
     const p = findProcedure(procId);
     const r = p?.ranges?.[idx];
-    if (r) loadPoints(r.unit, r.points);
+    if (r) loadPoints(r.unit, r.points, nread);
   };
 
   const selectedProc = findProcedure(procId);
@@ -248,6 +254,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       label: `v${ds.version}${ds.id === (datasheet?.id) ? ' (latest)' : ''}`,
     }));
 
+    const savedNc = getNabl129(lockedProcId || procId);
     const obsColumns = [
       { title: 'Point', dataIndex: 'pointLabel', key: 'point', render: (v: string) => v || '—' },
       { title: 'Unit', dataIndex: 'unit', key: 'unit', render: (v: string) => v ? <Tag color="cyan">{v}</Tag> : '—' },
@@ -255,11 +262,29 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       { title: 'Standard', dataIndex: 'standardValue', key: 'standard', render: (v: number) => v ?? '—' },
       { title: 'Observed (mean)', dataIndex: 'observedValue', key: 'observed', render: (v: number) => v?.toFixed(4) ?? '—' },
       { title: 'Correction', dataIndex: 'correction', key: 'correction', render: (v: number) => v?.toFixed(4) ?? '—' },
-      { title: 'Error', dataIndex: 'error', key: 'error', render: (v: number) => v?.toFixed(4) ?? '—' },
+      {
+        title: 'Error', dataIndex: 'error', key: 'error',
+        render: (v: number, row: any) => {
+          if (v == null) return '—';
+          const errStr = v.toFixed(4);
+          if (!savedNc) return <span style={{ fontFamily: 'monospace' }}>{errStr}</span>;
+          const pass = checkMpe(v, row.nominal ?? row.standardValue ?? 0, savedNc);
+          return (
+            <Space size={4}>
+              <span style={{ fontFamily: 'monospace' }}>{errStr}</span>
+              {pass && <Tag color={pass === 'pass' ? 'green' : 'red'} style={{ margin: 0 }}>{pass === 'pass' ? '✓ PASS' : '✗ FAIL'}</Tag>}
+            </Space>
+          );
+        },
+      },
       {
         title: 'uA', key: 'uA',
         render: (_: any, row: any) => row.data?.uA != null ? Number(row.data.uA).toExponential(2) : '—',
       },
+      ...(savedNc ? [{
+        title: 'MPE', key: 'mpe',
+        render: () => <Tag color="orange" style={{ fontFamily: 'monospace', fontSize: 11 }}>{savedNc.mpe}</Tag>,
+      }] : []),
     ];
 
     return (
@@ -392,13 +417,16 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     ),
   }));
 
-  // Live error preview: Error = mean(readings) - standardValue
-  const liveError = (row: Row): string => {
+  // Live result: mean, error, reading count, pass/fail vs NABL 129 MPE
+  const liveResult = (row: Row) => {
     const nums = row.readings.map(Number).filter((n) => !Number.isNaN(n) && n !== 0);
     const std = Number(row.standardValue);
-    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return '—';
+    const nom = Number(row.nominal);
+    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return null;
     const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
-    return (mean - std).toFixed(4);
+    const error = mean - std;
+    const pass = nc ? checkMpe(error, isNaN(nom) ? std : nom, nc) : null;
+    return { mean, error, count: nums.length, pass };
   };
 
   const inputCols = [
@@ -415,32 +443,59 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       ),
     },
     {
-      title: 'Nominal', key: 'nominal', width: 90,
+      title: 'Nominal', key: 'nominal', width: 80,
       render: (_: any, _row: any, i: number) => (
         <Input size="small" value={rows[i].nominal} onChange={(e) => setRow(i, { nominal: e.target.value })} />
       ),
     },
     {
-      title: 'Standard', key: 'std', width: 90,
+      title: 'Standard', key: 'std', width: 80,
       render: (_: any, _row: any, i: number) => (
         <Input size="small" value={rows[i].standardValue} onChange={(e) => setRow(i, { standardValue: e.target.value })} />
       ),
     },
-    ...Array.from({ length: NREAD }).map((_, j) => ({
-      title: `R${j + 1}`, key: `r${j}`, width: 80,
+    ...Array.from({ length: nread }).map((_, j) => ({
+      title: `R${j + 1}`, key: `r${j}`, width: 72,
       render: (_: any, _row: any, i: number) => (
-        <Input size="small" value={rows[i].readings[j]} onChange={(e) => setReading(i, j, e.target.value)} />
+        <Input
+          size="small"
+          value={rows[i].readings[j] ?? ''}
+          onChange={(e) => setReading(i, j, e.target.value)}
+          style={rows[i].readings[j] ? { background: '#f0f9ff' } : {}}
+        />
       ),
     })),
     {
-      title: 'Error (preview)', key: 'error_preview', width: 110,
+      title: 'Mean', key: 'mean', width: 90,
       render: (_: any, _row: any, i: number) => {
-        const err = liveError(rows[i]);
-        const num = Number(err);
+        const r = liveResult(rows[i]);
+        if (!r) return <span style={{ color: '#bbb' }}>—</span>;
+        return <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.mean.toFixed(4)}</span>;
+      },
+    },
+    {
+      title: `Error (vs Std)${nc ? ` | MPE: ${nc.mpe}` : ''}`, key: 'error_preview', width: 200,
+      render: (_: any, _row: any, i: number) => {
+        const r = liveResult(rows[i]);
+        if (!r) return <Tag color="default">—</Tag>;
+        const errStr = r.error.toFixed(4);
+        const readPct = Math.round((r.count / nread) * 100);
         return (
-          <Tag color={err === '—' ? 'default' : num === 0 ? 'green' : Math.abs(num) < 0.01 ? 'orange' : 'red'}>
-            {err}
-          </Tag>
+          <Space size={4} direction="vertical" style={{ gap: 2 }}>
+            <Space size={4}>
+              <Tag
+                color={r.pass === 'pass' ? 'green' : r.pass === 'fail' ? 'red' : r.error === 0 ? 'green' : 'orange'}
+                style={{ fontFamily: 'monospace', margin: 0 }}
+              >
+                {r.pass === 'pass' ? '✓ ' : r.pass === 'fail' ? '✗ ' : ''}{errStr}
+              </Tag>
+              {r.pass && <Tag color={r.pass === 'pass' ? 'green' : 'red'} style={{ margin: 0 }}>{r.pass.toUpperCase()}</Tag>}
+            </Space>
+            <div style={{ fontSize: 10, color: r.count >= nread ? '#52c41a' : '#fa8c16' }}>
+              {r.count}/{nread} readings
+              {r.count < nread && ` (need ${nread - r.count} more)`}
+            </div>
+          </Space>
         );
       },
     },
@@ -638,7 +693,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         />
       </div>
       <Space>
-        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit)])}>
+        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit, nread)])}>
           Add Point
         </Button>
         <Button
@@ -659,6 +714,7 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
   const [contributors, setContributors] = useState<any[]>([]);
   const [result, setResult] = useState<any>(null);
   const procedure = useMemo(() => findProcedure(datasheet?.templateName), [datasheet?.templateName]);
+  const nablCriteria = useMemo(() => procedure ? getNabl129(procedure.id) : null, [procedure?.id]);
   const unit = datasheet?.observations?.[0]?.unit || procedure?.unit || '';
 
   useEffect(() => {
@@ -704,8 +760,10 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
   const removeC = (i: number) => setContributors(contributors.filter((_, idx) => idx !== i));
 
   const loadDefaults = () => {
-    const list: any[] = [{ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit }];
-    if (procedure) procedure.typeB.forEach((b) => list.push({ ...b, type: 'B', value: String(b.value) }));
+    const list: any[] = [{ source: 'Repeatability (Type A, from observations)', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit }];
+    if (procedure) {
+      procedure.typeB.forEach((b) => list.push({ ...b, type: 'B', value: String(b.value) }));
+    }
     setContributors(list);
   };
 
@@ -772,6 +830,13 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
         <Col>
           <Text strong>Uncertainty Budget (GUM) </Text>
           {unit && <Tag color="cyan">{unit}</Tag>}
+          {nablCriteria && (
+            <Space size={4} style={{ marginLeft: 8 }}>
+              <Tag color="red">{nablCriteria.nablChapter}</Tag>
+              <Tag color="orange">MPE: {nablCriteria.mpe}</Tag>
+              <Tag color="blue">Min Readings: {nablCriteria.minReadings}</Tag>
+            </Space>
+          )}
         </Col>
       </Row>
       <Space style={{ marginBottom: 16 }} wrap>
@@ -841,7 +906,7 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
           size="small"
         >
           <Title level={5} style={{ color: '#389e0d', marginBottom: 12 }}>GUM Uncertainty Results</Title>
-          <Row gutter={32}>
+          <Row gutter={32} wrap>
             <Col>
               <Text type="secondary" style={{ fontSize: 12 }}>Combined Standard Uncertainty</Text>
               <div><Text strong>u_c = {Number(result.combinedUncertainty).toExponential(3)} {unit}</Text></div>
@@ -858,6 +923,15 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
                 </Tag>
               </div>
             </Col>
+            {nablCriteria && (
+              <Col>
+                <Text type="secondary" style={{ fontSize: 12 }}>NABL 129 MPE Limit</Text>
+                <div><Tag color="orange">{nablCriteria.mpe}</Tag></div>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Expanded U must be ≤ MPE/3 (guard band per NABL 129)
+                </Text>
+              </Col>
+            )}
           </Row>
         </Card>
       )}
