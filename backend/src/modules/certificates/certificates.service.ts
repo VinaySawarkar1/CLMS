@@ -164,12 +164,18 @@ export class CertificatesService {
   private async nextCertificateNumber(labId?: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `CC/${year}/`;
-    const count = await this.prisma.certificate.count({
+    const existing = await this.prisma.certificate.findMany({
       where: {
         certificateNumber: { startsWith: prefix },
         ...(labId ? { job: { labId } } : {}),
       },
+      select: { certificateNumber: true },
     });
-    return `${prefix}${String(count + 1).padStart(5, '0')}`;
+    let max = 0;
+    for (const { certificateNumber } of existing) {
+      const n = parseInt(certificateNumber.slice(prefix.length), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `${prefix}${String(max + 1).padStart(5, '0')}`;
   }
 }

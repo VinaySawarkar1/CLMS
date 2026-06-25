@@ -60,10 +60,16 @@ class BillingService {
   private async nextInvoiceNumber(labId: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `INV/${year}/`;
-    const count = await this.prisma.invoice.count({
+    const existing = await this.prisma.invoice.findMany({
       where: { labId, invoiceNumber: { startsWith: prefix } },
+      select: { invoiceNumber: true },
     });
-    return `${prefix}${String(count + 1).padStart(5, '0')}`;
+    let max = 0;
+    for (const { invoiceNumber } of existing) {
+      const n = parseInt(invoiceNumber.slice(prefix.length), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `${prefix}${String(max + 1).padStart(5, '0')}`;
   }
 }
 

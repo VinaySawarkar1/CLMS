@@ -25,27 +25,35 @@ export class JobsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(labId: string, dto: CreateJobDto) {
-    const jobNumber = await this.nextJobNumber(labId);
-    return this.prisma.job.create({
-      data: {
-        jobNumber,
-        labId,
-        customerId: dto.customerId,
-        instrumentId: dto.instrumentId,
-        remarks: dto.remarks,
-        challanNo: dto.challanNo,
-        poNumber: dto.poNumber,
-        conditionOfItem: dto.conditionOfItem ?? 'OK (As Received)',
-        calibrationProcedureNo: dto.calibrationProcedureNo,
-        referenceDocumentNo: dto.referenceDocumentNo,
-        calibrationProcedure: dto.calibrationProcedure,
-        isOnsite: dto.isOnsite ?? false,
-        siteAddress: dto.siteAddress,
-        siteContact: dto.siteContact,
-        visitDate: dto.visitDate ? new Date(dto.visitDate) : null,
-        status: 'RECEIVED',
-      },
-    });
+    const data = {
+      labId,
+      customerId: dto.customerId,
+      instrumentId: dto.instrumentId,
+      remarks: dto.remarks,
+      challanNo: dto.challanNo,
+      poNumber: dto.poNumber,
+      conditionOfItem: dto.conditionOfItem ?? 'OK (As Received)',
+      calibrationProcedureNo: dto.calibrationProcedureNo,
+      referenceDocumentNo: dto.referenceDocumentNo,
+      calibrationProcedure: dto.calibrationProcedure,
+      isOnsite: dto.isOnsite ?? false,
+      siteAddress: dto.siteAddress,
+      siteContact: dto.siteContact,
+      visitDate: dto.visitDate ? new Date(dto.visitDate) : null,
+      status: 'RECEIVED' as JobStatus,
+    };
+
+    // Retry on unique-constraint collision of jobNumber (concurrent creates).
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const jobNumber = await this.nextJobNumber(labId);
+      try {
+        return await this.prisma.job.create({ data: { ...data, jobNumber } });
+      } catch (e: any) {
+        if (e?.code === 'P2002' && attempt < 4) continue;
+        throw e;
+      }
+    }
+    throw new Error('Could not allocate a unique job number');
   }
 
   findAll(labId: string, status?: JobStatus) {
@@ -88,7 +96,17 @@ export class JobsService {
   private async nextJobNumber(labId: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `JOB-${year}-`;
-    const count = await this.prisma.job.count({ where: { labId, jobNumber: { startsWith: prefix } } });
-    return `${prefix}${String(count + 1).padStart(5, '0')}`;
+    // Derive the next sequence from the highest existing suffix (not the row
+    // count), so deletions or pre-seeded numbers never cause a collision.
+    const existing = await this.prisma.job.findMany({
+      where: { labId, jobNumber: { startsWith: prefix } },
+      select: { jobNumber: true },
+    });
+    let max = 0;
+    for (const { jobNumber } of existing) {
+      const n = parseInt(jobNumber.slice(prefix.length), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `${prefix}${String(max + 1).padStart(5, '0')}`;
   }
 }

@@ -27,8 +27,17 @@ class QuotationsService {
 
   private async nextNumber(labId: string) {
     const year = new Date().getFullYear();
-    const count = await this.prisma.quotation.count({ where: { labId } });
-    return `QT-${year}-${String(count + 1).padStart(5, '0')}`;
+    const prefix = `QT-${year}-`;
+    const existing = await this.prisma.quotation.findMany({
+      where: { labId, quoteNumber: { startsWith: prefix } },
+      select: { quoteNumber: true },
+    });
+    let max = 0;
+    for (const { quoteNumber } of existing) {
+      const n = parseInt(quoteNumber.slice(prefix.length), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `${prefix}${String(max + 1).padStart(5, '0')}`;
   }
 
   list(labId: string) {
