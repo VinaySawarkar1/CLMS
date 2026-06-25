@@ -43,8 +43,13 @@ export class CertificatesService {
     if (job.certificate) {
       throw new ConflictException('Certificate already exists for this job');
     }
-    if (job.status !== 'APPROVED') {
-      throw new BadRequestException('Job must be APPROVED before certificate generation');
+    // Allow generation for APPROVED jobs, or for CERTIFICATE_GENERATED jobs where
+    // the certificate record was never actually created (status was set directly).
+    const canGenerate =
+      job.status === 'APPROVED' ||
+      (job.status === 'CERTIFICATE_GENERATED' && !job.certificate);
+    if (!canGenerate) {
+      throw new BadRequestException('Job must be in APPROVED status for certificate generation');
     }
 
     const certificateNumber = await this.nextCertificateNumber(labId);

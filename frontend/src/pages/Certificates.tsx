@@ -5,9 +5,9 @@ import {
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined,
+  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined,
 } from '@ant-design/icons';
-import { getJob, getJobs, signCertificate, openCertificateReport, getUser } from '../api';
+import { getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser } from '../api';
 
 const { Title, Text } = Typography;
 
@@ -49,14 +49,26 @@ export default function Certificates() {
   const signedStages: string[] = (cert?.signatures || []).map((s: any) => s.stage);
   const nextStage = STAGES[signedStages.length];
 
+  const isAdmin = me?.role === 'LAB_ADMIN' || me?.role === 'TECHNICAL_MANAGER';
+
   const signMut = useMutation({
-    mutationFn: (stage: string) => signCertificate(cert.id, stage),
+    mutationFn: (stage: string) => signCertificate(cert!.id, stage),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
       message.success('Signature applied successfully');
     },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to sign'),
+  });
+
+  const genMut = useMutation({
+    mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      message.success('Certificate generated successfully');
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to generate certificate'),
   });
 
   const signatureSteps = STAGES.map((st, idx) => {
@@ -203,26 +215,38 @@ export default function Certificates() {
         onClose={() => setSelectedJobId(null)}
         width={560}
         footer={
-          cert && (
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            {!cert && !detailLoading && detail && isAdmin && (
               <Button
-                icon={<PrinterOutlined />}
-                onClick={() => openCertificateReport(cert.id)}
+                type="primary"
+                icon={<PlusCircleOutlined />}
+                loading={genMut.isPending}
+                onClick={() => genMut.mutate(detail.id)}
               >
-                Print / View PDF
+                Generate Certificate
               </Button>
-              {!cert.isLocked && nextStage && (
+            )}
+            {cert && (
+              <>
                 <Button
-                  type="primary"
-                  icon={<CheckCircleOutlined />}
-                  loading={signMut.isPending}
-                  onClick={() => signMut.mutate(nextStage)}
+                  icon={<PrinterOutlined />}
+                  onClick={() => openCertificateReport(cert.id)}
                 >
-                  Sign as {STAGE_LABELS[nextStage] || nextStage}
+                  Print / View PDF
                 </Button>
-              )}
-            </Space>
-          )
+                {!cert.isLocked && nextStage && (
+                  <Button
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    loading={signMut.isPending}
+                    onClick={() => signMut.mutate(nextStage)}
+                  >
+                    Sign as {STAGE_LABELS[nextStage] || nextStage}
+                  </Button>
+                )}
+              </>
+            )}
+          </Space>
         }
       >
         {detailLoading && (
@@ -234,8 +258,12 @@ export default function Certificates() {
         {!detailLoading && detail && !cert && (
           <Alert
             type="warning"
-            message="Certificate not found"
-            description="This job does not have a certificate record yet."
+            message="Certificate not yet generated"
+            description={
+              isAdmin
+                ? 'This job does not have a certificate record. Click "Generate Certificate" below to create one.'
+                : 'This job does not have a certificate record yet. Please ask a Lab Admin or Technical Manager to generate it.'
+            }
             showIcon
           />
         )}

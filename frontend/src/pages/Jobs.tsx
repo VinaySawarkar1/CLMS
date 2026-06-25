@@ -28,7 +28,7 @@ const NEXT: Record<string, string[]> = {
   IN_CALIBRATION: ['PENDING_REVIEW'],
   PENDING_REVIEW: ['CORRECTION_REQUIRED', 'APPROVED'],
   CORRECTION_REQUIRED: ['IN_CALIBRATION'],
-  APPROVED: ['CERTIFICATE_GENERATED'],
+  APPROVED: [],
   CERTIFICATE_GENERATED: ['DELIVERED'],
   DELIVERED: ['CLOSED'],
   CLOSED: [],
@@ -448,7 +448,7 @@ export default function Jobs() {
                     {s.replace(/_/g, ' ')}
                   </Button>
                 ))}
-                {statusTarget.status === 'APPROVED' && (
+                {statusTarget.status === 'APPROVED' && isAdmin && (
                   <Button
                     type="primary"
                     icon={<SafetyCertificateOutlined />}
