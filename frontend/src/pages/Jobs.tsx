@@ -14,6 +14,7 @@ import {
   getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
 import { exportToCsv } from '../utils/export';
+import { findProcedure, groupedProcedures, Procedure } from '../procedures';
 
 const { Title, Text } = Typography;
 
@@ -61,6 +62,36 @@ export default function Jobs() {
   const [assignForm] = Form.useForm();
   const customerId = Form.useWatch('customerId', form);
   const isOnsite = Form.useWatch('isOnsite', form);
+  const selectedProcedureId = Form.useWatch('procedureId', form);
+  const selectedProc = findProcedure(selectedProcedureId);
+
+  // Build grouped procedure options for the job creation form
+  const procedureGroupedOptions = Object.entries(groupedProcedures()).map(([discipline, subs]) => ({
+    label: discipline,
+    options: Object.entries(subs as any).flatMap(([sub, procs]: [string, any]) =>
+      (procs as Procedure[]).map((p) => ({
+        value: p.id,
+        label: `${sub} › ${p.label} (${p.unit})`,
+      }))
+    ),
+  }));
+
+  const handleProcedureChange = (id: string) => {
+    const p = findProcedure(id);
+    form.setFieldValue('procedureId', id);
+    form.setFieldValue('procedureRangeIndex', 0);
+    if (p) {
+      const unit = p.ranges && p.ranges.length ? p.ranges[0].unit : p.unit;
+      form.setFieldValue('unitOfMeasurement', unit);
+    }
+  };
+
+  const handleRangeChange = (idx: number) => {
+    form.setFieldValue('procedureRangeIndex', idx);
+    const p = findProcedure(selectedProcedureId);
+    const r = p?.ranges?.[idx];
+    if (r) form.setFieldValue('unitOfMeasurement', r.unit);
+  };
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['jobs', statusFilter],
@@ -322,6 +353,49 @@ export default function Jobs() {
               </Form.Item>
             </Col>
           </Row>
+          {/* ── Calibration Procedure (locked at job creation) ── */}
+          <Form.Item
+            name="procedureId"
+            label="Instrument Procedure (Discipline / Sub-discipline)"
+            rules={[{ required: true, message: 'Select the calibration procedure' }]}
+          >
+            <Select
+              placeholder="Select discipline › instrument..."
+              options={procedureGroupedOptions}
+              showSearch
+              filterOption={(input, opt) =>
+                (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+              onChange={handleProcedureChange}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          {selectedProc?.ranges && selectedProc.ranges.length > 1 && (
+            <Row gutter={16}>
+              <Col span={16}>
+                <Form.Item name="procedureRangeIndex" label="Parameter / Range" rules={[{ required: true }]}>
+                  <Select
+                    options={selectedProc.ranges.map((r, i) => ({
+                      value: i,
+                      label: `${r.parameter}${r.rangeText ? ` (${r.rangeText})` : ` (${r.unit})`}`,
+                    }))}
+                    onChange={handleRangeChange}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="unitOfMeasurement" label="Unit">
+                  <Input placeholder="mm, bar, °C..." />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
+          {selectedProc && !(selectedProc.ranges && selectedProc.ranges.length > 1) && (
+            <Form.Item name="unitOfMeasurement" label="Unit of Measurement">
+              <Input placeholder="mm, bar, °C..." />
+            </Form.Item>
+          )}
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="challanNo" label="Challan No.">

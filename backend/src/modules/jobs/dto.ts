@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
 import { JobStatus } from '@prisma/client';
 
 export class CreateJobDto {
@@ -20,6 +20,10 @@ export class CreateJobDto {
   @IsOptional() @IsString() siteAddress?: string;
   @IsOptional() @IsString() siteContact?: string;
   @IsOptional() @IsString() visitDate?: string;
+  // Calibration procedure locked at job creation
+  @IsOptional() @IsString() procedureId?: string;
+  @IsOptional() @IsInt() procedureRangeIndex?: number;
+  @IsOptional() @IsString() unitOfMeasurement?: string;
 }
 
 export class AssignEngineerDto {

@@ -111,11 +111,21 @@ export default function JobWorkspace() {
                 {job.jobNumber}
               </Space>
             </Title>
-            <Space style={{ marginTop: 4 }}>
+            <Space style={{ marginTop: 4 }} wrap>
               <Text type="secondary">{job.instrument?.name}</Text>
               <Text type="secondary">·</Text>
               <Text type="secondary">{job.customer?.name}</Text>
               <Tag color={JOB_STATUS_COLORS[job.status] || 'default'}>{job.status?.replace(/_/g, ' ')}</Tag>
+              {job.procedureId && (() => {
+                const p = findProcedure(job.procedureId);
+                return p ? (
+                  <>
+                    <Tag color="geekblue" icon={<LockOutlined />}>{p.discipline}</Tag>
+                    <Tag color="blue">{p.subDiscipline}</Tag>
+                    {job.unitOfMeasurement && <Tag color="cyan">{job.unitOfMeasurement}</Tag>}
+                  </>
+                ) : null;
+              })()}
             </Space>
           </Col>
         </Row>
@@ -134,8 +144,13 @@ export default function JobWorkspace() {
 }
 
 function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
-  const [procId, setProcId] = useState('');
-  const [unit, setUnit] = useState('');
+  // If a procedure was locked at job creation, use it; otherwise allow selection.
+  const lockedProcId: string = job?.procedureId ?? '';
+  const lockedRangeIdx: number = job?.procedureRangeIndex ?? 0;
+  const lockedUnit: string = job?.unitOfMeasurement ?? '';
+
+  const [procId, setProcId] = useState(lockedProcId || '');
+  const [unit, setUnit] = useState(lockedUnit || '');
   const [env, setEnv] = useState({ temperature: '23', humidity: '50', pressure: '101.3' });
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
   // Version history: which datasheet id to view (null = latest)
@@ -150,16 +165,19 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   // Currently displayed datasheet — either a selected older version or the latest
   const displayedDatasheet = viewDsId ? (viewedDatasheet ?? datasheet) : datasheet;
 
-  // Auto-select procedure based on instrument discipline when no datasheet yet
+  // Apply the locked procedure (from job creation) on first load
   useEffect(() => {
-    if (!datasheet && !procId && job?.instrument?.discipline) {
+    if (lockedProcId) {
+      applyProcedure(lockedProcId, lockedRangeIdx, lockedUnit);
+    } else if (!datasheet && !procId && job?.instrument?.discipline) {
+      // Fallback: auto-select by instrument discipline if no procedure was locked
       const match = PROCEDURES.find(
         (p) => p.discipline.toLowerCase() === (job.instrument.discipline as string).toLowerCase(),
       );
-      if (match) applyProcedure(match.id);
+      if (match) applyProcedure(match.id, 0, '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.instrument?.discipline]);
+  }, [lockedProcId]);
 
   const [rangeIdx, setRangeIdx] = useState(0);
 
@@ -174,17 +192,16 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     })));
   };
 
-  const applyProcedure = (id: string) => {
+  const applyProcedure = (id: string, rangeIndex = 0, overrideUnit = '') => {
     setProcId(id);
-    setRangeIdx(0);
+    setRangeIdx(rangeIndex);
     const p = findProcedure(id);
     if (!p) return;
-    // If the instrument has multiple parameters/ranges, load the first one;
-    // otherwise fall back to the primary unit/points.
     if (p.ranges && p.ranges.length) {
-      loadPoints(p.ranges[0].unit, p.ranges[0].points);
+      const r = p.ranges[rangeIndex] ?? p.ranges[0];
+      loadPoints(overrideUnit || r.unit, r.points);
     } else {
-      loadPoints(p.unit, p.points);
+      loadPoints(overrideUnit || p.unit, p.points);
     }
   };
 
@@ -240,6 +257,27 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
 
     return (
       <div>
+        {lockedProcId && selectedProc && (
+          <Alert
+            type="warning"
+            showIcon
+            icon={<LockOutlined />}
+            style={{ marginBottom: 16 }}
+            message={
+              <Space size={8} wrap>
+                <Text strong>Locked Procedure:</Text>
+                <Tag color="geekblue">{selectedProc.discipline}</Tag>
+                <Tag color="blue">{selectedProc.subDiscipline}</Tag>
+                <Tag color="cyan">{selectedProc.label}</Tag>
+                {lockedUnit && <Tag color="purple">Unit: {lockedUnit}</Tag>}
+                {selectedProc.ranges && selectedProc.ranges.length > 1 && (
+                  <Tag color="green">Range: {selectedProc.ranges[lockedRangeIdx]?.parameter ?? selectedProc.ranges[0]?.parameter}</Tag>
+                )}
+                {selectedProc.nablReference && <Tag>{selectedProc.nablReference}</Tag>}
+              </Space>
+            }
+          />
+        )}
         <Row gutter={16} style={{ marginBottom: 16 }} align="middle">
           <Col>
             <Text strong>{displayedDatasheet.templateName}</Text>
@@ -298,6 +336,8 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       </div>
     );
   }
+
+  const isProcedureLocked = !!lockedProcId;
 
   const groupedOptions = Object.entries(groupedProcedures()).map(([discipline, subs]) => ({
     label: discipline,
@@ -365,13 +405,32 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
 
   return (
     <div>
+      {isProcedureLocked && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<LockOutlined />}
+          style={{ marginBottom: 16 }}
+          message="Calibration procedure locked"
+          description="The instrument procedure, parameter/range, and unit were fixed at job creation and cannot be changed."
+        />
+      )}
       <Row gutter={16} style={{ marginBottom: 20 }}>
         <Col flex="400px">
-          <Form.Item label="Instrument Procedure" style={{ marginBottom: 0 }}>
+          <Form.Item
+            label={
+              <Space size={4}>
+                Instrument Procedure
+                {isProcedureLocked && <Tag icon={<LockOutlined />} color="orange">Locked</Tag>}
+              </Space>
+            }
+            style={{ marginBottom: 0 }}
+          >
             <Select
               placeholder="Select discipline / instrument..."
               value={procId || undefined}
-              onChange={applyProcedure}
+              onChange={isProcedureLocked ? undefined : applyProcedure}
+              disabled={isProcedureLocked}
               options={groupedOptions}
               showSearch
               filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
@@ -381,10 +440,19 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         </Col>
         {selectedProc?.ranges && selectedProc.ranges.length > 1 && (
           <Col flex="240px">
-            <Form.Item label="Parameter / Range" style={{ marginBottom: 0 }}>
+            <Form.Item
+              label={
+                <Space size={4}>
+                  Parameter / Range
+                  {isProcedureLocked && <Tag icon={<LockOutlined />} color="orange">Locked</Tag>}
+                </Space>
+              }
+              style={{ marginBottom: 0 }}
+            >
               <Select
                 value={rangeIdx}
-                onChange={applyRange}
+                onChange={isProcedureLocked ? undefined : applyRange}
+                disabled={isProcedureLocked}
                 style={{ width: '100%' }}
                 options={selectedProc.ranges.map((r, i) => ({
                   value: i,
@@ -395,8 +463,22 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
           </Col>
         )}
         <Col flex="160px">
-          <Form.Item label="Unit of Measurement" style={{ marginBottom: 0 }}>
-            <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="mm, bar, °C..." />
+          <Form.Item
+            label={
+              <Space size={4}>
+                Unit of Measurement
+                {isProcedureLocked && <Tag icon={<LockOutlined />} color="orange">Locked</Tag>}
+              </Space>
+            }
+            style={{ marginBottom: 0 }}
+          >
+            <Input
+              value={unit}
+              onChange={(e) => !isProcedureLocked && setUnit(e.target.value)}
+              readOnly={isProcedureLocked}
+              placeholder="mm, bar, °C..."
+              style={isProcedureLocked ? { background: '#fafafa', cursor: 'not-allowed' } : {}}
+            />
           </Form.Item>
         </Col>
       </Row>
