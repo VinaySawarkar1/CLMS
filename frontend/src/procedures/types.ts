@@ -71,6 +71,12 @@ export interface Procedure {
   procedureText?: string;         // documented calibration method (NABL)
   nablReference?: string;         // e.g. "NABL 122-02", "DKD-R 6-1", "EURAMET cg-x"
   referenceStandard?: string;     // typical master/standard used
+  // ── NABL 129 specific criteria ──────────────────────────────────
+  nablChapter?: string;           // NABL 129 chapter (e.g. "Chapter 1(F)")
+  minReadings?: number;           // minimum observations per calibration point
+  calibrationIntervalMonths?: number; // recommended recalibration period
+  mpe?: string;                   // maximum permissible error for typical class
+  accuracyClasses?: { class: string; mpe: string }[]; // accuracy class table
 }
 
 // ── Shared helpers ────────────────────────────────────────────────

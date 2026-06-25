@@ -15,7 +15,7 @@ import {
   getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
   updateDatasheetEnvironmental,
 } from '../api';
-import { findProcedure, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
+import { findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
@@ -544,6 +544,61 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
           description={selectedProc.procedureText}
         />
       )}
+
+      {selectedProc && (() => {
+        const nc = getNabl129(selectedProc.id);
+        if (!nc) return null;
+        return (
+          <Card
+            size="small"
+            title={
+              <Space>
+                <Tag color="red">NABL 129</Tag>
+                <Text strong>{nc.nablChapter}</Text>
+              </Space>
+            }
+            style={{ marginBottom: 16, borderRadius: 8, borderColor: '#ff4d4f' }}
+            headStyle={{ background: '#fff1f0', borderBottom: '1px solid #ffccc7' }}
+          >
+            <Row gutter={[16, 8]}>
+              <Col xs={24} sm={12} md={6}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Min. Readings / Point</Text>
+                <div><Text strong style={{ fontSize: 16, color: '#1677ff' }}>{nc.minReadings}</Text></div>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Calibration Interval</Text>
+                <div><Text strong style={{ fontSize: 16, color: '#1677ff' }}>{nc.calibrationIntervalMonths} months</Text></div>
+              </Col>
+              <Col xs={24} sm={12} md={12}>
+                <Text type="secondary" style={{ fontSize: 11 }}>MPE (Typical)</Text>
+                <div><Text strong>{nc.mpe}</Text></div>
+              </Col>
+              {nc.accuracyClasses && nc.accuracyClasses.length > 0 && (
+                <Col span={24}>
+                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Accuracy Classes</Text>
+                  <Space size={4} wrap>
+                    {nc.accuracyClasses.map((ac) => (
+                      <Tag key={ac.class} color="orange" style={{ fontFamily: 'monospace' }}>
+                        {ac.class}: {ac.mpe}
+                      </Tag>
+                    ))}
+                  </Space>
+                </Col>
+              )}
+              {nc.keyRequirements && nc.keyRequirements.length > 0 && (
+                <Col span={24}>
+                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Key Requirements</Text>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {nc.keyRequirements.map((req, i) => (
+                      <li key={i}><Text style={{ fontSize: 12 }}>{req}</Text></li>
+                    ))}
+                  </ul>
+                </Col>
+              )}
+            </Row>
+          </Card>
+        );
+      })()}
 
       <Card
         size="small"
