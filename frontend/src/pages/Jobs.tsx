@@ -3,7 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Col, Form, Modal, Row, Select, Space, Table, Tag, Typography, Input, Tooltip, Dropdown,
-  Switch, DatePicker,
+  Switch, DatePicker, message,
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
@@ -57,7 +57,11 @@ export default function Jobs() {
       const v = form.getFieldsValue();
       return createJob({ ...v, visitDate: v.visitDate ? v.visitDate.toISOString() : undefined });
     },
-    onSuccess: () => { refresh(); setOpen(false); form.resetFields(); },
+    onSuccess: () => { refresh(); setOpen(false); form.resetFields(); message.success('Job created'); },
+    onError: (e: any) => {
+      const d = e?.response?.data;
+      message.error(`Job creation failed: ${d?.message ?? e?.message ?? 'Unknown error'}${d?.code ? ` (${d.code})` : ''}`, 8);
+    },
   });
   const assignMut = useMutation({ mutationFn: (v: { id: string; engineerId: string }) => assignJob(v.id, v.engineerId), onSuccess: refresh });
   const statusMut = useMutation({ mutationFn: (v: { id: string; s: string }) => setJobStatus(v.id, v.s), onSuccess: refresh });
