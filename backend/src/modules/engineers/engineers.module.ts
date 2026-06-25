@@ -44,10 +44,30 @@ class EngineersService {
     });
   }
 
-  findAll(labId: string) {
+  async findAll(labId: string) {
+    // Backfill: any lab user with an engineer role but no Engineer record gets
+    // one auto-created, so users added via the Team Members page are assignable.
+    const engineerUsers = await this.prisma.user.findMany({
+      where: {
+        labId,
+        role: { in: [Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER] },
+        engineer: null,
+      },
+      select: { id: true, fullName: true },
+    });
+    for (const u of engineerUsers) {
+      await this.prisma.engineer.create({
+        data: {
+          userId: u.id,
+          employeeCode: `EMP-${u.id.slice(0, 8).toUpperCase()}`,
+          skills: [],
+          authorizations: [],
+        },
+      });
+    }
     return this.prisma.engineer.findMany({
       where: { user: { labId } },
-      include: { user: { select: { fullName: true, email: true } } },
+      include: { user: { select: { fullName: true, email: true, role: true } } },
     });
   }
 }

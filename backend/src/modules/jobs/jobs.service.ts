@@ -69,7 +69,7 @@ export class JobsService {
     }
     return this.prisma.job.findMany({
       where: { labId, ...(status ? { status } : {}), ...engineerFilter },
-      include: { customer: true, instrument: true, engineer: true },
+      include: { customer: true, instrument: true, engineer: true, certificate: true },
       orderBy: { receivedAt: 'desc' },
     });
   }
