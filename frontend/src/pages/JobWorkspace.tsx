@@ -8,11 +8,11 @@ import {
 import {
   ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
-  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined,
+  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined,
 } from '@ant-design/icons';
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
-  getDatasheet, getJob, openCertificateReport, signCertificate,
+  getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
 } from '../api';
 import { findProcedure, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
@@ -272,7 +272,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
           pagination={false}
           style={{ marginBottom: 16 }}
         />
-        <Space>
+        <Space wrap>
           <Button
             type="primary"
             icon={<CalculatorOutlined />}
@@ -280,12 +280,18 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
             onClick={() => computeMut.mutate()}
             disabled={!!viewDsId && viewDsId !== datasheet?.id}
           >
-            Calculate (mean · correction · error · repeatability)
+            Calculate Results
+          </Button>
+          <Button
+            icon={<FilePdfOutlined />}
+            onClick={() => openDatasheetReport(displayedDatasheet.id)}
+          >
+            Print Datasheet Report
           </Button>
         </Space>
         <Alert
           type="info"
-          message="Datasheet saved. Click Calculate to compute results, then proceed to Uncertainty tab."
+          message="Datasheet saved. Click Calculate to compute results, then proceed to the Uncertainty tab."
           showIcon
           style={{ marginTop: 16 }}
         />

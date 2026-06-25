@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
@@ -21,6 +21,12 @@ export class DatasheetsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.datasheets.findOne(id);
+  }
+
+  @Get(':id/report')
+  @Header('Content-Type', 'text/html')
+  report(@Param('id') id: string) {
+    return this.datasheets.buildReport(id);
   }
 
   @Post(':id/recalculate')
