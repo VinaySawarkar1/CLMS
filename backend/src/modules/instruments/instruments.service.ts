@@ -74,7 +74,7 @@ export class InstrumentsService {
   }
 
   async bulkCreate(labId: string, records: CreateInstrumentDto[]) {
-    const results = [];
+    const results: any[] = [];
     for (const dto of records) {
       try {
         results.push(await this.create(labId, dto));

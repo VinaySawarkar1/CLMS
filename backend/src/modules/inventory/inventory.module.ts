@@ -42,7 +42,7 @@ class InventoryService {
   }
 
   async bulkUpsert(labId: string, items: any[]) {
-    const results = [];
+    const results: any[] = [];
     for (const item of items) {
       try {
         results.push(await this.upsertItem(labId, item));

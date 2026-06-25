@@ -47,7 +47,7 @@ export class CustomersService {
   }
 
   async bulkCreate(labId: string, records: CreateCustomerDto[]) {
-    const results = [];
+    const results: any[] = [];
     for (const dto of records) {
       try {
         results.push(await this.create(labId, dto));

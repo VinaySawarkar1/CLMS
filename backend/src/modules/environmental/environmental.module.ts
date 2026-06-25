@@ -36,7 +36,7 @@ class EnvironmentalService {
   }
 
   async bulkRecord(labId: string, records: any[]) {
-    const results = [];
+    const results: any[] = [];
     for (const r of records) {
       try {
         results.push(await this.record(labId, r));

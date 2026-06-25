@@ -97,7 +97,7 @@ class MastersController {
 
   @Post('import')
   async bulkImport(@Request() req: any, @Body() body: { records: MasterInput[] }) {
-    const results = [];
+    const results: any[] = [];
     for (const r of body.records) {
       try {
         results.push(await this.masters.create(req.user.labId, r));
