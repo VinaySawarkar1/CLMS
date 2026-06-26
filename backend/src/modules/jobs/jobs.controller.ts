@@ -39,4 +39,9 @@ export class JobsController {
   updateStatus(@Request() req: any, @Param('id') id: string, @Body() dto: UpdateStatusDto) {
     return this.jobs.updateStatus(id, req.user.labId, dto.status);
   }
+
+  @Patch(':id')
+  update(@Request() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
+    return this.jobs.updateJob(id, req.user.labId, body);
+  }
 }

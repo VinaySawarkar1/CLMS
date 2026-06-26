@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Button, Card, Table, Tag, Space, Typography, Tabs, Select, Empty,
+  Button, Card, Col, Progress, Row, Statistic, Table, Tag, Space, Typography, Tabs, Select, Empty,
 } from 'antd';
 import {
-  BarChartOutlined, BellOutlined, FileTextOutlined, ExportOutlined, DatabaseOutlined,
+  BarChartOutlined, BellOutlined, FileTextOutlined, ExportOutlined, DatabaseOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getRecallDue, getJobs, getEnvironmental, getCustomers } from '../api';
@@ -184,6 +184,83 @@ function LabDataExport() {
   );
 }
 
+function EngineerPerformance() {
+  const { data: jobs = [], isLoading } = useQuery({ queryKey: ['jobs'], queryFn: () => getJobs() });
+
+  const stats = useMemo(() => {
+    const byEng: Record<string, { name: string; total: number; completed: number; turnaroundDays: number[]; }> = {};
+    (jobs as any[]).forEach((j: any) => {
+      const eng = j.engineer;
+      if (!eng) return;
+      const name = eng.user?.fullName || eng.employeeCode || eng.id;
+      if (!byEng[eng.id]) byEng[eng.id] = { name, total: 0, completed: 0, turnaroundDays: [] };
+      byEng[eng.id].total++;
+      if (['APPROVED', 'CERTIFICATE_GENERATED', 'DELIVERED', 'CLOSED'].includes(j.status)) {
+        byEng[eng.id].completed++;
+        if (j.receivedAt) {
+          const days = dayjs().diff(dayjs(j.receivedAt), 'day');
+          byEng[eng.id].turnaroundDays.push(days);
+        }
+      }
+    });
+    return Object.values(byEng).map((e) => ({
+      name: e.name,
+      total: e.total,
+      completed: e.completed,
+      avgTurnaround: e.turnaroundDays.length
+        ? Math.round(e.turnaroundDays.reduce((a, b) => a + b, 0) / e.turnaroundDays.length)
+        : null,
+      completionRate: e.total ? Math.round((e.completed / e.total) * 100) : 0,
+    }));
+  }, [jobs]);
+
+  const total = (jobs as any[]).length;
+  const assigned = (jobs as any[]).filter((j: any) => j.engineer).length;
+  const completed = (jobs as any[]).filter((j: any) => ['APPROVED', 'CERTIFICATE_GENERATED', 'DELIVERED', 'CLOSED'].includes(j.status)).length;
+
+  const columns = [
+    { title: 'Engineer', dataIndex: 'name', key: 'name', render: (v: string) => <Text strong>{v}</Text> },
+    { title: 'Total Jobs', dataIndex: 'total', key: 'total', sorter: (a: any, b: any) => b.total - a.total },
+    { title: 'Completed', dataIndex: 'completed', key: 'completed', sorter: (a: any, b: any) => b.completed - a.completed },
+    {
+      title: 'Completion Rate', key: 'rate',
+      render: (_: any, r: any) => (
+        <Space>
+          <Progress percent={r.completionRate} size="small" style={{ width: 100 }} status={r.completionRate === 100 ? 'success' : 'normal'} />
+          <Text>{r.completionRate}%</Text>
+        </Space>
+      ),
+      sorter: (a: any, b: any) => b.completionRate - a.completionRate,
+    },
+    {
+      title: 'Avg. Turnaround', key: 'avg',
+      render: (_: any, r: any) => r.avgTurnaround != null ? (
+        <Tag color={r.avgTurnaround > 7 ? 'orange' : 'green'}>{r.avgTurnaround} days</Tag>
+      ) : '—',
+      sorter: (a: any, b: any) => (a.avgTurnaround ?? 99) - (b.avgTurnaround ?? 99),
+    },
+  ];
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Row gutter={16}>
+        <Col span={6}><Card><Statistic title="Total Jobs" value={total} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Assigned to Engineers" value={assigned} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Completed" value={completed} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Engineers Active" value={stats.length} /></Card></Col>
+      </Row>
+      <Table
+        rowKey="name"
+        loading={isLoading}
+        dataSource={stats}
+        columns={columns}
+        pagination={{ pageSize: 10 }}
+        locale={{ emptyText: <Empty description="No engineer job data available" /> }}
+      />
+    </Space>
+  );
+}
+
 export default function Reports() {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -197,6 +274,7 @@ export default function Reports() {
             { key: 'recall', label: <Space><BellOutlined />Calibration Recall</Space>, children: <RecallReport /> },
             { key: 'register', label: <Space><FileTextOutlined />Job Register</Space>, children: <JobRegister /> },
             { key: 'export', label: <Space><DatabaseOutlined />Lab Data Export</Space>, children: <LabDataExport /> },
+            { key: 'engineers', label: <Space><TeamOutlined />Engineer Performance</Space>, children: <EngineerPerformance /> },
           ]}
         />
       </Card>

@@ -55,6 +55,9 @@ export default function Jobs() {
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkCustomerId, setBulkCustomerId] = useState<string | undefined>();
+  const [bulkSelectedInstruments, setBulkSelectedInstruments] = useState<string[]>([]);
   const [assignTarget, setAssignTarget] = useState<any>(null);
   const [statusTarget, setStatusTarget] = useState<any>(null);
   const [detailJob, setDetailJob] = useState<any>(null);
@@ -103,6 +106,11 @@ export default function Jobs() {
     queryKey: ['instruments', customerId],
     queryFn: () => getInstruments(customerId),
     enabled: !!customerId,
+  });
+  const { data: bulkInstruments = [] } = useQuery({
+    queryKey: ['instruments', bulkCustomerId],
+    queryFn: () => getInstruments(bulkCustomerId),
+    enabled: !!bulkCustomerId,
   });
 
   const refresh = () => {
@@ -160,6 +168,29 @@ export default function Jobs() {
       const d = e?.response?.data;
       message.error(`Certificate generation failed: ${d?.message ?? e?.message ?? 'Unknown error'}`, 8);
     },
+  });
+
+  const bulkCreateMut = useMutation({
+    mutationFn: async (instrumentIds: string[]) => {
+      const results = await Promise.allSettled(
+        instrumentIds.map((instrumentId) => createJob({ customerId: bulkCustomerId, instrumentId }))
+      );
+      const created = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      return { created, failed };
+    },
+    onSuccess: ({ created, failed }) => {
+      refresh();
+      setBulkOpen(false);
+      setBulkCustomerId(undefined);
+      setBulkSelectedInstruments([]);
+      if (failed) {
+        message.warning(`${created} job(s) created, ${failed} failed`);
+      } else {
+        message.success(`${created} job(s) created successfully`);
+      }
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Bulk create failed'),
   });
 
   const engineerName = (job: any) => {
@@ -271,9 +302,14 @@ export default function Jobs() {
           </Col>
           <Col>
             {isAdmin && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} size="large">
-                New Job
-              </Button>
+              <Space>
+                <Button icon={<PlusOutlined />} onClick={() => setBulkOpen(true)} size="large">
+                  Bulk Create Jobs
+                </Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} size="large">
+                  New Job
+                </Button>
+              </Space>
             )}
           </Col>
         </Row>
@@ -551,6 +587,51 @@ export default function Jobs() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* ── Bulk Create Jobs Modal ── */}
+      <Modal
+        title={<Space><PlusOutlined /><span>Bulk Create Jobs</span></Space>}
+        open={bulkOpen}
+        onCancel={() => { setBulkOpen(false); setBulkCustomerId(undefined); setBulkSelectedInstruments([]); }}
+        onOk={() => bulkCreateMut.mutate(bulkSelectedInstruments)}
+        okText={`Create ${bulkSelectedInstruments.length} Job(s)`}
+        okButtonProps={{ disabled: !bulkSelectedInstruments.length || !bulkCustomerId }}
+        confirmLoading={bulkCreateMut.isPending}
+        width={540}
+      >
+        <Space direction="vertical" style={{ width: '100%', marginTop: 16 }} size="middle">
+          <Form.Item label="Customer" style={{ marginBottom: 0 }}>
+            <Select
+              placeholder="Select customer"
+              showSearch
+              value={bulkCustomerId}
+              onChange={(v) => { setBulkCustomerId(v); setBulkSelectedInstruments([]); }}
+              options={(customers as any[]).map((c: any) => ({ value: c.id, label: c.name }))}
+              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          {bulkCustomerId && (
+            <Form.Item label="Select Instruments" style={{ marginBottom: 0 }}>
+              <Select
+                mode="multiple"
+                placeholder="Select one or more instruments"
+                value={bulkSelectedInstruments}
+                onChange={setBulkSelectedInstruments}
+                options={(bulkInstruments as any[]).map((i: any) => ({
+                  value: i.id,
+                  label: `${i.name}${i.serialNumber ? ` (SN: ${i.serialNumber})` : ''}`,
+                }))}
+                style={{ width: '100%' }}
+                filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              />
+            </Form.Item>
+          )}
+          {bulkSelectedInstruments.length > 0 && (
+            <Tag color="blue">{bulkSelectedInstruments.length} job(s) will be created with status RECEIVED</Tag>
+          )}
+        </Space>
       </Modal>
     </div>
   );

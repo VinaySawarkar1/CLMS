@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Card, Table, Tag, Button, Space, Typography, Modal, Form, Input, DatePicker, message, Popconfirm, Statistic, Row, Col,
+  Alert, Card, Table, Tag, Button, Space, Typography, Modal, Form, Input, DatePicker, message, Popconfirm, Statistic, Row, Col,
 } from 'antd';
 import {
-  ExperimentOutlined, PlusOutlined, WarningOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, ExportOutlined, ImportOutlined,
+  ExperimentOutlined, PlusOutlined, WarningOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, ExportOutlined, ImportOutlined, BellOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getMasters, createMaster, updateMaster, deleteMaster, importMasters } from '../api';
@@ -140,6 +140,25 @@ export default function ReferenceStandards() {
         <Col span={8}><Card><Statistic title="Due Soon (30d)" value={dueSoon} prefix={<WarningOutlined />} valueStyle={{ color: '#faad14' }} /></Card></Col>
         <Col span={8}><Card><Statistic title="Overdue" value={overdue} prefix={<WarningOutlined />} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
       </Row>
+
+      {overdue > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          icon={<BellOutlined />}
+          message={`${overdue} reference standard(s) are OVERDUE for calibration`}
+          description="Overdue reference standards must not be used for calibration. Schedule immediate recalibration to maintain NABL accreditation."
+        />
+      )}
+      {!overdue && dueSoon > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<BellOutlined />}
+          message={`${dueSoon} reference standard(s) are due for calibration within 30 days`}
+          description="Schedule calibration soon to avoid expiry and maintain traceability chain."
+        />
+      )}
 
       <Card>
         <Table rowKey="id" loading={isLoading} dataSource={masters as any[]} columns={columns} pagination={{ pageSize: 10 }} />

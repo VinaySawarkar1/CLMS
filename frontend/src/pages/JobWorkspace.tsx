@@ -3,18 +3,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Row, Select,
-  Space, Spin, Steps, Table, Tabs, Tag, Typography,
+  Space, Spin, Steps, Table, Tabs, Tag, Timeline, Typography,
 } from 'antd';
 import {
   ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
   PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined,
+  HistoryOutlined, WarningOutlined, CommentOutlined,
 } from '@ant-design/icons';
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
-  getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
+  getDatasheet, getJob, getJobs, openCertificateReport, openDatasheetReport, signCertificate,
 } from '../api';
-import { findProcedure, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
+import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
@@ -24,15 +25,13 @@ const STAGE_LABELS: Record<string, string> = {
   QUALITY_MANAGER: 'QA Manager', FINAL_LOCK: 'Final Lock',
 };
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
-const NREAD = 5;
-
 const JOB_STATUS_COLORS: Record<string, string> = {
   IN_CALIBRATION: 'processing', PENDING_REVIEW: 'gold', APPROVED: 'green',
   CERTIFICATE_GENERATED: 'cyan', DELIVERED: 'purple', CLOSED: 'default',
 };
 
 type Row = { pointLabel: string; unit: string; nominal: string; standardValue: string; readings: string[] };
-const emptyRow = (unit = ''): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(NREAD).fill('') });
+const emptyRow = (unit = '', nread = 5): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(nread).fill('') });
 
 export default function JobWorkspace() {
   const { id } = useParams();
@@ -90,6 +89,26 @@ export default function JobWorkspace() {
         </Space>
       ),
       children: <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />,
+    },
+    {
+      key: 'history',
+      label: (
+        <Space>
+          <HistoryOutlined />
+          Cal. History
+        </Space>
+      ),
+      children: <CalibrationHistoryTab job={job} />,
+    },
+    {
+      key: 'remarks',
+      label: (
+        <Space>
+          <CommentOutlined />
+          Remarks
+        </Space>
+      ),
+      children: <RemarksTab job={job} onChanged={invalidate} />,
     },
   ];
 
@@ -153,6 +172,21 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const [unit, setUnit] = useState(lockedUnit || '');
   const [env, setEnv] = useState({ temperature: '23', humidity: '50', pressure: '101.3' });
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  const [selectedAccClass, setSelectedAccClass] = useState<string | null>(null);
+
+  // NABL 129 criteria for selected procedure
+  const nc = useMemo(() => getNabl129(procId), [procId]);
+  const nread = nc?.minReadings ?? 5;
+
+  // Effective MPE considering selected accuracy class
+  const effectiveMpe = useMemo(() => {
+    if (!nc) return null;
+    if (selectedAccClass && nc.accuracyClasses) {
+      const cls = nc.accuracyClasses.find((c) => c.class === selectedAccClass);
+      if (cls) return { value: cls.mpeNumeric ?? nc.mpeNumeric, isPercent: cls.mpeIsPercent ?? nc.mpeIsPercent };
+    }
+    return { value: nc.mpeNumeric, isPercent: nc.mpeIsPercent };
+  }, [nc, selectedAccClass]);
   // Version history: which datasheet id to view (null = latest)
   const [viewDsId, setViewDsId] = useState<string | null>(null);
 
@@ -181,27 +215,30 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
 
   const [rangeIdx, setRangeIdx] = useState(0);
 
-  const loadPoints = (u: string, points: { label: string; nominal: number }[]) => {
+  const loadPoints = (u: string, points: { label: string; nominal: number }[], readCount = nread) => {
     setUnit(u);
     setRows(points.map((pt) => ({
       pointLabel: pt.label,
       unit: u,
       nominal: String(pt.nominal),
       standardValue: String(pt.nominal),
-      readings: Array(NREAD).fill(''),
+      readings: Array(readCount).fill(''),
     })));
   };
 
   const applyProcedure = (id: string, rangeIndex = 0, overrideUnit = '') => {
     setProcId(id);
     setRangeIdx(rangeIndex);
+    setSelectedAccClass(null);
     const p = findProcedure(id);
+    const crit = getNabl129(id);
+    const rc = crit?.minReadings ?? 5;
     if (!p) return;
     if (p.ranges && p.ranges.length) {
       const r = p.ranges[rangeIndex] ?? p.ranges[0];
-      loadPoints(overrideUnit || r.unit, r.points);
+      loadPoints(overrideUnit || r.unit, r.points, rc);
     } else {
-      loadPoints(overrideUnit || p.unit, p.points);
+      loadPoints(overrideUnit || p.unit, p.points, rc);
     }
   };
 
@@ -209,7 +246,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     setRangeIdx(idx);
     const p = findProcedure(procId);
     const r = p?.ranges?.[idx];
-    if (r) loadPoints(r.unit, r.points);
+    if (r) loadPoints(r.unit, r.points, nread);
   };
 
   const selectedProc = findProcedure(procId);
@@ -349,14 +386,28 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     ),
   }));
 
-  // Live error preview: Error = mean(readings) - standardValue
-  const liveError = (row: Row): string => {
+  // Live result: mean, error, pass/fail
+  const liveResult = (row: Row) => {
     const nums = row.readings.map(Number).filter((n) => !Number.isNaN(n) && n !== 0);
     const std = Number(row.standardValue);
-    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return '—';
+    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return null;
     const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
-    return (mean - std).toFixed(4);
+    const error = mean - std;
+    let pass: 'pass' | 'fail' | null = null;
+    if (nc && effectiveMpe?.value != null) {
+      const absErr = Math.abs(error);
+      const limit = effectiveMpe.isPercent ? (effectiveMpe.value / 100) * Math.abs(std) : effectiveMpe.value;
+      pass = absErr <= limit ? 'pass' : 'fail';
+    }
+    return { mean: mean.toFixed(4), error: error.toFixed(4), count: nums.length, pass };
   };
+
+  // Environmental deviation check vs NABL 129 lab conditions
+  const envAlerts: string[] = [];
+  const temp = Number(env.temperature);
+  const hum = Number(env.humidity);
+  if (!Number.isNaN(temp) && (temp < 21 || temp > 25)) envAlerts.push(`Temperature ${temp}°C is outside NABL 129 limit (23±2°C)`);
+  if (!Number.isNaN(hum) && (hum < 35 || hum > 65)) envAlerts.push(`Humidity ${hum}%RH is outside NABL 129 limit (50±15%RH)`);
 
   const inputCols = [
     {
@@ -383,21 +434,40 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         <Input size="small" value={rows[i].standardValue} onChange={(e) => setRow(i, { standardValue: e.target.value })} />
       ),
     },
-    ...Array.from({ length: NREAD }).map((_, j) => ({
+    ...Array.from({ length: nread }).map((_, j) => ({
       title: `R${j + 1}`, key: `r${j}`, width: 80,
       render: (_: any, _row: any, i: number) => (
-        <Input size="small" value={rows[i].readings[j]} onChange={(e) => setReading(i, j, e.target.value)} />
+        <Input
+          size="small"
+          value={rows[i].readings[j] ?? ''}
+          onChange={(e) => setReading(i, j, e.target.value)}
+          style={rows[i].readings[j] ? { background: '#f0f9ff' } : {}}
+        />
       ),
     })),
     {
-      title: 'Error (preview)', key: 'error_preview', width: 110,
+      title: 'Mean', key: 'mean_preview', width: 90,
       render: (_: any, _row: any, i: number) => {
-        const err = liveError(rows[i]);
-        const num = Number(err);
+        const r = liveResult(rows[i]);
+        return r ? <Tag color="blue">{r.mean}</Tag> : <Tag>—</Tag>;
+      },
+    },
+    {
+      title: 'Error / Pass-Fail', key: 'error_preview', width: 140,
+      render: (_: any, _row: any, i: number) => {
+        const r = liveResult(rows[i]);
+        if (!r) return <Tag>—</Tag>;
+        const filled = rows[i].readings.filter((x) => x !== '').length;
         return (
-          <Tag color={err === '—' ? 'default' : num === 0 ? 'green' : Math.abs(num) < 0.01 ? 'orange' : 'red'}>
-            {err}
-          </Tag>
+          <Space direction="vertical" size={2}>
+            <Space size={4}>
+              {r.pass === 'pass' && <Tag color="green">✓ PASS</Tag>}
+              {r.pass === 'fail' && <Tag color="red">✗ FAIL</Tag>}
+              {!r.pass && <Tag color={Number(r.error) === 0 ? 'green' : Math.abs(Number(r.error)) < 0.01 ? 'orange' : 'red'}>{r.error}</Tag>}
+              {r.pass && <Tag>{r.error}</Tag>}
+            </Space>
+            <span style={{ fontSize: 10, color: '#888' }}>{filled}/{nread} readings</span>
+          </Space>
         );
       },
     },
@@ -505,7 +575,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       <Card
         size="small"
         title="Environmental Conditions"
-        style={{ marginBottom: 20, borderRadius: 8 }}
+        style={{ marginBottom: envAlerts.length ? 8 : 20, borderRadius: 8 }}
       >
         <Row gutter={16}>
           {[
@@ -519,12 +589,72 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
                   value={env[key as keyof typeof env]}
                   onChange={(e) => setEnv({ ...env, [key]: e.target.value })}
                   placeholder="—"
+                  status={
+                    (key === 'temperature' && !Number.isNaN(Number(env.temperature)) && (Number(env.temperature) < 21 || Number(env.temperature) > 25)) ? 'error' :
+                    (key === 'humidity' && !Number.isNaN(Number(env.humidity)) && (Number(env.humidity) < 35 || Number(env.humidity) > 65)) ? 'error' : ''
+                  }
                 />
               </Form.Item>
             </Col>
           ))}
         </Row>
       </Card>
+
+      {envAlerts.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ marginBottom: 20 }}
+          message="Environmental Condition Deviation — NABL 129"
+          description={
+            <ul style={{ margin: 0, paddingLeft: 16 }}>
+              {envAlerts.map((msg, i) => <li key={i}>{msg}</li>)}
+            </ul>
+          }
+        />
+      )}
+
+      {nc?.accuracyClasses && nc.accuracyClasses.length > 0 && (
+        <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', borderColor: '#ffe58f' }}>
+          <Row align="middle" gutter={16}>
+            <Col>
+              <Text strong>NABL 129 Accuracy Class:</Text>
+            </Col>
+            <Col>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Select accuracy class"
+                value={selectedAccClass ?? undefined}
+                allowClear
+                onChange={(v) => setSelectedAccClass(v ?? null)}
+                options={nc.accuracyClasses.map((c) => ({ value: c.class, label: `${c.class} (MPE: ${c.mpe})` }))}
+              />
+            </Col>
+            {selectedAccClass && (
+              <Col>
+                <Tag color="orange">MPE: {nc.accuracyClasses.find((c) => c.class === selectedAccClass)?.mpe}</Tag>
+              </Col>
+            )}
+          </Row>
+        </Card>
+      )}
+
+      {nc && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={
+            <Space size={8} wrap>
+              <Text strong>NABL 129 — {nc.nablChapter}</Text>
+              <Tag color="purple">Min Readings: {nc.minReadings}</Tag>
+              <Tag color="orange">MPE: {selectedAccClass && nc.accuracyClasses ? (nc.accuracyClasses.find((c) => c.class === selectedAccClass)?.mpe ?? nc.mpe) : nc.mpe}</Tag>
+              <Tag color="cyan">Cal. Interval: {nc.calibrationIntervalMonths}M</Tag>
+            </Space>
+          }
+        />
+      )}
 
       <Text strong style={{ display: 'block', marginBottom: 12 }}>
         Measurement Points & Readings {unit && <Tag color="cyan">{unit}</Tag>}
@@ -540,7 +670,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         />
       </div>
       <Space>
-        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit)])}>
+        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit, nread)])}>
           Add Point
         </Button>
         <Button
@@ -764,6 +894,133 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
         </Card>
       )}
     </div>
+  );
+}
+
+function CalibrationHistoryTab({ job }: any) {
+  const instrumentId = job?.instrument?.id;
+  const instrumentName = job?.instrument?.name ?? 'this instrument';
+
+  const { data: allJobs = [], isLoading } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: () => getJobs(),
+  });
+
+  const history = useMemo(() => {
+    return (allJobs as any[])
+      .filter((j: any) => j.instrument?.id === instrumentId && j.id !== job.id)
+      .sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+  }, [allJobs, instrumentId, job.id]);
+
+  if (isLoading) return <Spin />;
+  if (!history.length) {
+    return (
+      <Alert
+        type="info"
+        showIcon
+        icon={<HistoryOutlined />}
+        message={`No previous calibration records found for ${instrumentName}`}
+      />
+    );
+  }
+
+  const columns = [
+    { title: 'Job No.', dataIndex: 'jobNumber', key: 'j', render: (v: string) => <Text strong>{v}</Text> },
+    { title: 'Received', dataIndex: 'receivedAt', key: 'r', render: (v: string) => new Date(v).toLocaleDateString('en-IN') },
+    { title: 'Status', dataIndex: 'status', key: 's', render: (s: string) => <Tag>{s?.replace(/_/g, ' ')}</Tag> },
+    {
+      title: 'Certificate',
+      key: 'cert',
+      render: (_: any, r: any) => r.certificate?.certificateNumber
+        ? <Tag color="green">{r.certificate.certificateNumber}</Tag>
+        : <Tag color="default">—</Tag>,
+    },
+    {
+      title: 'Engineer',
+      key: 'eng',
+      render: (_: any, r: any) => r.engineer?.name ?? '—',
+    },
+  ];
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Alert
+        type="info"
+        showIcon
+        icon={<HistoryOutlined />}
+        message={`Found ${history.length} previous calibration(s) for ${instrumentName}`}
+      />
+      <Table
+        rowKey="id"
+        dataSource={history}
+        columns={columns}
+        size="small"
+        pagination={{ pageSize: 10 }}
+      />
+    </Space>
+  );
+}
+
+function RemarksTab({ job, onChanged }: any) {
+  const [text, setText] = useState('');
+  const [remarks, setRemarks] = useState<{ ts: string; note: string }[]>(() => {
+    try { return JSON.parse(job?.remarks || '[]'); } catch { return job?.remarks ? [{ ts: new Date().toISOString(), note: job.remarks }] : []; }
+  });
+  const qc = useQueryClient();
+
+  const saveMut = useMutation({
+    mutationFn: async (note: string) => {
+      const updated = [...remarks, { ts: new Date().toISOString(), note }];
+      const { api } = await import('../api');
+      await api.patch(`/jobs/${job.id}`, { remarks: JSON.stringify(updated) });
+      return updated;
+    },
+    onSuccess: (updated) => {
+      setRemarks(updated);
+      setText('');
+      qc.invalidateQueries({ queryKey: ['job-detail', job.id] });
+      onChanged?.();
+    },
+  });
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Text type="secondary">Deviation notes, calibration remarks, and observations for this job.</Text>
+      {remarks.length > 0 ? (
+        <Timeline
+          items={remarks.map((r) => ({
+            color: 'blue',
+            children: (
+              <div>
+                <Text type="secondary" style={{ fontSize: 11 }}>{new Date(r.ts).toLocaleString('en-IN')}</Text>
+                <div>{r.note}</div>
+              </div>
+            ),
+          }))}
+        />
+      ) : (
+        <Alert type="info" message="No remarks recorded yet." showIcon />
+      )}
+      <Row gutter={8}>
+        <Col flex="auto">
+          <Input.TextArea
+            rows={3}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a remark, deviation note, or observation..."
+          />
+        </Col>
+      </Row>
+      <Button
+        type="primary"
+        icon={<SaveOutlined />}
+        disabled={!text.trim()}
+        loading={saveMut.isPending}
+        onClick={() => saveMut.mutate(text.trim())}
+      >
+        Add Remark
+      </Button>
+    </Space>
   );
 }
 

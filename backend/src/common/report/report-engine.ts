@@ -11,7 +11,11 @@ export interface ReportObservation {
   observedValue?: number | null;
   correction?: number | null;
   error?: number | null;
+  passFail?: 'pass' | 'fail' | null;
+  mpeLimit?: string | null;
 }
+
+export type CertificateTemplate = 'nabl' | 'iso17025' | 'compact' | 'traceability' | 'customer-branded';
 
 export interface ReferenceStandardInfo {
   name: string;
@@ -104,6 +108,11 @@ export interface CertificateReportData {
   qrVerificationUrl?: string | null;
   qrDataUrl?: string | null;
   signatures?: Array<{ stage: string; by: string; designation?: string }>;
+
+  // Template / display options
+  template?: CertificateTemplate | null;
+  mpeLimit?: string | null;        // e.g. "±0.5%" — shown in results table header
+  showPassFail?: boolean;          // default true when any observation has passFail set
 }
 
 // ── helpers ──────────────────────────────────────────────────────
@@ -128,11 +137,17 @@ function cell(label: string, value: string, bold = false): string {
 
 // ── sub-renderers ─────────────────────────────────────────────────
 
-function renderObservations(rows: ReportObservation[]): string {
+function renderObservations(rows: ReportObservation[], showPassFail = false): string {
   if (!rows.length) {
-    return '<tr><td colspan="7" style="text-align:center;color:#888;padding:12px">No observations recorded</td></tr>';
+    return `<tr><td colspan="${showPassFail ? 9 : 7}" style="text-align:center;color:#888;padding:12px">No observations recorded</td></tr>`;
   }
-  return rows.map((o) => `<tr>
+  return rows.map((o) => {
+    const pf = o.passFail;
+    const pfCell = showPassFail
+      ? `<td style="font-weight:bold;color:${pf === 'pass' ? '#237804' : pf === 'fail' ? '#cf1322' : '#888'}">${pf === 'pass' ? '✓ PASS' : pf === 'fail' ? '✗ FAIL' : '—'}</td>`
+      : '';
+    const mpeCell = showPassFail ? `<td style="font-size:10px">${esc(o.mpeLimit)}</td>` : '';
+    return `<tr>
     <td>${esc(o.pointLabel)}</td>
     <td>${esc(o.unit)}</td>
     <td>${num(o.nominal)}</td>
@@ -140,7 +155,9 @@ function renderObservations(rows: ReportObservation[]): string {
     <td>${num(o.observedValue)}</td>
     <td>${num(o.correction)}</td>
     <td>${num(o.error)}</td>
-  </tr>`).join('');
+    ${mpeCell}${pfCell}
+  </tr>`;
+  }).join('');
 }
 
 function renderReferenceStandards(refs: ReferenceStandardInfo[]): string {
@@ -179,12 +196,22 @@ function renderReferenceStandards(refs: ReferenceStandardInfo[]): string {
 // ── main render ───────────────────────────────────────────────────
 
 export function renderCertificateHtml(d: CertificateReportData): string {
+  const template = d.template ?? 'nabl';
+  if (template === 'compact') return renderCompactHtml(d);
+  if (template === 'traceability') return renderTraceabilityHtml(d);
+  if (template === 'customer-branded') return renderCustomerBrandedHtml(d);
+  // 'nabl' and 'iso17025' use the same full layout (iso17025 tweaks header text)
+  return renderNablHtml(d, template === 'iso17025');
+}
+
+function renderNablHtml(d: CertificateReportData, iso = false): string {
   const env = d.environmental ?? {};
   const unit = d.uncertaintyUnit ?? d.observations[0]?.unit ?? '';
   const pageNum = d.pageNumber ?? 1;
   const totalPages = d.totalPages ?? 1;
   const calibrationLocation = d.calibrationLocation ?? 'In Lab';
   const ulr = d.ulrNumber ?? '';
+  const hasPassFail = d.showPassFail ?? d.observations.some((o) => o.passFail != null);
 
   const tempStr = env.temperature !== undefined
     ? `${num(env.temperature, 1)} °C (±${env.temperatureTolerance ?? 1} °C)`
@@ -196,7 +223,7 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   return `<!doctype html>
 <html><head>
 <meta charset="utf-8"/>
-<title>Certificate of Calibration — ${esc(d.certificateNumber)}</title>
+<title>${iso ? 'ISO/IEC 17025 ' : ''}Certificate of Calibration — ${esc(d.certificateNumber)}</title>
 <style>
   @page { size: A4; margin: 12mm 14mm; }
   * { box-sizing: border-box; }
@@ -285,7 +312,7 @@ export function renderCertificateHtml(d: CertificateReportData): string {
     ${d.labPhone ? `<div class="lab-addr">Tel: ${esc(d.labPhone)}${d.labEmail ? ' &nbsp;|&nbsp; E-Mail: ' + esc(d.labEmail) : ''}</div>` : ''}
   </div>
   <div class="cert-heading">
-    <h1>CERTIFICATE OF CALIBRATION</h1>
+    <h1>${iso ? 'ISO/IEC 17025 CALIBRATION REPORT' : 'CERTIFICATE OF CALIBRATION'}</h1>
     <h2>ISSUED BY &nbsp;${esc(d.labName || 'Calibration Laboratory')}</h2>
     <div class="issued-by">ISO / IEC 17025 · ${esc(d.type)}</div>
   </div>
@@ -399,8 +426,9 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
       <th>Observed Value</th>
       <th>Correction</th>
       <th>Error</th>
+      ${hasPassFail ? `<th>MPE Limit</th><th>Result</th>` : ''}
     </tr></thead>
-    <tbody>${renderObservations(d.observations)}</tbody>
+    <tbody>${renderObservations(d.observations, hasPassFail)}</tbody>
   </table>
 
   ${d.repeatability ? `<div style="font-size:11px;margin-top:4px"><b>Repeatability:</b> ${esc(d.repeatability)}</div>` : ''}
@@ -454,5 +482,151 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 </div>
 
 </div><!-- /.page -->
+</body></html>`;
+}
+
+// ── Compact template ──────────────────────────────────────────────────────────
+function renderCompactHtml(d: CertificateReportData): string {
+  const unit = d.uncertaintyUnit ?? d.observations[0]?.unit ?? '';
+  const hasPassFail = d.observations.some((o) => o.passFail != null);
+  return `<!doctype html><html><head><meta charset="utf-8"/>
+<title>Calibration Cert — ${esc(d.certificateNumber)}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 10mm 12mm; }
+  h2 { font-size: 14px; color: #1a237e; margin: 0 0 4px; text-align:center; }
+  .sub { text-align:center; font-size:10px; color:#555; margin-bottom:8px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; margin-bottom:8px; font-size:11px; }
+  .lbl { color:#666; font-size:10px; }
+  table { width:100%; border-collapse:collapse; font-size:10.5px; }
+  th { background:#e3f2fd; border:1px solid #90caf9; padding:3px 5px; }
+  td { border:1px solid #cfd8dc; padding:3px 5px; text-align:center; }
+  .pass { color:#237804; font-weight:bold; } .fail { color:#cf1322; font-weight:bold; }
+  .unc { margin-top:6px; font-size:11px; border:1px solid #43a047; background:#e8f5e9; padding:4px 8px; }
+  .foot { margin-top:8px; font-size:9px; color:#666; border-top:1px solid #ccc; padding-top:4px; }
+</style></head><body>
+<h2>${esc(d.labName || 'Calibration Laboratory')}</h2>
+<div class="sub">CERTIFICATE OF CALIBRATION &nbsp;|&nbsp; ${esc(d.certificateNumber)} &nbsp;|&nbsp; ${new Date(d.issueDate).toLocaleDateString('en-IN')}</div>
+<div class="grid">
+  <div><span class="lbl">Customer:</span> ${esc(d.customerName)}</div>
+  <div><span class="lbl">Job No.:</span> ${esc(d.jobNumber)}</div>
+  <div><span class="lbl">Instrument:</span> ${esc(d.instrumentName)}</div>
+  <div><span class="lbl">Serial No.:</span> ${esc(d.instrumentSerial) || '—'}</div>
+  <div><span class="lbl">Make / Model:</span> ${esc(d.instrumentMake) || '—'} / ${esc(d.instrumentModel) || '—'}</div>
+  <div><span class="lbl">Range:</span> ${esc(d.instrumentRange) || '—'}</div>
+</div>
+<table><thead><tr><th>Point</th><th>Unit</th><th>Nominal</th><th>Standard</th><th>Observed</th><th>Error</th>${hasPassFail ? '<th>MPE</th><th>Result</th>' : ''}</tr></thead>
+<tbody>${d.observations.map((o) => {
+  const pf = o.passFail;
+  return `<tr><td>${esc(o.pointLabel)}</td><td>${esc(o.unit)}</td><td>${o.nominal ?? '—'}</td><td>${o.standardValue?.toFixed(4) ?? '—'}</td><td>${o.observedValue?.toFixed(4) ?? '—'}</td><td>${o.error?.toFixed(4) ?? '—'}</td>${hasPassFail ? `<td>${esc(o.mpeLimit)}</td><td class="${pf ?? ''}">${pf === 'pass' ? '✓ PASS' : pf === 'fail' ? '✗ FAIL' : '—'}</td>` : ''}</tr>`;
+}).join('')}</tbody></table>
+<div class="unc">Expanded Uncertainty: <b>± ${d.expandedUncertainty?.toFixed(4) ?? '—'} ${esc(unit)}</b> &nbsp; (k=${d.coverageFactor?.toFixed(2) ?? 2}, ~95%)</div>
+<div class="foot">
+  ${(d.signatures ?? []).map((s) => `${esc(s.by)} (${esc(s.stage)})`).join(' &nbsp;|&nbsp; ')}<br/>
+  This certificate refers only to the item calibrated. Not valid if reproduced in part.
+</div>
+</body></html>`;
+}
+
+// ── Traceability Statement template ──────────────────────────────────────────
+function renderTraceabilityHtml(d: CertificateReportData): string {
+  const refs = d.referenceStandards ?? [];
+  return `<!doctype html><html><head><meta charset="utf-8"/>
+<title>Traceability Statement — ${esc(d.certificateNumber)}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; margin: 15mm 18mm; }
+  h1 { font-size:16px; color:#1a237e; text-align:center; margin:0 0 4px; }
+  h3 { font-size:13px; color:#283593; margin:14px 0 4px; border-bottom:1px solid #9fa8da; padding-bottom:2px; }
+  .sub { text-align:center; font-size:11px; color:#555; margin-bottom:16px; }
+  table { width:100%; border-collapse:collapse; font-size:11px; margin-top:4px; }
+  th { background:#e8eaf6; border:1px solid #9fa8da; padding:4px 6px; }
+  td { border:1px solid #cfd8dc; padding:4px 6px; }
+  .note { font-size:10px; color:#555; margin-top:8px; }
+  .sign-row { display:flex; justify-content:space-between; margin-top:40px; gap:20px; }
+  .sign-block { flex:1; border-top:1px solid #333; padding-top:4px; text-align:center; font-size:11px; }
+</style></head><body>
+<h1>${esc(d.labName || 'Calibration Laboratory')}</h1>
+<div class="sub">METROLOGICAL TRACEABILITY STATEMENT &nbsp;|&nbsp; Cert. No.: ${esc(d.certificateNumber)}</div>
+<h3>Calibrated Item</h3>
+<table><tbody>
+  <tr><td><b>Description</b></td><td>${esc(d.instrumentName)}</td><td><b>Make / Model</b></td><td>${esc(d.instrumentMake) || '—'} / ${esc(d.instrumentModel) || '—'}</td></tr>
+  <tr><td><b>Serial No.</b></td><td>${esc(d.instrumentSerial) || '—'}</td><td><b>Range</b></td><td>${esc(d.instrumentRange) || '—'}</td></tr>
+  <tr><td><b>Customer</b></td><td>${esc(d.customerName)}</td><td><b>Calibration Date</b></td><td>${fmtDate(d.calibrationDate || d.issueDate)}</td></tr>
+</tbody></table>
+<h3>Traceability Chain — Reference Standards Used</h3>
+${refs.length ? `<table><thead><tr><th>Standard</th><th>ID No.</th><th>Cert. No.</th><th>Cal. Date</th><th>Valid Up To</th><th>Traceability</th></tr></thead><tbody>
+${refs.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.idNumber)}</td><td>${esc(r.certificateNumber)}</td><td>${fmtDate(r.calibrationDate)}</td><td>${fmtDate(r.validUpTo)}</td><td style="font-size:10px">${esc(r.traceability)}</td></tr>`).join('')}
+</tbody></table>` : '<p style="color:#888">No reference standards recorded.</p>'}
+<p class="note">All reference standards are calibrated by NABL accredited laboratories or National Measurement Institutes, establishing an unbroken chain of traceability to SI units as per ISO/IEC 17025:2017 clause 6.5.</p>
+<h3>Uncertainty of Measurement</h3>
+<p>Expanded Uncertainty: <b>± ${d.expandedUncertainty?.toFixed(4) ?? '—'} ${esc(d.uncertaintyUnit ?? '')}</b> &nbsp; (Coverage factor k = ${d.coverageFactor?.toFixed(2) ?? 2}, confidence level ~95.45%, normal distribution)</p>
+<div class="sign-row">
+  ${(d.signatures ?? []).map((s) => `<div class="sign-block"><b>${esc(s.by)}</b><br/>${esc(s.designation || s.stage)}</div>`).join('')}
+  ${!(d.signatures ?? []).length ? '<div class="sign-block"><b>Calibrated By</b><br/>Calibration Engineer</div><div class="sign-block"><b>Authorized Signatory</b><br/>Technical Manager</div>' : ''}
+</div>
+</body></html>`;
+}
+
+// ── Customer-Branded template ─────────────────────────────────────────────────
+function renderCustomerBrandedHtml(d: CertificateReportData): string {
+  const unit = d.uncertaintyUnit ?? d.observations[0]?.unit ?? '';
+  const hasPassFail = d.observations.some((o) => o.passFail != null);
+  return `<!doctype html><html><head><meta charset="utf-8"/>
+<title>Calibration Certificate — ${esc(d.certificateNumber)}</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size:12px; background:#fff; margin:0; padding:0; }
+  .header { background: linear-gradient(135deg,#1a237e,#283593); color:#fff; padding:20px 28px; display:flex; justify-content:space-between; align-items:center; }
+  .header h1 { margin:0; font-size:18px; letter-spacing:1px; }
+  .header .cert-no { font-size:11px; opacity:0.8; }
+  .body { padding:20px 28px; }
+  .customer-banner { background:#e8eaf6; border-left:5px solid #1a237e; padding:10px 14px; margin-bottom:14px; font-size:13px; }
+  .customer-banner .name { font-size:16px; font-weight:bold; color:#1a237e; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px 16px; margin-bottom:14px; }
+  .field { font-size:11px; }
+  .field .label { color:#888; font-size:10px; text-transform:uppercase; letter-spacing:0.4px; }
+  .field .value { font-weight:600; color:#111; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { background:#283593; color:#fff; border:1px solid #1a237e; padding:5px 7px; font-size:10.5px; }
+  td { border:1px solid #cfd8dc; padding:4px 6px; text-align:center; }
+  tr:nth-child(even) td { background:#f5f5f5; }
+  .pass { color:#237804; font-weight:bold; } .fail { color:#cf1322; font-weight:bold; }
+  .unc-bar { background:#e8f5e9; border:1px solid #43a047; padding:8px 14px; margin:12px 0; font-size:12px; }
+  .footer { background:#f5f5f5; border-top:1px solid #ddd; padding:12px 28px; font-size:10px; color:#666; display:flex; justify-content:space-between; }
+</style></head><body>
+<div class="header">
+  <div>
+    <h1>${esc(d.labName || 'Calibration Laboratory')}</h1>
+    <div class="cert-no">Cert. No.: ${esc(d.certificateNumber)} &nbsp;|&nbsp; Date: ${new Date(d.issueDate).toLocaleDateString('en-IN')}</div>
+    ${d.labAccreditation ? `<div class="cert-no">NABL Accredited — ${esc(d.labAccreditation)}</div>` : ''}
+  </div>
+  <div style="text-align:right; opacity:0.9; font-size:12px"><b>CERTIFICATE OF CALIBRATION</b><br/>ISO/IEC 17025:2017</div>
+</div>
+<div class="body">
+  <div class="customer-banner">
+    <div class="name">${esc(d.customerName)}</div>
+    <div style="font-size:11px;color:#555">${esc(d.customerAddress || '')}</div>
+  </div>
+  <div class="grid">
+    <div class="field"><div class="label">Instrument</div><div class="value">${esc(d.instrumentName)}</div></div>
+    <div class="field"><div class="label">Make / Model</div><div class="value">${esc(d.instrumentMake || '—')} / ${esc(d.instrumentModel || '—')}</div></div>
+    <div class="field"><div class="label">Serial No.</div><div class="value">${esc(d.instrumentSerial || '—')}</div></div>
+    <div class="field"><div class="label">Range</div><div class="value">${esc(d.instrumentRange || '—')}</div></div>
+    <div class="field"><div class="label">Job No.</div><div class="value">${esc(d.jobNumber)}</div></div>
+    <div class="field"><div class="label">Calibration Date</div><div class="value">${fmtDate(d.calibrationDate || d.issueDate)}</div></div>
+  </div>
+  <table><thead><tr><th>Cal. Point</th><th>Unit</th><th>Nominal</th><th>Standard</th><th>Observed</th><th>Correction</th><th>Error</th>${hasPassFail ? '<th>MPE</th><th>Result</th>' : ''}</tr></thead>
+  <tbody>${d.observations.map((o) => {
+    const pf = o.passFail;
+    return `<tr><td>${esc(o.pointLabel)}</td><td>${esc(o.unit)}</td><td>${o.nominal ?? '—'}</td><td>${o.standardValue?.toFixed(4) ?? '—'}</td><td>${o.observedValue?.toFixed(4) ?? '—'}</td><td>${o.correction?.toFixed(4) ?? '—'}</td><td>${o.error?.toFixed(4) ?? '—'}</td>${hasPassFail ? `<td>${esc(o.mpeLimit)}</td><td class="${pf ?? ''}">${pf === 'pass' ? '✓ PASS' : pf === 'fail' ? '✗ FAIL' : '—'}</td>` : ''}</tr>`;
+  }).join('')}</tbody></table>
+  <div class="unc-bar">Expanded Uncertainty: <b>± ${d.expandedUncertainty?.toFixed(4) ?? '—'} ${esc(unit)}</b> &nbsp;&nbsp; Coverage factor k = ${d.coverageFactor?.toFixed(2) ?? 2} (~95.45% confidence)</div>
+  <div style="display:flex; justify-content:space-between; margin-top:32px; gap:20px;">
+    ${(d.signatures ?? []).map((s) => `<div style="flex:1;border-top:1px solid #333;padding-top:4px;text-align:center"><b>${esc(s.by)}</b><br/><span style="font-size:10px;color:#555">${esc(s.designation || s.stage)}</span></div>`).join('')}
+    ${!(d.signatures ?? []).length ? '<div style="flex:1;border-top:1px solid #333;padding-top:4px;text-align:center"><b>Calibrated By</b><br/><span style="font-size:10px;color:#555">Calibration Engineer</span></div><div style="flex:1;border-top:1px solid #333;padding-top:4px;text-align:center"><b>Authorized Signatory</b><br/><span style="font-size:10px;color:#555">Technical Manager</span></div>' : ''}
+  </div>
+</div>
+<div class="footer">
+  <span>This certificate refers only to the particular item(s) submitted for calibration. Results are valid at the time of calibration.</span>
+  <span>Page 1 of 1</span>
+</div>
 </body></html>`;
 }

@@ -106,6 +106,13 @@ export class JobsService {
     return this.prisma.job.update({ where: { id }, data: { status } });
   }
 
+  async updateJob(id: string, labId: string, data: Record<string, any>) {
+    await this.findOne(id, labId); // ensures ownership
+    const allowed = ['remarks', 'challanNo', 'poNumber', 'conditionOfItem', 'calibrationProcedure', 'calibrationProcedureNo', 'referenceDocumentNo'];
+    const safe = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
+    return this.prisma.job.update({ where: { id }, data: safe });
+  }
+
   private async nextJobNumber(labId: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `JOB-${year}-`;
