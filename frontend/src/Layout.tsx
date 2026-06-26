@@ -11,7 +11,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
   GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
-  ApartmentOutlined, StarOutlined,
+  ApartmentOutlined, StarOutlined, AppstoreOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -25,7 +25,10 @@ type NavGroup = { key: string; label: string; children: NavLeaf[] };
 const NAV_GROUPS: NavGroup[] = [
   {
     key: 'overview', label: 'Overview',
-    children: [{ key: '/', label: 'Dashboard', icon: <DashboardOutlined /> }],
+    children: [
+      { key: '/', label: 'Home', icon: <AppstoreOutlined /> },
+      { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
+    ],
   },
   {
     key: 'calibration', label: 'Calibration',

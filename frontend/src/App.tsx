@@ -21,6 +21,7 @@ import Users from './pages/Users';
 import Permissions from './pages/Permissions';
 import ReferenceStandards from './pages/ReferenceStandards';
 import CalibrationMasters from './pages/CalibrationMasters';
+import Hub from './pages/Hub';
 import Complaints from './pages/Complaints';
 import Feedback from './pages/Feedback';
 import Reports from './pages/Reports';
@@ -72,7 +73,8 @@ export default function App() {
               <Route path="/verify" element={<VerifyCertificate />} />
               <Route path="/verify/:id" element={<VerifyCertificate />} />
               <Route path="/portal" element={<CustomerPortal />} />
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Hub />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/instruments" element={<Instruments />} />
               <Route path="/reference-standards" element={<ReferenceStandards />} />
