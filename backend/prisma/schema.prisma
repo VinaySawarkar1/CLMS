@@ -755,3 +755,65 @@ model AuditFinding {
   dueDate     DateTime?
   closedAt    DateTime?
 }
+
+// ─────────────────── Module 8: Instrument images ─────────────────
+// Photographs captured around a calibration job (before/after/damage/
+// accessories). Stored as base64 data-URLs. Scalar job/instrument links keep
+// the model self-contained.
+model InstrumentImage {
+  id           String   @id @default(uuid())
+  labId        String
+  jobId        String?
+  instrumentId String?
+  category     String   // BEFORE, AFTER, DAMAGE, ACCESSORY
+  fileName     String
+  fileType     String?
+  fileData     String   // data:<mime>;base64,<…>
+  remarks      String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([labId])
+  @@index([jobId])
+  @@index([instrumentId])
+}
+
+// ─────────────────── Module 9: Complaint management ──────────────
+model Complaint {
+  id             String    @id @default(uuid())
+  labId          String
+  complaintNo    String
+  customerId     String?
+  certificateId  String?
+  subject        String?
+  description    String
+  rootCause      String?
+  investigation  String?
+  capa           String?
+  status         String    @default("OPEN") // OPEN, INVESTIGATING, CAPA_PENDING, CLOSED
+  closureRemarks String?
+  closedAt       DateTime?
+  raisedById     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([labId, complaintNo])
+  @@index([labId])
+}
+
+// ─────────────────── Module 11: Customer feedback ────────────────
+model CustomerFeedback {
+  id            String   @id @default(uuid())
+  labId         String
+  customerId    String?
+  jobId         String?
+  serviceRating Int
+  qualityRating Int
+  tatRating     Int
+  supportRating Int
+  comments      String?
+  createdAt     DateTime @default(now())
+
+  @@index([labId])
+  @@index([customerId])
+}
