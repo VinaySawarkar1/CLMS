@@ -5,6 +5,8 @@
 // Each discipline file owns its instruments; this file only stitches them.
 
 export * from './types';
+export { getNabl129, NABL129_MAP, checkMpe, parseMpe } from './nabl129-criteria';
+export type { Nabl129Criteria } from './nabl129-criteria';
 import { DISCIPLINES, Procedure } from './types';
 
 import { MECHANICAL } from './mechanical';

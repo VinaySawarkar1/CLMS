@@ -182,7 +182,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const effectiveMpe = useMemo(() => {
     if (!nc) return null;
     if (selectedAccClass && nc.accuracyClasses) {
-      const cls = nc.accuracyClasses.find((c) => c.class === selectedAccClass);
+      const cls = nc.accuracyClasses.find((c: { class: string; mpe: string; mpeNumeric?: number; mpeIsPercent?: boolean }) => c.class === selectedAccClass);
       if (cls) return { value: cls.mpeNumeric ?? nc.mpeNumeric, isPercent: cls.mpeIsPercent ?? nc.mpeIsPercent };
     }
     return { value: nc.mpeNumeric, isPercent: nc.mpeIsPercent };
@@ -628,12 +628,12 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
                 value={selectedAccClass ?? undefined}
                 allowClear
                 onChange={(v) => setSelectedAccClass(v ?? null)}
-                options={nc.accuracyClasses.map((c) => ({ value: c.class, label: `${c.class} (MPE: ${c.mpe})` }))}
+                options={nc.accuracyClasses.map((c: { class: string; mpe: string }) => ({ value: c.class, label: `${c.class} (MPE: ${c.mpe})` }))}
               />
             </Col>
             {selectedAccClass && (
               <Col>
-                <Tag color="orange">MPE: {nc.accuracyClasses.find((c) => c.class === selectedAccClass)?.mpe}</Tag>
+                <Tag color="orange">MPE: {nc.accuracyClasses.find((c: { class: string; mpe: string }) => c.class === selectedAccClass)?.mpe}</Tag>
               </Col>
             )}
           </Row>
@@ -649,7 +649,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
             <Space size={8} wrap>
               <Text strong>NABL 129 — {nc.nablChapter}</Text>
               <Tag color="purple">Min Readings: {nc.minReadings}</Tag>
-              <Tag color="orange">MPE: {selectedAccClass && nc.accuracyClasses ? (nc.accuracyClasses.find((c) => c.class === selectedAccClass)?.mpe ?? nc.mpe) : nc.mpe}</Tag>
+              <Tag color="orange">MPE: {selectedAccClass && nc.accuracyClasses ? (nc.accuracyClasses.find((c: { class: string; mpe: string }) => c.class === selectedAccClass)?.mpe ?? nc.mpe) : nc.mpe}</Tag>
               <Tag color="cyan">Cal. Interval: {nc.calibrationIntervalMonths}M</Tag>
             </Space>
           }
