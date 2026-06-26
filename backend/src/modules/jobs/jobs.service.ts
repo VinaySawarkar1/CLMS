@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.module';
 import { CreateJobDto, CreateJobBatchDto } from './dto';
 
 const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
@@ -22,7 +23,10 @@ const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async create(labId: string, dto: CreateJobDto) {
     const data = {
@@ -263,7 +267,20 @@ export class JobsService {
   async assignEngineer(id: string, labId: string, engineerId: string) {
     const job = await this.findOne(id, labId);
     const next = job.status === 'RECEIVED' || job.status === 'WAITING' ? 'ASSIGNED' : job.status;
-    return this.prisma.job.update({ where: { id }, data: { engineerId, status: next } });
+    const updated = await this.prisma.job.update({ where: { id }, data: { engineerId, status: next } });
+
+    // Notify the assigned engineer (Module 15).
+    const engineer = await this.prisma.engineer.findUnique({
+      where: { id: engineerId },
+      include: { user: { select: { id: true, email: true } } },
+    });
+    if (engineer?.user) {
+      await this.notifications.notify({
+        labId, userId: engineer.user.id, channel: 'EMAIL', event: 'JOB_ASSIGNED',
+        payload: { jobId: id, jobNumber: job.jobNumber, email: engineer.user.email, message: `Job ${job.jobNumber} has been assigned to you.` },
+      });
+    }
+    return updated;
   }
 
   async updateStatus(id: string, labId: string, status: JobStatus) {
@@ -271,7 +288,21 @@ export class JobsService {
     if (!TRANSITIONS[job.status].includes(status)) {
       throw new BadRequestException(`Invalid transition ${job.status} → ${status}`);
     }
-    return this.prisma.job.update({ where: { id }, data: { status } });
+    const updated = await this.prisma.job.update({ where: { id }, data: { status } });
+
+    // Notify the customer when the instrument is delivered (Module 15).
+    if (status === 'DELIVERED') {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: job.customerId }, select: { email: true, phone: true },
+      });
+      if (customer?.email) {
+        await this.notifications.notifyMany({
+          labId, channels: ['EMAIL', 'WHATSAPP'], event: 'DELIVERY',
+          payload: { jobId: id, jobNumber: job.jobNumber, email: customer.email, phone: customer.phone, message: `Your instrument (Job ${job.jobNumber}) has been delivered.` },
+        });
+      }
+    }
+    return updated;
   }
 
   async updateJob(id: string, labId: string, data: Record<string, any>) {

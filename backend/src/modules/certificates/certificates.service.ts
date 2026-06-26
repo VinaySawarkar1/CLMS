@@ -10,6 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { buildQrPayload, contentHash } from '../../common/qr/qr-engine';
 import { MailService } from '../../common/mail/mail.service';
 import { ReportsService } from '../reports/reports.module';
+import { NotificationsService } from '../notifications/notifications.module';
 
 /** The signature workflow order. Each stage must sign before the next. */
 const SIGNATURE_ORDER: SignatureStage[] = [
@@ -26,6 +27,7 @@ export class CertificatesService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly reports: ReportsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Generate a certificate for an approved job. */
@@ -143,6 +145,20 @@ export class CertificatesService {
           console.error('[certificates] Email send failed:', err);
         }
       }
+
+      // Record a certificate-ready notification (Module 15).
+      await this.notifications.notify({
+        labId: jobWithCustomer?.labId,
+        channel: 'EMAIL',
+        event: 'CERTIFICATE_READY',
+        payload: {
+          certificateId: id,
+          certificateNumber: cert.certificateNumber,
+          email: jobWithCustomer?.customer?.email,
+          phone: (jobWithCustomer?.customer as any)?.phone,
+          message: `Certificate ${cert.certificateNumber} is ready.`,
+        },
+      });
     }
 
     return this.findOne(id);
