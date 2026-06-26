@@ -256,10 +256,48 @@ model MasterInstrument {
   location          String?
   references        ReferenceStandardOnJob[]
   jobs              Job[]
+  certificates      ReferenceStandardCertificate[]
+  maintenance       ReferenceStandardMaintenance[]
   createdAt         DateTime                 @default(now())
 
   @@unique([labId, idNumber])
   @@index([labId])
+}
+
+// Versioned calibration-certificate uploads for a reference standard (3.1).
+// The newest version is the active certificate; older versions are retained.
+model ReferenceStandardCertificate {
+  id                String           @id @default(uuid())
+  masterId          String
+  master            MasterInstrument @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  version           Int
+  fileName          String
+  fileType          String?          // MIME type (application/pdf, image/png, …)
+  fileData          String           // data:<mime>;base64,<…> payload
+  certificateNumber String?
+  calibratedDate    DateTime?
+  calibrationDue    DateTime?
+  traceability      String?
+  uncertainty       String?
+  remarks           String?
+  uploadedById      String?
+  uploadedAt        DateTime         @default(now())
+
+  @@index([masterId])
+}
+
+// Maintenance / service history for a reference standard (3.2).
+model ReferenceStandardMaintenance {
+  id          String           @id @default(uuid())
+  masterId    String
+  master      MasterInstrument @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  date        DateTime
+  type        String           // Service, Repair, Verification, …
+  description String?
+  performedBy String?
+  createdAt   DateTime         @default(now())
+
+  @@index([masterId])
 }
 
 // ───────────── Calibration scope: CMC & MPE masters (config-driven) ──────────

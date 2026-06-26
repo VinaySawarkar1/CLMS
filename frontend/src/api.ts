@@ -217,6 +217,18 @@ export const updateMaster = (id: string, b: any) => patch(`/masters/${id}`, b);
 export const deleteMaster = (id: string) => del(`/masters/${id}`);
 export const importMasters = (records: any[]) => post('/masters/import', { records });
 
+// Reference standard — utilization, certificate versions & maintenance (Module 3)
+export const getMasterUtilization = (id: string) => get(`/masters/${id}/utilization`);
+export const getMasterCertificates = (id: string) => get(`/masters/${id}/certificates`);
+export const uploadMasterCertificate = (id: string, b: any) => post(`/masters/${id}/certificates`, b);
+// Fetch the stored certificate file (auth-protected) and open it in a new tab.
+export async function openMasterCertificateFile(id: string, certId: string) {
+  const res = await api.get(`/masters/${id}/certificates/${certId}/file`, { responseType: 'blob' });
+  window.open(URL.createObjectURL(res.data), '_blank');
+}
+export const getMasterMaintenance = (id: string) => get(`/masters/${id}/maintenance`);
+export const addMasterMaintenance = (id: string, b: any) => post(`/masters/${id}/maintenance`, b);
+
 // Calibration masters — CMC / NABL Scope (Module 4.3 + 4.4)
 export const getCmcScopes = () => get('/calibration-masters/cmc');
 export const createCmcScope = (b: any) => post('/calibration-masters/cmc', b);
