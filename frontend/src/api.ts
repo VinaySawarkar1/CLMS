@@ -206,6 +206,24 @@ export const updateMaster = (id: string, b: any) => patch(`/masters/${id}`, b);
 export const deleteMaster = (id: string) => del(`/masters/${id}`);
 export const importMasters = (records: any[]) => post('/masters/import', { records });
 
+// Calibration masters — CMC / NABL Scope (Module 4.3 + 4.4)
+export const getCmcScopes = () => get('/calibration-masters/cmc');
+export const createCmcScope = (b: any) => post('/calibration-masters/cmc', b);
+export const updateCmcScope = (id: string, b: any) => patch(`/calibration-masters/cmc/${id}`, b);
+export const deleteCmcScope = (id: string) => del(`/calibration-masters/cmc/${id}`);
+export const importCmcScopes = (records: any[]) => post('/calibration-masters/cmc/import', { records });
+export const lookupCmc = (p: { discipline: string; parameter: string; value?: number }) =>
+  get('/calibration-masters/cmc/lookup', p);
+
+// Calibration masters — MPE rules (Module 4.2)
+export const getMpeRules = () => get('/calibration-masters/mpe');
+export const createMpeRule = (b: any) => post('/calibration-masters/mpe', b);
+export const updateMpeRule = (id: string, b: any) => patch(`/calibration-masters/mpe/${id}`, b);
+export const deleteMpeRule = (id: string) => del(`/calibration-masters/mpe/${id}`);
+export const importMpeRules = (records: any[]) => post('/calibration-masters/mpe/import', { records });
+export const lookupMpe = (p: { discipline: string; parameter: string; value?: number; accuracyClass?: string; standard?: string }) =>
+  get('/calibration-masters/mpe/lookup', p);
+
 // Instrument calibration recall (due / overdue)
 export const getRecallDue = (days?: number) => get('/instruments/due/recall', { days });
 

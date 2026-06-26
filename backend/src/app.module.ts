@@ -24,6 +24,7 @@ import { EnvironmentalModule } from './modules/environmental/environmental.modul
 import { PortalModule } from './modules/portal/portal.module';
 import { LabsModule } from './modules/labs/labs.module';
 import { MastersModule } from './modules/masters/masters.module';
+import { CalibrationMastersModule } from './modules/masters/calibration-masters.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
@@ -62,6 +63,7 @@ import { HealthController } from './health.controller';
     PortalModule,
     LabsModule,
     MastersModule,
+    CalibrationMastersModule,
     QuotationsModule,
     DocumentsModule,
     AuditPlansModule,

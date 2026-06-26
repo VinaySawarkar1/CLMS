@@ -20,6 +20,7 @@ import Labs from './pages/Labs';
 import Users from './pages/Users';
 import Permissions from './pages/Permissions';
 import ReferenceStandards from './pages/ReferenceStandards';
+import CalibrationMasters from './pages/CalibrationMasters';
 import Reports from './pages/Reports';
 import VerifyCertificate from './pages/VerifyCertificate';
 import Documents from './pages/Documents';
@@ -73,6 +74,7 @@ export default function App() {
               <Route path="/customers" element={<Customers />} />
               <Route path="/instruments" element={<Instruments />} />
               <Route path="/reference-standards" element={<ReferenceStandards />} />
+              <Route path="/calibration-masters" element={<CalibrationMasters />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/:id" element={<JobWorkspace />} />

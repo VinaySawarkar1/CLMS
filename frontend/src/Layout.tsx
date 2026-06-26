@@ -11,6 +11,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
   GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -32,6 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: '/customers', label: 'Customers', icon: <TeamOutlined />, perm: 'customers' },
       { key: '/instruments', label: 'Instrument Entry', icon: <ToolOutlined />, perm: 'instruments' },
       { key: '/reference-standards', label: 'Reference Standards', icon: <GoldOutlined />, perm: 'instruments' },
+      { key: '/calibration-masters', label: 'Calibration Masters', icon: <ApartmentOutlined />, perm: 'instruments' },
       { key: '/jobs', label: 'Jobs', icon: <FileTextOutlined />, perm: 'jobs' },
       { key: '/certificates', label: 'Certificates', icon: <SafetyCertificateOutlined />, perm: 'certificates' },
     ],

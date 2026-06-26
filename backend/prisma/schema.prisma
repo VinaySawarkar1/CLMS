@@ -261,6 +261,57 @@ model MasterInstrument {
   @@index([labId])
 }
 
+// ───────────── Calibration scope: CMC & MPE masters (config-driven) ──────────
+
+// NABL Scope / CMC master (Module 4.3 + 4.4). One row per
+// discipline+parameter+range with the best CMC, method and scope metadata.
+// Fetched automatically during calibration to validate against the lab's scope.
+model CmcScope {
+  id            String    @id @default(uuid())
+  labId         String
+  discipline    String
+  parameter     String
+  rangeMin      Float?
+  rangeMax      Float?
+  rangeText     String?   // Human-readable range, e.g. "0 to 25 mm"
+  unit          String?
+  cmc           String?   // Best CMC as printed, e.g. "±(0.5 + 0.3L) µm"
+  cmcValue      Float?    // Numeric best CMC for automatic validation
+  method        String?
+  scope         String?   // NABL scope document reference
+  revision      String?
+  effectiveDate DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([labId])
+}
+
+// Maximum-permissible-error rule master (Module 4.2). Resolves the MPE for a
+// point from discipline/parameter/range and optionally accuracy class and the
+// reference standard, so calibration can auto-load the applicable MPE.
+model MpeRule {
+  id             String   @id @default(uuid())
+  labId          String
+  discipline     String
+  parameter      String
+  instrumentType String?
+  accuracyClass  String?
+  standard       String?
+  rangeMin       Float?
+  rangeMax       Float?
+  unit           String?
+  mpeValue       Float
+  mpeIsPercent   Boolean  @default(false)
+  resolution     Float?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([labId])
+}
+
 // ─────────────────────────── Jobs ────────────────────────────────
 
 model Job {
