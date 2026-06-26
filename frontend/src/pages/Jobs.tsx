@@ -10,7 +10,7 @@ import {
   ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import {
-  assignJob, createJob, generateCertificate, getCustomers, getEngineers,
+  assignJob, createJob, createJobBatch, generateCertificate, getCustomers, getEngineers,
   getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
 import { exportToCsv } from '../utils/export';
@@ -172,26 +172,22 @@ export default function Jobs() {
   });
 
   const bulkCreateMut = useMutation({
-    mutationFn: async (instrumentIds: string[]) => {
-      const results = await Promise.allSettled(
-        instrumentIds.map((instrumentId) => createJob({ customerId: bulkCustomerId, instrumentId }))
-      );
-      const created = results.filter((r) => r.status === 'fulfilled').length;
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      return { created, failed };
-    },
-    onSuccess: ({ created, failed }) => {
+    // Single transactional intake: one customer → one batch → a job per instrument,
+    // each with its own status, datasheets and certificate (Module 2.1).
+    mutationFn: (instrumentIds: string[]) =>
+      createJobBatch({
+        customerId: bulkCustomerId,
+        instruments: instrumentIds.map((instrumentId) => ({ instrumentId })),
+      }),
+    onSuccess: (batch: any) => {
       refresh();
+      qc.invalidateQueries({ queryKey: ['job-batches'] });
       setBulkOpen(false);
       setBulkCustomerId(undefined);
       setBulkSelectedInstruments([]);
-      if (failed) {
-        message.warning(`${created} job(s) created, ${failed} failed`);
-      } else {
-        message.success(`${created} job(s) created successfully`);
-      }
+      message.success(`Batch ${batch?.batchNumber ?? ''} created with ${batch?.jobs?.length ?? 0} instrument job(s)`);
     },
-    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Bulk create failed'),
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Batch create failed'),
   });
 
   const engineerName = (job: any) => {
@@ -204,11 +200,16 @@ export default function Jobs() {
       title: 'Job No.',
       dataIndex: 'jobNumber',
       key: 'jobNumber',
-      width: 140,
+      width: 150,
       render: (v: string, row: any) => (
-        <RouterLink to={`/jobs/${row.id}`} style={{ fontWeight: 700, color: '#1677ff' }}>
-          {v}
-        </RouterLink>
+        <Space direction="vertical" size={0}>
+          <RouterLink to={`/jobs/${row.id}`} style={{ fontWeight: 700, color: '#1677ff' }}>
+            {v}
+          </RouterLink>
+          {row.batch?.batchNumber && (
+            <Tag color="purple" style={{ fontSize: 10, marginTop: 2 }}>{row.batch.batchNumber}</Tag>
+          )}
+        </Space>
       ),
     },
     {
@@ -305,7 +306,7 @@ export default function Jobs() {
             {isAdmin && (
               <Space>
                 <Button icon={<PlusOutlined />} onClick={() => setBulkOpen(true)} size="large">
-                  Bulk Create Jobs
+                  Multi-Instrument Intake
                 </Button>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} size="large">
                   New Job
@@ -610,13 +611,13 @@ export default function Jobs() {
         )}
       </Modal>
 
-      {/* ── Bulk Create Jobs Modal ── */}
+      {/* ── Multi-Instrument Intake Modal ── */}
       <Modal
-        title={<Space><PlusOutlined /><span>Bulk Create Jobs</span></Space>}
+        title={<Space><PlusOutlined /><span>Multi-Instrument Intake</span></Space>}
         open={bulkOpen}
         onCancel={() => { setBulkOpen(false); setBulkCustomerId(undefined); setBulkSelectedInstruments([]); }}
         onOk={() => bulkCreateMut.mutate(bulkSelectedInstruments)}
-        okText={`Create ${bulkSelectedInstruments.length} Job(s)`}
+        okText={`Create Batch (${bulkSelectedInstruments.length} instrument${bulkSelectedInstruments.length === 1 ? '' : 's'})`}
         okButtonProps={{ disabled: !bulkSelectedInstruments.length || !bulkCustomerId }}
         confirmLoading={bulkCreateMut.isPending}
         width={540}
@@ -634,7 +635,11 @@ export default function Jobs() {
             />
           </Form.Item>
           {bulkCustomerId && (
-            <Form.Item label="Select Instruments" style={{ marginBottom: 0 }}>
+            <Form.Item
+              label="Select Instruments"
+              extra="One job (and one certificate) is created per instrument, grouped under a single batch."
+              style={{ marginBottom: 0 }}
+            >
               <Select
                 mode="multiple"
                 placeholder="Select one or more instruments"
@@ -650,7 +655,7 @@ export default function Jobs() {
             </Form.Item>
           )}
           {bulkSelectedInstruments.length > 0 && (
-            <Tag color="blue">{bulkSelectedInstruments.length} job(s) will be created with status RECEIVED</Tag>
+            <Tag color="blue">A batch with {bulkSelectedInstruments.length} instrument job(s) will be created — each starts at RECEIVED with its own certificate.</Tag>
           )}
         </Space>
       </Modal>

@@ -35,7 +35,11 @@ export default function Instruments() {
   const [importOpen, setImportOpen] = useState(false);
   const [form] = Form.useForm();
 
-  const { data = [], isLoading } = useQuery({ queryKey: ['instruments'], queryFn: () => getInstruments() });
+  const [customerFilter, setCustomerFilter] = useState<string | undefined>(undefined);
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['instruments', customerFilter ?? ''],
+    queryFn: () => getInstruments(customerFilter),
+  });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['instruments'] });
@@ -138,6 +142,16 @@ export default function Instruments() {
           </Col>
           <Col>
             <Space>
+              <Select
+                allowClear
+                showSearch
+                placeholder="Filter by customer"
+                style={{ width: 220 }}
+                value={customerFilter}
+                onChange={(v) => setCustomerFilter(v)}
+                options={(customers as any[]).map((c: any) => ({ value: c.id, label: c.name }))}
+                filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              />
               <Button
                 icon={<ExportOutlined />}
                 onClick={() => exportToCsv('instruments.csv', data as any[], [

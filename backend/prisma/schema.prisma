@@ -168,6 +168,7 @@ model Customer {
   contacts    Contact[]
   instruments Instrument[]
   jobs        Job[]
+  jobBatches  JobBatch[]
   invoices    Invoice[]
   quotations  Quotation[]
   createdAt   DateTime   @default(now())
@@ -314,6 +315,29 @@ model MpeRule {
 
 // ─────────────────────────── Jobs ────────────────────────────────
 
+// A single customer intake grouping multiple instruments (Module 2.1).
+// Each instrument in the batch becomes its own Job → its own calibration
+// status, datasheets and certificate.
+model JobBatch {
+  id          String   @id @default(uuid())
+  labId       String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  batchNumber String
+  challanNo   String?
+  poNumber    String?
+  remarks     String?
+  isOnsite    Boolean  @default(false)
+  siteAddress String?
+  receivedAt  DateTime @default(now())
+  jobs        Job[]
+  createdAt   DateTime @default(now())
+
+  @@unique([labId, batchNumber])
+  @@index([labId])
+  @@index([customerId])
+}
+
 model Job {
   id           String     @id @default(uuid())
   jobNumber    String
@@ -321,6 +345,10 @@ model Job {
   lab          Lab        @relation(fields: [labId], references: [id])
   customerId   String
   customer     Customer   @relation(fields: [customerId], references: [id])
+  // Optional grouping: a single customer intake of multiple instruments creates
+  // one JobBatch with one Job (and one certificate) per instrument.
+  batchId      String?
+  batch        JobBatch?  @relation(fields: [batchId], references: [id])
   instrumentId String
   instrument   Instrument @relation(fields: [instrumentId], references: [id])
   engineerId   String?
@@ -356,6 +384,7 @@ model Job {
 
   @@unique([labId, jobNumber])
   @@index([labId])
+  @@index([batchId])
 }
 
 model ReferenceStandardOnJob {

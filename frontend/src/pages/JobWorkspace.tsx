@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert, Button, Card, Col, Divider, Form, Input, Row, Select,
@@ -141,6 +141,30 @@ export default function JobWorkspace() {
           </Col>
         </Row>
       </div>
+
+      {job.batch?.jobs?.length > 1 && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            <Space wrap size={6}>
+              <Tag color="purple">{job.batch.batchNumber}</Tag>
+              <Text strong>Multi-instrument batch</Text>
+              <Text type="secondary">— {job.batch.jobs.length} instruments in this intake:</Text>
+              {job.batch.jobs.map((sib: any) => (
+                sib.id === job.id ? (
+                  <Tag key={sib.id} color="blue">{sib.instrument?.name} (this)</Tag>
+                ) : (
+                  <RouterLink key={sib.id} to={`/jobs/${sib.id}`}>
+                    <Tag style={{ cursor: 'pointer' }}>{sib.instrument?.name} · {sib.status?.replace(/_/g, ' ')}</Tag>
+                  </RouterLink>
+                )
+              ))}
+            </Space>
+          }
+        />
+      )}
 
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Tabs

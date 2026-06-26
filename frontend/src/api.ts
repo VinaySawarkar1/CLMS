@@ -125,6 +125,10 @@ export const importInstruments = (records: any[]) => post('/instruments/import',
 export const getJobs = (status?: string) => get('/jobs', { status });
 export const getJob = (id: string) => get(`/jobs/${id}`);
 export const createJob = (b: any) => post('/jobs', b);
+// Multi-instrument intake (Module 2.1): one customer → one batch → a job per instrument.
+export const createJobBatch = (b: any) => post('/jobs/batch', b);
+export const getJobBatches = (customerId?: string) => get('/jobs/batches', { customerId });
+export const getJobBatch = (id: string) => get(`/jobs/batches/${id}`);
 export const assignJob = (id: string, engineerId: string) => patch(`/jobs/${id}/assign`, { engineerId });
 export const setJobStatus = (id: string, status: string) => patch(`/jobs/${id}/status`, { status });
 

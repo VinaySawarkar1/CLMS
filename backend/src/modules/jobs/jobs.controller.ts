@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/rbac/roles.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 import { JobsService } from './jobs.service';
-import { AssignEngineerDto, CreateJobDto, UpdateStatusDto } from './dto';
+import { AssignEngineerDto, CreateJobDto, CreateJobBatchDto, UpdateStatusDto } from './dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('jobs')
@@ -17,6 +17,23 @@ export class JobsController {
   @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
   create(@Request() req: any, @Body() dto: CreateJobDto) {
     return this.jobs.create(req.user.labId, dto);
+  }
+
+  /** Multi-instrument intake: one customer → one batch → a job per instrument. */
+  @Post('batch')
+  @Roles(Role.LAB_ADMIN, Role.TECHNICAL_MANAGER, Role.DATA_ENTRY_OPERATOR)
+  createBatch(@Request() req: any, @Body() dto: CreateJobBatchDto) {
+    return this.jobs.createBatch(req.user.labId, dto);
+  }
+
+  @Get('batches')
+  listBatches(@Request() req: any, @Query('customerId') customerId?: string) {
+    return this.jobs.listBatches(req.user.labId, customerId);
+  }
+
+  @Get('batches/:id')
+  getBatch(@Request() req: any, @Param('id') id: string) {
+    return this.jobs.getBatch(id, req.user.labId);
   }
 
   @Get()

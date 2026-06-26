@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { CreateJobDto } from './dto';
+import { CreateJobDto, CreateJobBatchDto } from './dto';
 
 const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   RECEIVED: ['WAITING', 'ASSIGNED'],
@@ -60,6 +60,157 @@ export class JobsService {
     throw new Error('Could not allocate a unique job number');
   }
 
+  /**
+   * Create a multi-instrument intake for one customer (Module 2.1). Produces a
+   * JobBatch and one Job per instrument so each instrument has its own
+   * calibration status, datasheets and certificate. Batch-level administrative
+   * fields (challan/PO/onsite) are copied to every job for the certificate.
+   */
+  async createBatch(labId: string, dto: CreateJobBatchDto) {
+    if (!dto.instruments?.length) {
+      throw new BadRequestException('At least one instrument is required');
+    }
+
+    // Validate every instrument belongs to this lab and the given customer.
+    const instrumentIds = dto.instruments.map((i) => i.instrumentId);
+    const instruments = await this.prisma.instrument.findMany({
+      where: { id: { in: instrumentIds }, labId },
+      select: { id: true, customerId: true },
+    });
+    const byId = new Map(instruments.map((i) => [i.id, i]));
+    for (const line of dto.instruments) {
+      const inst = byId.get(line.instrumentId);
+      if (!inst) throw new BadRequestException(`Instrument ${line.instrumentId} not found in this lab`);
+      if (inst.customerId !== dto.customerId) {
+        throw new BadRequestException('All instruments in a batch must belong to the selected customer');
+      }
+    }
+
+    const visitDate = dto.visitDate ? new Date(dto.visitDate) : null;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Allocate a batch number (retry on rare collision).
+      let batch;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const batchNumber = await this.nextBatchNumber(labId, tx);
+        try {
+          batch = await tx.jobBatch.create({
+            data: {
+              labId,
+              customerId: dto.customerId,
+              batchNumber,
+              challanNo: dto.challanNo,
+              poNumber: dto.poNumber,
+              remarks: dto.remarks,
+              isOnsite: dto.isOnsite ?? false,
+              siteAddress: dto.siteAddress,
+            },
+          });
+          break;
+        } catch (e: any) {
+          if (e?.code === 'P2002' && attempt < 4) continue;
+          throw e;
+        }
+      }
+      if (!batch) throw new Error('Could not allocate a unique batch number');
+
+      // One job per instrument, each with its own sequential job number.
+      const jobs: any[] = [];
+      for (const line of dto.instruments) {
+        let created;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const jobNumber = await this.nextJobNumber(labId, tx);
+          try {
+            created = await tx.job.create({
+              data: {
+                labId,
+                batchId: batch.id,
+                customerId: dto.customerId,
+                instrumentId: line.instrumentId,
+                jobNumber,
+                status: 'RECEIVED',
+                challanNo: dto.challanNo,
+                poNumber: dto.poNumber,
+                conditionOfItem: line.conditionOfItem ?? 'OK (As Received)',
+                calibrationProcedure: line.calibrationProcedure,
+                calibrationProcedureNo: line.calibrationProcedureNo,
+                referenceDocumentNo: line.referenceDocumentNo,
+                procedureId: line.procedureId,
+                procedureRangeIndex: line.procedureRangeIndex,
+                unitOfMeasurement: line.unitOfMeasurement,
+                masterInstrumentId: line.masterInstrumentId,
+                remarks: line.remarks ?? dto.remarks,
+                isOnsite: dto.isOnsite ?? false,
+                siteAddress: dto.siteAddress,
+                siteContact: dto.siteContact,
+                visitDate,
+              },
+            });
+            break;
+          } catch (e: any) {
+            if (e?.code === 'P2002' && attempt < 4) continue;
+            throw e;
+          }
+        }
+        if (!created) throw new Error('Could not allocate a unique job number');
+        jobs.push(created);
+      }
+
+      return { ...batch, jobs };
+    });
+  }
+
+  /** List batches for the lab (optionally filtered by customer) with rollup. */
+  async listBatches(labId: string, customerId?: string) {
+    const batches = await this.prisma.jobBatch.findMany({
+      where: { labId, ...(customerId ? { customerId } : {}) },
+      include: {
+        customer: { select: { id: true, name: true, code: true } },
+        jobs: {
+          include: { instrument: { select: { name: true, serialNumber: true } }, certificate: { select: { id: true, certificateNumber: true, isLocked: true } } },
+        },
+      },
+      orderBy: { receivedAt: 'desc' },
+    });
+    return batches.map((b) => ({ ...b, summary: this.batchSummary(b.jobs) }));
+  }
+
+  async getBatch(id: string, labId: string) {
+    const batch = await this.prisma.jobBatch.findFirst({
+      where: { id, labId },
+      include: {
+        customer: true,
+        jobs: {
+          include: {
+            instrument: true,
+            engineer: { include: { user: { select: { fullName: true } } } },
+            certificate: { select: { id: true, certificateNumber: true, isLocked: true, revision: true } },
+          },
+          orderBy: { jobNumber: 'asc' },
+        },
+      },
+    });
+    if (!batch) throw new NotFoundException('Batch not found');
+    return { ...batch, summary: this.batchSummary(batch.jobs) };
+  }
+
+  /** Roll up the individual job statuses into batch-level progress counts. */
+  private batchSummary(jobs: { status: JobStatus }[]) {
+    const total = jobs.length;
+    const certified = jobs.filter((j) =>
+      ['CERTIFICATE_GENERATED', 'DELIVERED', 'CLOSED'].includes(j.status)).length;
+    const closed = jobs.filter((j) => j.status === 'CLOSED').length;
+    const inProgress = total - certified;
+    const overall = total === 0
+      ? 'EMPTY'
+      : closed === total
+        ? 'CLOSED'
+        : certified === total
+          ? 'CERTIFIED'
+          : 'IN_PROGRESS';
+    return { total, certified, closed, inProgress, overall };
+  }
+
   async findAll(labId: string, status?: JobStatus, user?: { id: string; role: string }) {
     // Engineers only see jobs assigned to them; managers/admins see all.
     let engineerFilter = {};
@@ -73,7 +224,10 @@ export class JobsService {
     }
     return this.prisma.job.findMany({
       where: { labId, ...(status ? { status } : {}), ...engineerFilter },
-      include: { customer: true, instrument: true, engineer: true, certificate: true, masterInstrument: true },
+      include: {
+        customer: true, instrument: true, engineer: true, certificate: true, masterInstrument: true,
+        batch: { select: { id: true, batchNumber: true } },
+      },
       orderBy: { receivedAt: 'desc' },
     });
   }
@@ -88,6 +242,18 @@ export class JobsService {
         masterInstrument: true,
         datasheets: true,
         certificate: { include: { signatures: { orderBy: { signedAt: 'asc' } } } },
+        batch: {
+          select: {
+            id: true, batchNumber: true,
+            jobs: {
+              select: {
+                id: true, jobNumber: true, status: true,
+                instrument: { select: { name: true, serialNumber: true } },
+              },
+              orderBy: { jobNumber: 'asc' },
+            },
+          },
+        },
       },
     });
     if (!job) throw new NotFoundException('Job not found');
@@ -115,12 +281,13 @@ export class JobsService {
     return this.prisma.job.update({ where: { id }, data: safe });
   }
 
-  private async nextJobNumber(labId: string): Promise<string> {
+  private async nextJobNumber(labId: string, client?: any): Promise<string> {
+    const db = client ?? this.prisma;
     const year = new Date().getFullYear();
     const prefix = `JOB-${year}-`;
     // Derive the next sequence from the highest existing suffix (not the row
     // count), so deletions or pre-seeded numbers never cause a collision.
-    const existing = await this.prisma.job.findMany({
+    const existing = await db.job.findMany({
       where: { labId, jobNumber: { startsWith: prefix } },
       select: { jobNumber: true },
     });
@@ -130,5 +297,21 @@ export class JobsService {
       if (!Number.isNaN(n) && n > max) max = n;
     }
     return `${prefix}${String(max + 1).padStart(5, '0')}`;
+  }
+
+  private async nextBatchNumber(labId: string, client?: any): Promise<string> {
+    const db = client ?? this.prisma;
+    const year = new Date().getFullYear();
+    const prefix = `BATCH-${year}-`;
+    const existing = await db.jobBatch.findMany({
+      where: { labId, batchNumber: { startsWith: prefix } },
+      select: { batchNumber: true },
+    });
+    let max = 0;
+    for (const { batchNumber } of existing) {
+      const n = parseInt(batchNumber.slice(prefix.length), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `${prefix}${String(max + 1).padStart(4, '0')}`;
   }
 }
