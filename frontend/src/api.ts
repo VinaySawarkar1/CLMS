@@ -109,6 +109,7 @@ export const getDashboard = () => get('/dashboard');
 
 // Customers
 export const getCustomers = (search?: string) => get('/customers', { search });
+export const getCustomerTimeline = (id: string) => get(`/customers/${id}/timeline`);
 export const createCustomer = (b: any) => post('/customers', b);
 export const updateCustomer = (id: string, b: any) => patch(`/customers/${id}`, b);
 export const deleteCustomer = (id: string) => del(`/customers/${id}`);

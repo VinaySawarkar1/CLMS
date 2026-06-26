@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography, Row, Col, message,
+  Drawer, Timeline, Empty, Spin,
 } from 'antd';
 import {
   PlusOutlined, TeamOutlined, SearchOutlined, ExportOutlined, EditOutlined, DeleteOutlined, ImportOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
-import { createCustomer, getCustomers, updateCustomer, deleteCustomer, importCustomers } from '../api';
+import dayjs from 'dayjs';
+import { createCustomer, getCustomers, updateCustomer, deleteCustomer, importCustomers, getCustomerTimeline } from '../api';
 import { exportToCsv } from '../utils/export';
 import ImportModal from '../components/ImportModal';
 
@@ -27,6 +30,12 @@ export default function Customers() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [timelineCustomer, setTimelineCustomer] = useState<any>(null);
+  const { data: timeline = [], isLoading: timelineLoading } = useQuery({
+    queryKey: ['customer-timeline', timelineCustomer?.id],
+    queryFn: () => getCustomerTimeline(timelineCustomer.id),
+    enabled: !!timelineCustomer?.id,
+  });
   const [form] = Form.useForm();
 
   const { data = [], isLoading } = useQuery({
@@ -71,9 +80,10 @@ export default function Customers() {
     { title: 'Phone', dataIndex: 'phone', key: 'phone', render: (v: string) => v || <Text type="secondary">—</Text> },
     { title: 'Address', dataIndex: 'address', key: 'address', ellipsis: true, render: (v: string) => v || <Text type="secondary">—</Text> },
     {
-      title: 'Actions', key: 'actions', width: 100,
+      title: 'Actions', key: 'actions', width: 160,
       render: (_: any, row: any) => (
         <Space>
+          <Button size="small" icon={<HistoryOutlined />} onClick={() => setTimelineCustomer(row)}>Timeline</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
           <Popconfirm title="Delete this customer?" onConfirm={() => delMut.mutate(row.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
@@ -198,6 +208,37 @@ export default function Customers() {
         onImport={(records) => importCustomers(records)}
         templateFilename="customers-import-template.csv"
       />
+
+      <Drawer
+        title={timelineCustomer ? <Space><HistoryOutlined />{timelineCustomer.name} — History</Space> : ''}
+        open={!!timelineCustomer}
+        onClose={() => setTimelineCustomer(null)}
+        width={560}
+      >
+        {timelineLoading ? <Spin /> : (timeline as any[]).length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No history yet for this customer" />
+        ) : (
+          <Timeline
+            items={(timeline as any[]).map((e: any) => ({
+              color: TIMELINE_COLORS[e.type] ?? 'gray',
+              children: (
+                <div>
+                  <Space size={6} wrap>
+                    <Tag color={TIMELINE_COLORS[e.type] ?? 'default'}>{e.type}</Tag>
+                    <Text strong style={{ fontSize: 13 }}>{e.title}</Text>
+                  </Space>
+                  <div><Text type="secondary" style={{ fontSize: 12 }}>{dayjs(e.date).format('DD MMM YYYY, HH:mm')}</Text></div>
+                </div>
+              ),
+            }))}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }
+
+const TIMELINE_COLORS: Record<string, string> = {
+  QUOTATION: 'purple', PO: 'geekblue', CALIBRATION: 'blue', CERTIFICATE: 'green',
+  INVOICE: 'orange', PAYMENT: 'gold', COMPLAINT: 'red', DELIVERY: 'cyan',
+};
