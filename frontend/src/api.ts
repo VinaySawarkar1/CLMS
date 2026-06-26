@@ -301,3 +301,15 @@ export const getKpis = () => get('/dashboard/kpis');
 export const getFeedback = () => get('/feedback');
 export const getFeedbackSummary = () => get('/feedback/summary');
 export const createFeedback = (b: any) => post('/feedback', b);
+
+// Backup (Module 5) — admin-only JSON export
+export async function downloadBackup() {
+  const res = await api.get('/backup/export', { responseType: 'json' });
+  const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `clms-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

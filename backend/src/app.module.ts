@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { AuditInterceptor } from './common/audit/audit.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -28,6 +30,7 @@ import { CalibrationMastersModule } from './modules/masters/calibration-masters.
 import { InstrumentImagesModule } from './modules/instruments/instrument-images.module';
 import { ComplaintsModule } from './modules/quality/complaints.module';
 import { FeedbackModule } from './modules/portal/feedback.module';
+import { BackupModule } from './modules/backup/backup.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
@@ -70,10 +73,15 @@ import { HealthController } from './health.controller';
     InstrumentImagesModule,
     ComplaintsModule,
     FeedbackModule,
+    BackupModule,
     QuotationsModule,
     DocumentsModule,
     AuditPlansModule,
     SeedModule,
+  ],
+  providers: [
+    // Module 14 — global audit trail for every mutating request.
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}

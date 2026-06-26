@@ -9,8 +9,11 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/rbac/roles.guard';
+import { Roles } from '../../common/rbac/roles.decorator';
 import {
   CertificateReportData,
   ReferenceStandardInfo,
@@ -336,7 +339,10 @@ export class ReportsService {
   }
 }
 
-@UseGuards(JwtAuthGuard)
+// Module 5 — Download restriction: report/PDF downloads are limited to
+// administrators and technical managers (not engineers/operators).
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.SUPER_ADMIN, Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
 @Controller('reports')
 class ReportsController {
   constructor(private readonly reports: ReportsService) {}

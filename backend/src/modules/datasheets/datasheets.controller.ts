@@ -25,6 +25,7 @@ export class DatasheetsController {
 
   @Get(':id/report')
   @Header('Content-Type', 'text/html')
+  @Roles(Role.SUPER_ADMIN, Role.LAB_ADMIN, Role.TECHNICAL_MANAGER)
   report(@Param('id') id: string) {
     return this.datasheets.buildReport(id);
   }

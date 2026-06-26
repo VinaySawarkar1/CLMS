@@ -10,7 +10,7 @@ import {
   BankOutlined, CalculatorOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getLabSettings, updateLabSettings, loadSampleData, getUser, getLab, updateLabDetails } from '../api';
+import { getLabSettings, updateLabSettings, loadSampleData, getUser, getLab, updateLabDetails, downloadBackup } from '../api';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -458,6 +458,28 @@ export default function Settings() {
       </div>
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Tabs items={tabItems} size="large" />
+      </Card>
+
+      <Card
+        title={<Space><DatabaseOutlined />Data Backup</Space>}
+        style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginTop: 20 }}
+      >
+        <Space direction="vertical">
+          <Text type="secondary">
+            Download a JSON snapshot of this lab's data (customers, instruments, standards, jobs,
+            certificates, invoices, complaints &amp; feedback). Admin only.
+          </Text>
+          <Button
+            type="primary"
+            icon={<DatabaseOutlined />}
+            onClick={async () => {
+              try { await downloadBackup(); message.success('Backup downloaded'); }
+              catch (e: any) { message.error(e?.response?.data?.message ?? 'Backup failed (admin only)'); }
+            }}
+          >
+            Download Backup
+          </Button>
+        </Space>
       </Card>
     </div>
   );
