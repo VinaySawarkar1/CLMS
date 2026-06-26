@@ -168,13 +168,28 @@ function CertificatesTab() {
 function InstrumentsTab() {
   const [instruments, setInstruments] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [expandedInstrumentId, setExpandedInstrumentId] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, any[]>>({});
 
   if (!loaded) {
     pGet('/portal/instruments').then((d) => { setInstruments(d); setLoaded(true); });
   }
 
+  const loadHistory = (instrumentId: string) => {
+    if (history[instrumentId]) {
+      setExpandedInstrumentId(expandedInstrumentId === instrumentId ? null : instrumentId);
+      return;
+    }
+    pGet('/portal/jobs').then((jobs: any[]) => {
+      const filtered = jobs.filter((j: any) => j.instrument?.id === instrumentId)
+        .sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+      setHistory((h) => ({ ...h, [instrumentId]: filtered }));
+      setExpandedInstrumentId(instrumentId);
+    });
+  };
+
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name' },
+    { title: 'Name', dataIndex: 'name', key: 'name', render: (v: string) => <Text strong>{v}</Text> },
     { title: 'Make', dataIndex: 'make', key: 'make', render: (v: any) => v ?? '—' },
     { title: 'Serial No.', dataIndex: 'serialNumber', key: 'serialNumber', render: (v: any) => v ?? '—' },
     {
@@ -208,17 +223,51 @@ function InstrumentsTab() {
         return <Tag color="success">OK</Tag>;
       },
     },
+    {
+      title: 'History',
+      key: 'hist',
+      render: (_: any, row: any) => (
+        <Button size="small" type="link" onClick={() => loadHistory(row.id)}>
+          {expandedInstrumentId === row.id ? 'Hide' : 'View History'}
+        </Button>
+      ),
+    },
   ];
 
   return (
-    <Table
-      columns={columns}
-      dataSource={instruments}
-      rowKey="id"
-      loading={!loaded}
-      pagination={{ pageSize: 15 }}
-      size="small"
-    />
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Table
+        columns={columns}
+        dataSource={instruments}
+        rowKey="id"
+        loading={!loaded}
+        pagination={{ pageSize: 15 }}
+        size="small"
+      />
+      {expandedInstrumentId && history[expandedInstrumentId] && (
+        <Badge.Ribbon text="Calibration History" color="blue">
+          <Card size="small" style={{ background: '#f0f5ff' }}>
+            <Table
+              size="small"
+              rowKey="id"
+              dataSource={history[expandedInstrumentId]}
+              pagination={false}
+              columns={[
+                { title: 'Job No.', dataIndex: 'jobNumber', key: 'j' },
+                { title: 'Received', dataIndex: 'receivedAt', key: 'r', render: (v: string) => new Date(v).toLocaleDateString() },
+                { title: 'Status', dataIndex: 'status', key: 's', render: (s: string) => <Tag color={JOB_STATUS_COLOR[s] ?? 'default'}>{s?.replace(/_/g, ' ')}</Tag> },
+                {
+                  title: 'Certificate', key: 'cert',
+                  render: (_: any, r: any) => r.certificate?.isLocked
+                    ? <Tag color="green">{r.certificate.certificateNumber}</Tag>
+                    : <Tag>—</Tag>,
+                },
+              ]}
+            />
+          </Card>
+        </Badge.Ribbon>
+      )}
+    </Space>
   );
 }
 

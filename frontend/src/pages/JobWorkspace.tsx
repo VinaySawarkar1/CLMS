@@ -2,27 +2,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Row, Select,
-  Space, Spin, Steps, Table, Tabs, Tag, Typography,
+  Alert, Button, Card, Col, Divider, Form, Input, Row, Select,
+  Space, Spin, Steps, Table, Tabs, Tag, Timeline, Typography,
 } from 'antd';
 import {
   ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
-  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined, EditOutlined,
+  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined,
+  HistoryOutlined, WarningOutlined, CommentOutlined,
 } from '@ant-design/icons';
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
-  getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
-  updateDatasheetEnvironmental,
+  getDatasheet, getJob, getJobs, openCertificateReport, openDatasheetReport, signCertificate,
 } from '../api';
 import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
-const SIG_STAGES = ['TECHNICAL_MANAGER', 'QUALITY_MANAGER'];
+const SIG_STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
 const STAGE_LABELS: Record<string, string> = {
-  TECHNICAL_MANAGER: 'Technical Manager',
-  QUALITY_MANAGER: 'QA Manager',
+  ENGINEER: 'Engineer', REVIEWER: 'Reviewer', TECHNICAL_MANAGER: 'Tech Manager',
+  QUALITY_MANAGER: 'QA Manager', FINAL_LOCK: 'Final Lock',
 };
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
 
@@ -91,6 +91,16 @@ export default function JobWorkspace() {
       ),
       children: <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />,
     },
+    {
+      key: 'history',
+      label: <Space><HistoryOutlined />Cal. History</Space>,
+      children: <CalibrationHistoryTab job={job} />,
+    },
+    {
+      key: 'remarks',
+      label: <Space><CommentOutlined />Remarks</Space>,
+      children: <RemarksTab job={job} onChanged={invalidate} />,
+    },
   ];
 
   return (
@@ -156,12 +166,20 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   // NABL 129 criteria for the selected procedure
   const nc = useMemo(() => getNabl129(procId), [procId]);
   const nread = nc?.minReadings ?? 5;
+  const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  const [selectedAccClass, setSelectedAccClass] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<Row[]>([emptyRow('', nread)]);
+  const effectiveMpe = useMemo(() => {
+    if (!nc) return null;
+    if (selectedAccClass && nc.accuracyClasses) {
+      const cls = nc.accuracyClasses.find((c: { class: string; mpe: string; mpeNumeric?: number; mpeIsPercent?: boolean }) => c.class === selectedAccClass);
+      if (cls) return { value: cls.mpeNumeric ?? nc.mpeNumeric, isPercent: cls.mpeIsPercent ?? nc.mpeIsPercent };
+    }
+    return { value: nc.mpeNumeric, isPercent: nc.mpeIsPercent };
+  }, [nc, selectedAccClass]);
+
   // Version history: which datasheet id to view (null = latest)
   const [viewDsId, setViewDsId] = useState<string | null>(null);
-  const [envEditOpen, setEnvEditOpen] = useState(false);
-  const [envEditForm] = Form.useForm();
 
   const { data: viewedDatasheet } = useQuery({
     queryKey: ['datasheet', viewDsId],
@@ -202,10 +220,11 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const applyProcedure = (id: string, rangeIndex = 0, overrideUnit = '') => {
     setProcId(id);
     setRangeIdx(rangeIndex);
+    setSelectedAccClass(null);
     const p = findProcedure(id);
-    if (!p) return;
     const crit = getNabl129(id);
     const readCount = crit?.minReadings ?? 5;
+    if (!p) return;
     if (p.ranges && p.ranges.length) {
       const r = p.ranges[rangeIndex] ?? p.ranges[0];
       loadPoints(overrideUnit || r.unit, r.points, readCount);
@@ -239,10 +258,6 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     onSuccess: onChanged,
   });
   const computeMut = useMutation({ mutationFn: () => computeDatasheet(datasheet.id), onSuccess: onChanged });
-  const envMut = useMutation({
-    mutationFn: (environmental: any) => updateDatasheetEnvironmental(datasheet.id, environmental),
-    onSuccess: () => { setEnvEditOpen(false); onChanged(); },
-  });
 
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
@@ -331,45 +346,9 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
               <Tag icon={<ThunderboltOutlined />} color="blue">{displayedDatasheet.environmental?.temperature ?? '—'} °C</Tag>
               <Tag color="cyan">{displayedDatasheet.environmental?.humidity ?? '—'} %RH</Tag>
               <Tag color="purple">{displayedDatasheet.environmental?.pressure ?? '—'} kPa</Tag>
-              {(!viewDsId || viewDsId === datasheet?.id) && (
-                <Button
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    envEditForm.setFieldsValue({
-                      temperature: displayedDatasheet.environmental?.temperature ?? 23,
-                      humidity: displayedDatasheet.environmental?.humidity ?? 50,
-                      pressure: displayedDatasheet.environmental?.pressure ?? 101.3,
-                    });
-                    setEnvEditOpen(true);
-                  }}
-                >
-                  Edit Env
-                </Button>
-              )}
             </Space>
           </Col>
         </Row>
-        <Modal
-          title="Edit Environmental Conditions"
-          open={envEditOpen}
-          onCancel={() => setEnvEditOpen(false)}
-          onOk={() => envEditForm.validateFields().then((vals) => envMut.mutate(vals))}
-          confirmLoading={envMut.isPending}
-          okText="Save"
-        >
-          <Form form={envEditForm} layout="vertical" style={{ marginTop: 16 }}>
-            <Form.Item name="temperature" label="Temperature (°C)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} step={0.1} />
-            </Form.Item>
-            <Form.Item name="humidity" label="Humidity (%RH)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} step={0.1} min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="pressure" label="Pressure (kPa)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} step={0.1} />
-            </Form.Item>
-          </Form>
-        </Modal>
         <Table
           columns={obsColumns}
           dataSource={displayedDatasheet.observations}
@@ -421,13 +400,23 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const liveResult = (row: Row) => {
     const nums = row.readings.map(Number).filter((n) => !Number.isNaN(n) && n !== 0);
     const std = Number(row.standardValue);
-    const nom = Number(row.nominal);
     if (!nums.length || Number.isNaN(std) || row.standardValue === '') return null;
     const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
     const error = mean - std;
-    const pass = nc ? checkMpe(error, isNaN(nom) ? std : nom, nc) : null;
-    return { mean, error, count: nums.length, pass };
+    let pass: 'pass' | 'fail' | null = null;
+    if (nc && effectiveMpe?.value != null) {
+      const absErr = Math.abs(error);
+      const limit = effectiveMpe.isPercent ? (effectiveMpe.value / 100) * Math.abs(std) : effectiveMpe.value;
+      pass = absErr <= limit ? 'pass' : 'fail';
+    }
+    return { mean: mean.toFixed(4), error: error.toFixed(4), count: nums.length, pass };
   };
+
+  const envAlerts: string[] = [];
+  const temp = Number(env.temperature);
+  const hum = Number(env.humidity);
+  if (!Number.isNaN(temp) && (temp < 21 || temp > 25)) envAlerts.push(`Temperature ${temp}°C is outside NABL 129 limit (23±2°C)`);
+  if (!Number.isNaN(hum) && (hum < 35 || hum > 65)) envAlerts.push(`Humidity ${hum}%RH is outside NABL 129 limit (50±15%RH)`);
 
   const inputCols = [
     {
@@ -469,32 +458,24 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       title: 'Mean', key: 'mean', width: 90,
       render: (_: any, _row: any, i: number) => {
         const r = liveResult(rows[i]);
-        if (!r) return <span style={{ color: '#bbb' }}>—</span>;
-        return <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.mean.toFixed(4)}</span>;
+        return r ? <Tag color="blue">{r.mean}</Tag> : <Tag>—</Tag>;
       },
     },
     {
-      title: `Error (vs Std)${nc ? ` | MPE: ${nc.mpe}` : ''}`, key: 'error_preview', width: 200,
+      title: 'Error / Pass-Fail', key: 'error_preview', width: 140,
       render: (_: any, _row: any, i: number) => {
         const r = liveResult(rows[i]);
-        if (!r) return <Tag color="default">—</Tag>;
-        const errStr = r.error.toFixed(4);
-        const readPct = Math.round((r.count / nread) * 100);
+        if (!r) return <Tag>—</Tag>;
+        const filled = rows[i].readings.filter((x) => x !== '').length;
         return (
-          <Space size={4} direction="vertical" style={{ gap: 2 }}>
+          <Space direction="vertical" size={2}>
             <Space size={4}>
-              <Tag
-                color={r.pass === 'pass' ? 'green' : r.pass === 'fail' ? 'red' : r.error === 0 ? 'green' : 'orange'}
-                style={{ fontFamily: 'monospace', margin: 0 }}
-              >
-                {r.pass === 'pass' ? '✓ ' : r.pass === 'fail' ? '✗ ' : ''}{errStr}
-              </Tag>
-              {r.pass && <Tag color={r.pass === 'pass' ? 'green' : 'red'} style={{ margin: 0 }}>{r.pass.toUpperCase()}</Tag>}
+              {r.pass === 'pass' && <Tag color="green">✓ PASS</Tag>}
+              {r.pass === 'fail' && <Tag color="red">✗ FAIL</Tag>}
+              {!r.pass && <Tag color={Number(r.error) === 0 ? 'green' : Math.abs(Number(r.error)) < 0.01 ? 'orange' : 'red'}>{r.error}</Tag>}
+              {r.pass && <Tag>{r.error}</Tag>}
             </Space>
-            <div style={{ fontSize: 10, color: r.count >= nread ? '#52c41a' : '#fa8c16' }}>
-              {r.count}/{nread} readings
-              {r.count < nread && ` (need ${nread - r.count} more)`}
-            </div>
+            <span style={{ fontSize: 10, color: '#888' }}>{filled}/{nread} readings</span>
           </Space>
         );
       },
@@ -655,10 +636,49 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         );
       })()}
 
+      {nc?.accuracyClasses && nc.accuracyClasses.length > 0 && (
+        <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', borderColor: '#ffe58f' }}>
+          <Row align="middle" gutter={16}>
+            <Col><Text strong>NABL 129 Accuracy Class:</Text></Col>
+            <Col>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Select accuracy class"
+                value={selectedAccClass ?? undefined}
+                allowClear
+                onChange={(v) => setSelectedAccClass(v ?? null)}
+                options={nc.accuracyClasses.map((c: { class: string; mpe: string }) => ({ value: c.class, label: `${c.class} (MPE: ${c.mpe})` }))}
+              />
+            </Col>
+            {selectedAccClass && (
+              <Col>
+                <Tag color="orange">MPE: {nc.accuracyClasses.find((c: { class: string; mpe: string }) => c.class === selectedAccClass)?.mpe}</Tag>
+              </Col>
+            )}
+          </Row>
+        </Card>
+      )}
+
+      {nc && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={
+            <Space size={8} wrap>
+              <Text strong>NABL 129 — {nc.nablChapter}</Text>
+              <Tag color="purple">Min Readings: {nc.minReadings}</Tag>
+              <Tag color="orange">MPE: {selectedAccClass && nc.accuracyClasses ? (nc.accuracyClasses.find((c: { class: string; mpe: string }) => c.class === selectedAccClass)?.mpe ?? nc.mpe) : nc.mpe}</Tag>
+              <Tag color="cyan">Cal. Interval: {nc.calibrationIntervalMonths}M</Tag>
+            </Space>
+          }
+        />
+      )}
+
       <Card
         size="small"
         title="Environmental Conditions"
-        style={{ marginBottom: 20, borderRadius: 8 }}
+        style={{ marginBottom: envAlerts.length ? 8 : 20, borderRadius: 8 }}
       >
         <Row gutter={16}>
           {[
@@ -672,12 +692,31 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
                   value={env[key as keyof typeof env]}
                   onChange={(e) => setEnv({ ...env, [key]: e.target.value })}
                   placeholder="—"
+                  status={
+                    (key === 'temperature' && !Number.isNaN(Number(env.temperature)) && (Number(env.temperature) < 21 || Number(env.temperature) > 25)) ? 'error' :
+                    (key === 'humidity' && !Number.isNaN(Number(env.humidity)) && (Number(env.humidity) < 35 || Number(env.humidity) > 65)) ? 'error' : ''
+                  }
                 />
               </Form.Item>
             </Col>
           ))}
         </Row>
       </Card>
+
+      {envAlerts.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ marginBottom: 20 }}
+          message="Environmental Condition Deviation — NABL 129"
+          description={
+            <ul style={{ margin: 0, paddingLeft: 16 }}>
+              {envAlerts.map((msg, i) => <li key={i}>{msg}</li>)}
+            </ul>
+          }
+        />
+      )}
 
       <Text strong style={{ display: 'block', marginBottom: 12 }}>
         Measurement Points & Readings {unit && <Tag color="cyan">{unit}</Tag>}
@@ -714,7 +753,6 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
   const [contributors, setContributors] = useState<any[]>([]);
   const [result, setResult] = useState<any>(null);
   const procedure = useMemo(() => findProcedure(datasheet?.templateName), [datasheet?.templateName]);
-  const nablCriteria = useMemo(() => procedure ? getNabl129(procedure.id) : null, [procedure?.id]);
   const unit = datasheet?.observations?.[0]?.unit || procedure?.unit || '';
 
   useEffect(() => {
@@ -830,13 +868,6 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
         <Col>
           <Text strong>Uncertainty Budget (GUM) </Text>
           {unit && <Tag color="cyan">{unit}</Tag>}
-          {nablCriteria && (
-            <Space size={4} style={{ marginLeft: 8 }}>
-              <Tag color="red">{nablCriteria.nablChapter}</Tag>
-              <Tag color="orange">MPE: {nablCriteria.mpe}</Tag>
-              <Tag color="blue">Min Readings: {nablCriteria.minReadings}</Tag>
-            </Space>
-          )}
         </Col>
       </Row>
       <Space style={{ marginBottom: 16 }} wrap>
@@ -923,19 +954,114 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
                 </Tag>
               </div>
             </Col>
-            {nablCriteria && (
-              <Col>
-                <Text type="secondary" style={{ fontSize: 12 }}>NABL 129 MPE Limit</Text>
-                <div><Tag color="orange">{nablCriteria.mpe}</Tag></div>
-                <Text type="secondary" style={{ fontSize: 11 }}>
-                  Expanded U must be ≤ MPE/3 (guard band per NABL 129)
-                </Text>
-              </Col>
-            )}
           </Row>
         </Card>
       )}
     </div>
+  );
+}
+
+function CalibrationHistoryTab({ job }: any) {
+  const instrumentId = job?.instrument?.id;
+  const instrumentName = job?.instrument?.name ?? 'this instrument';
+
+  const { data: allJobs = [], isLoading } = useQuery({ queryKey: ['jobs'], queryFn: () => getJobs() });
+
+  const history = useMemo(() => {
+    return (allJobs as any[])
+      .filter((j: any) => j.instrument?.id === instrumentId && j.id !== job.id)
+      .sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+  }, [allJobs, instrumentId, job.id]);
+
+  if (isLoading) return <Spin />;
+  if (!history.length) {
+    return <Alert type="info" showIcon icon={<HistoryOutlined />} message={`No previous calibration records found for ${instrumentName}`} />;
+  }
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Alert type="info" showIcon icon={<HistoryOutlined />} message={`Found ${history.length} previous calibration(s) for ${instrumentName}`} />
+      <Table
+        rowKey="id"
+        dataSource={history}
+        size="small"
+        pagination={{ pageSize: 10 }}
+        columns={[
+          { title: 'Job No.', dataIndex: 'jobNumber', key: 'j', render: (v: string) => <Text strong>{v}</Text> },
+          { title: 'Received', dataIndex: 'receivedAt', key: 'r', render: (v: string) => new Date(v).toLocaleDateString('en-IN') },
+          { title: 'Status', dataIndex: 'status', key: 's', render: (s: string) => <Tag>{s?.replace(/_/g, ' ')}</Tag> },
+          {
+            title: 'Certificate', key: 'cert',
+            render: (_: any, r: any) => r.certificate?.certificateNumber
+              ? <Tag color="green">{r.certificate.certificateNumber}</Tag>
+              : <Tag color="default">—</Tag>,
+          },
+        ]}
+      />
+    </Space>
+  );
+}
+
+function RemarksTab({ job, onChanged }: any) {
+  const [text, setText] = useState('');
+  const [remarks, setRemarks] = useState<{ ts: string; note: string }[]>(() => {
+    try { return JSON.parse(job?.remarks || '[]'); } catch { return job?.remarks ? [{ ts: new Date().toISOString(), note: job.remarks }] : []; }
+  });
+  const qc = useQueryClient();
+
+  const saveMut = useMutation({
+    mutationFn: async (note: string) => {
+      const updated = [...remarks, { ts: new Date().toISOString(), note }];
+      const { api } = await import('../api');
+      await api.patch(`/jobs/${job.id}`, { remarks: JSON.stringify(updated) });
+      return updated;
+    },
+    onSuccess: (updated) => {
+      setRemarks(updated);
+      setText('');
+      qc.invalidateQueries({ queryKey: ['job-detail', job.id] });
+      onChanged?.();
+    },
+  });
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Text type="secondary">Deviation notes, calibration remarks, and observations for this job.</Text>
+      {remarks.length > 0 ? (
+        <Timeline
+          items={remarks.map((r) => ({
+            color: 'blue',
+            children: (
+              <div>
+                <Text type="secondary" style={{ fontSize: 11 }}>{new Date(r.ts).toLocaleString('en-IN')}</Text>
+                <div>{r.note}</div>
+              </div>
+            ),
+          }))}
+        />
+      ) : (
+        <Alert type="info" message="No remarks recorded yet." showIcon />
+      )}
+      <Row gutter={8}>
+        <Col flex="auto">
+          <Input.TextArea
+            rows={3}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a remark, deviation note, or observation..."
+          />
+        </Col>
+      </Row>
+      <Button
+        type="primary"
+        icon={<SaveOutlined />}
+        disabled={!text.trim()}
+        loading={saveMut.isPending}
+        onClick={() => saveMut.mutate(text.trim())}
+      >
+        Add Remark
+      </Button>
+    </Space>
   );
 }
 
