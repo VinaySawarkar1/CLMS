@@ -14,6 +14,7 @@ import {
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, getJobs, openCertificateReport, openDatasheetReport, signCertificate,
+  lookupCmc, lookupMpe,
 } from '../api';
 import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
@@ -242,6 +243,32 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
 
   const selectedProc = findProcedure(procId);
 
+  // ── Auto-fetch lab scope: CMC (4.3/4.4) and MPE (4.2) from the masters ──
+  // Lookup keys come from the selected procedure's discipline + parameter and
+  // a representative point value (largest nominal in the sheet).
+  const lookupDiscipline = (selectedProc?.discipline ?? (job?.instrument as any)?.discipline?.name ?? (job?.instrument as any)?.discipline ?? '') as string;
+  const lookupParameter = (selectedProc?.ranges?.[rangeIdx]?.parameter ?? (selectedProc as any)?.parameter ?? '') as string;
+  const repNominal = useMemo(() => {
+    const vals = rows.map((r) => Math.abs(Number(r.nominal))).filter((n) => !Number.isNaN(n) && n !== 0);
+    return vals.length ? Math.max(...vals) : undefined;
+  }, [rows]);
+
+  const scopeEnabled = !!lookupDiscipline && !!lookupParameter;
+  const { data: scopeCmc } = useQuery({
+    queryKey: ['cmc-lookup', lookupDiscipline, lookupParameter, repNominal],
+    queryFn: () => lookupCmc({ discipline: lookupDiscipline, parameter: lookupParameter, value: repNominal }),
+    enabled: scopeEnabled,
+  });
+  const { data: scopeMpeRes } = useQuery({
+    queryKey: ['mpe-lookup', lookupDiscipline, lookupParameter, repNominal, selectedAccClass],
+    queryFn: () => lookupMpe({ discipline: lookupDiscipline, parameter: lookupParameter, value: repNominal, accuracyClass: selectedAccClass ?? undefined }),
+    enabled: scopeEnabled,
+  });
+
+  // A lab-configured MPE rule overrides the bundled NABL-129 default.
+  const scopeMpe = scopeMpeRes ? { value: scopeMpeRes.mpeValue, isPercent: scopeMpeRes.mpeIsPercent } : null;
+  const resolvedMpe = scopeMpe ?? effectiveMpe;
+
   const createMut = useMutation({
     mutationFn: () => createDatasheet({
       jobId: job.id,
@@ -250,16 +277,21 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       observations: rows.filter((r) => r.standardValue !== '').map((r) => {
         // Resolve the absolute maximum permissible error for this point so the
         // backend can derive Pass/Fail (percent MPEs are relative to nominal).
+        // A lab-configured MPE rule (resolvedMpe) takes precedence over NABL 129.
         const nominalVal = r.nominal ? Number(r.nominal) : Number(r.standardValue);
-        const mpe = effectiveMpe?.value != null
-          ? (effectiveMpe.isPercent ? (effectiveMpe.value / 100) * Math.abs(nominalVal) : effectiveMpe.value)
+        const mpe = resolvedMpe?.value != null
+          ? (resolvedMpe.isPercent ? (resolvedMpe.value / 100) * Math.abs(nominalVal) : resolvedMpe.value)
           : undefined;
         return {
           pointLabel: r.pointLabel,
           unit: r.unit || unit,
           nominal: r.nominal ? Number(r.nominal) : undefined,
           standardValue: Number(r.standardValue),
-          data: { readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)), ...(mpe != null ? { mpe } : {}) },
+          data: {
+            readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)),
+            ...(mpe != null ? { mpe } : {}),
+            ...(scopeCmc?.cmc ? { cmc: scopeCmc.cmc } : {}),
+          },
         };
       }),
     }),
@@ -434,9 +466,9 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
     const error = mean - std;
     let pass: 'pass' | 'fail' | null = null;
-    if (nc && effectiveMpe?.value != null) {
+    if (resolvedMpe?.value != null) {
       const absErr = Math.abs(error);
-      const limit = effectiveMpe.isPercent ? (effectiveMpe.value / 100) * Math.abs(std) : effectiveMpe.value;
+      const limit = resolvedMpe.isPercent ? (resolvedMpe.value / 100) * Math.abs(std) : resolvedMpe.value;
       pass = absErr <= limit ? 'pass' : 'fail';
     }
     return { mean: mean.toFixed(4), error: error.toFixed(4), count: nums.length, pass };
@@ -608,6 +640,50 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
             </Space>
           }
           description={selectedProc.procedureText}
+        />
+      )}
+
+      {scopeEnabled && (scopeCmc || scopeMpeRes) && (
+        <Alert
+          type="success"
+          showIcon
+          icon={<ThunderboltOutlined />}
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            <Space size={8} wrap>
+              <Text strong>Lab Scope auto-fetched</Text>
+              <Tag color="blue">{lookupDiscipline}</Tag>
+              <Tag>{lookupParameter}</Tag>
+              {scopeCmc?.cmc && <Tag color="geekblue" style={{ fontFamily: 'monospace' }}>Best CMC: {scopeCmc.cmc}</Tag>}
+              {scopeCmc?.method && <Tag color="purple">Method: {scopeCmc.method}</Tag>}
+              {scopeCmc?.revision && <Tag>Rev {scopeCmc.revision}</Tag>}
+              {scopeMpeRes && (
+                <Tag color="orange" style={{ fontFamily: 'monospace' }}>
+                  MPE: {scopeMpeRes.mpeIsPercent ? `${scopeMpeRes.mpeValue}%` : `±${scopeMpeRes.mpeValue} ${scopeMpeRes.unit ?? ''}`}
+                </Tag>
+              )}
+            </Space>
+          }
+          description={
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Pulled from the Calibration Masters for this discipline/parameter/range.
+              {scopeMpe ? ' The lab MPE rule overrides the NABL 129 default for Pass/Fail.' : ''}
+            </Text>
+          }
+        />
+      )}
+
+      {scopeEnabled && !scopeCmc && !scopeMpeRes && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            <Text style={{ fontSize: 13 }}>
+              No lab scope / MPE master found for <Text strong>{lookupDiscipline} · {lookupParameter}</Text>.
+              Pass/Fail uses the NABL 129 default. Add an entry in Calibration Masters to drive it from your accredited scope.
+            </Text>
+          }
         />
       )}
 
