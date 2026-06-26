@@ -42,6 +42,10 @@ export interface CertificateReportData {
   labPhone?: string | null;
   labEmail?: string | null;
   labAccreditation?: string | null;  // NABL CC No.
+  labWebsite?: string | null;
+  labLogoUrl?: string | null;
+  labSignatoryName?: string | null;
+  labSignatoryDesignation?: string | null;
 
   // Customer
   customerName: string;
@@ -215,6 +219,7 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   .lab-addr { font-size: 10px; color: #444; margin-top: 2px; }
   .nabl-badge { text-align: right; font-size: 10px; color: #555; }
   .nabl-badge .cc { font-weight: bold; font-size: 12px; color: #1a237e; }
+  .nabl-logo-wrap { display: flex; flex-direction: column; align-items: center; min-width: 90px; }
 
   /* ── Meta row (certificate no., dates, page) ── */
   .meta-strip { background: #e8eaf6; border: 1px solid #9fa8da; margin-top: 6px; }
@@ -280,17 +285,58 @@ export function renderCertificateHtml(d: CertificateReportData): string {
 <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
 <div class="top-header">
   <div class="lab-info">
+    ${d.labLogoUrl ? `<img src="${d.labLogoUrl}" alt="Lab Logo" style="max-height:56px;max-width:160px;object-fit:contain;display:block;margin-bottom:5px;"/>` : ''}
     <div class="lab-name-big">${esc(d.labName || 'Calibration Laboratory')}</div>
-    <div class="lab-addr">${esc(d.labAddress || '')}</div>
-    ${d.labPhone ? `<div class="lab-addr">Tel: ${esc(d.labPhone)}${d.labEmail ? ' &nbsp;|&nbsp; E-Mail: ' + esc(d.labEmail) : ''}</div>` : ''}
+    ${d.labAddress ? `<div class="lab-addr">${esc(d.labAddress)}</div>` : ''}
+    ${(d.labPhone || d.labEmail) ? `<div class="lab-addr">${d.labPhone ? 'Tel: ' + esc(d.labPhone) : ''}${d.labPhone && d.labEmail ? ' &nbsp;|&nbsp; ' : ''}${d.labEmail ? 'E: ' + esc(d.labEmail) : ''}</div>` : ''}
+    ${d.labWebsite ? `<div class="lab-addr">Web: ${esc(d.labWebsite)}</div>` : ''}
   </div>
   <div class="cert-heading">
     <h1>CERTIFICATE OF CALIBRATION</h1>
     <h2>ISSUED BY &nbsp;${esc(d.labName || 'Calibration Laboratory')}</h2>
     <div class="issued-by">ISO / IEC 17025 · ${esc(d.type)}</div>
   </div>
-  <div class="nabl-badge">
-    ${d.labAccreditation ? `<div>NABL Accredited</div><div class="cc">${esc(d.labAccreditation)}</div>` : ''}
+  <div class="nabl-logo-wrap">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 230" width="78" height="90" aria-label="NABL Logo">
+      <!-- Outer ring -->
+      <circle cx="100" cy="100" r="94" fill="#1a237e" />
+      <circle cx="100" cy="100" r="86" fill="white" />
+      <circle cx="100" cy="100" r="80" fill="none" stroke="#1a237e" stroke-width="1.5"/>
+      <!-- Inner decorative ring -->
+      <circle cx="100" cy="100" r="60" fill="#1a237e" />
+      <circle cx="100" cy="100" r="54" fill="white" />
+      <!-- Five-pointed star -->
+      <polygon points="100,32 113,72 155,72 122,96 134,136 100,112 66,136 78,96 45,72 87,72"
+        fill="#1a237e" transform="translate(0,8)" />
+      <!-- Text on outer ring — English (top arc) -->
+      <defs>
+        <path id="topArc" d="M 12,100 A 88,88 0 0,1 188,100" />
+        <path id="botArc" d="M 20,110 A 82,82 0 0,0 180,110" />
+        <path id="hindiArc" d="M 18,100 A 82,82 0 0,0 182,100" />
+      </defs>
+      <text font-family="Arial,sans-serif" font-size="8.5" fill="white" font-weight="bold" letter-spacing="0.5">
+        <textPath href="#topArc" startOffset="2%">NATIONAL ACCREDITATION BOARD FOR TESTING AND</textPath>
+      </text>
+      <text font-family="Arial,sans-serif" font-size="8.5" fill="white" font-weight="bold" letter-spacing="0.5">
+        <textPath href="#botArc" startOffset="8%">CALIBRATION LABORATORIES · INDIA ·</textPath>
+      </text>
+      <!-- Hindi text ring (simplified) -->
+      <text font-family="Arial,sans-serif" font-size="7.5" fill="#1a237e" text-anchor="middle">
+        <textPath href="#hindiArc" startOffset="15%">राष्ट्रीय परीक्षण एवं अंशांकन प्रयोगशाला</textPath>
+      </text>
+      <!-- INDIA text inside star area -->
+      <text x="100" y="174" font-family="Arial,sans-serif" font-size="7" fill="white" text-anchor="middle" font-weight="bold">INDIA</text>
+      <!-- Bottom laurel leaves (simplified) -->
+      <g fill="#1a237e" opacity="0.85">
+        <ellipse cx="68" cy="196" rx="14" ry="5" transform="rotate(-30,68,196)"/>
+        <ellipse cx="56" cy="204" rx="12" ry="4" transform="rotate(-20,56,204)"/>
+        <ellipse cx="132" cy="196" rx="14" ry="5" transform="rotate(30,132,196)"/>
+        <ellipse cx="144" cy="204" rx="12" ry="4" transform="rotate(20,144,204)"/>
+      </g>
+      <!-- NABL text -->
+      <text x="100" y="225" font-family="Arial Black,Arial,sans-serif" font-size="22" fill="#1a237e" text-anchor="middle" font-weight="900" letter-spacing="3">NABL</text>
+    </svg>
+    ${d.labAccreditation ? `<div style="font-size:9px;color:#1a237e;font-weight:bold;text-align:center;margin-top:2px">${esc(d.labAccreditation)}</div>` : ''}
   </div>
 </div>
 
@@ -427,8 +473,8 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
   </div>
   <div class="sign-block">
     <div style="height:36px"></div>
-    <div class="sign-name">Authorized Signatory</div>
-    <div class="sign-desig">Technical Manager</div>
+    <div class="sign-name">${esc(d.labSignatoryName || 'Authorized Signatory')}</div>
+    <div class="sign-desig">${esc(d.labSignatoryDesignation || 'Technical Manager')}</div>
   </div>` : ''}
 </div>
 

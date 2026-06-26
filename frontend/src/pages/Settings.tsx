@@ -86,10 +86,29 @@ function LabDetailsSection() {
     },
   } as any);
 
+  useQuery({
+    queryKey: ['lab-settings', labId],
+    queryFn: () => getLabSettings(labId),
+    enabled: !!labId,
+    onSuccess: (d: any) => {
+      form.setFieldsValue({
+        signatoryName: d.signatoryName ?? '',
+        signatoryDesignation: d.signatoryDesignation ?? '',
+      });
+    },
+  } as any);
+
   const saveMut = useMutation({
-    mutationFn: (vals: any) => updateLabDetails(labId, { ...vals, logoUrl: logoPreview }),
+    mutationFn: async (vals: any) => {
+      const { signatoryName, signatoryDesignation, ...labVals } = vals;
+      await Promise.all([
+        updateLabDetails(labId, { ...labVals, logoUrl: logoPreview }),
+        updateLabSettings(labId, { signatoryName, signatoryDesignation }),
+      ]);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lab', labId] });
+      qc.invalidateQueries({ queryKey: ['lab-settings', labId] });
       message.success('Lab details saved');
     },
     onError: () => message.error('Failed to save lab details'),
@@ -179,6 +198,21 @@ function LabDetailsSection() {
             <Col span={24}>
               <Form.Item name="website" label="Website">
                 <Input placeholder="https://example.com" />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Divider orientation="left" style={{ fontSize: 12, color: '#888', margin: '4px 0 12px' }}>
+                Certificate Signature Block
+              </Divider>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="signatoryName" label="Authorized Signatory Name" help="Appears on all certificates">
+                <Input placeholder="e.g. Dr. A. Kumar" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="signatoryDesignation" label="Signatory Designation">
+                <Input placeholder="e.g. Technical Manager" />
               </Form.Item>
             </Col>
           </Row>
