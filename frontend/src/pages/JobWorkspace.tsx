@@ -247,13 +247,21 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       jobId: job.id,
       templateName: findProcedure(procId)?.label || `${job.instrument?.name || 'Instrument'} Calibration`,
       environmental: { temperature: Number(env.temperature), humidity: Number(env.humidity), pressure: Number(env.pressure) },
-      observations: rows.filter((r) => r.standardValue !== '').map((r) => ({
-        pointLabel: r.pointLabel,
-        unit: r.unit || unit,
-        nominal: r.nominal ? Number(r.nominal) : undefined,
-        standardValue: Number(r.standardValue),
-        data: { readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)) },
-      })),
+      observations: rows.filter((r) => r.standardValue !== '').map((r) => {
+        // Resolve the absolute maximum permissible error for this point so the
+        // backend can derive Pass/Fail (percent MPEs are relative to nominal).
+        const nominalVal = r.nominal ? Number(r.nominal) : Number(r.standardValue);
+        const mpe = effectiveMpe?.value != null
+          ? (effectiveMpe.isPercent ? (effectiveMpe.value / 100) * Math.abs(nominalVal) : effectiveMpe.value)
+          : undefined;
+        return {
+          pointLabel: r.pointLabel,
+          unit: r.unit || unit,
+          nominal: r.nominal ? Number(r.nominal) : undefined,
+          standardValue: Number(r.standardValue),
+          data: { readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)), ...(mpe != null ? { mpe } : {}) },
+        };
+      }),
     }),
     onSuccess: onChanged,
   });
@@ -293,8 +301,30 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         },
       },
       {
+        title: 'Std Dev', key: 'stdDev',
+        render: (_: any, row: any) => row.data?.stdDev != null ? Number(row.data.stdDev).toExponential(2) : '—',
+      },
+      {
+        title: 'Repeatability', key: 'repeatability',
+        render: (_: any, row: any) => row.data?.repeatability != null ? Number(row.data.repeatability).toFixed(4) : '—',
+      },
+      {
+        title: 'Drift', key: 'drift',
+        render: (_: any, row: any) => row.data?.drift != null
+          ? <span style={{ fontFamily: 'monospace' }}>{Number(row.data.drift).toFixed(4)}</span>
+          : <span style={{ color: '#bbb' }}>n/a</span>,
+      },
+      {
         title: 'uA', key: 'uA',
         render: (_: any, row: any) => row.data?.uA != null ? Number(row.data.uA).toExponential(2) : '—',
+      },
+      {
+        title: 'Result', key: 'result',
+        render: (_: any, row: any) => {
+          const res = row.data?.result;
+          if (!res) return '—';
+          return <Tag color={res === 'PASS' ? 'green' : 'red'} style={{ margin: 0 }}>{res === 'PASS' ? '✓ PASS' : '✗ FAIL'}</Tag>;
+        },
       },
       ...(savedNc ? [{
         title: 'MPE', key: 'mpe',

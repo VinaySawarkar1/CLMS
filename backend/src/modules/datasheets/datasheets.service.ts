@@ -6,6 +6,7 @@ import {
   computeUncertainty,
   UncertaintyContributor,
 } from '../../common/uncertainty/uncertainty-engine';
+import { computePoint } from '../../common/calculations/calc-engine';
 import { CreateDatasheetDto, RecalcDto } from './dto';
 
 @Injectable()
@@ -85,45 +86,85 @@ export class DatasheetsService {
 
   /**
    * Compute calibration results from raw readings stored in each observation's
-   * `data.readings`: mean (= observed value), correction (standard − observed),
-   * error (observed − standard), and the Type-A repeatability standard
-   * uncertainty uA = s / sqrt(n). Results are written back to each row.
+   * `data.readings`. For every point this derives and persists:
+   *   - mean (= observed value)
+   *   - standard deviation s (sample, n−1)
+   *   - repeatability (range = max − min of the readings)
+   *   - Type-A standard uncertainty uA = s / √n
+   *   - correction (standard − observed) and error (observed − standard)
+   *   - drift (current observed − observed for the same point in the previous
+   *     datasheet version, if one exists)
+   *   - Pass/Fail vs the maximum permissible error (data.mpe), when supplied
+   * A datasheet-level summary (result + counts) is returned alongside the rows.
    */
   async computeResults(id: string) {
     const ds = await this.findOne(id);
+
+    // Previous datasheet version for the same job → drift reference by point.
+    const previous = await this.prisma.datasheet.findFirst({
+      where: { jobId: ds.jobId, version: { lt: ds.version } },
+      orderBy: { version: 'desc' },
+      include: { observations: true },
+    });
+    const prevByPoint = new Map<string, number>();
+    for (const p of previous?.observations ?? []) {
+      if (p.pointLabel != null && p.observedValue != null) {
+        prevByPoint.set(p.pointLabel, p.observedValue);
+      }
+    }
+
+    let passCount = 0;
+    let failCount = 0;
+    let evaluated = 0;
+
     for (const obs of ds.observations) {
       const data: any = (obs.data as any) ?? {};
       const readings: number[] = Array.isArray(data.readings)
         ? data.readings.map(Number).filter((n: number) => !Number.isNaN(n))
         : [];
 
-      let observedValue = obs.observedValue ?? null;
-      let uA = 0;
-      if (readings.length) {
-        const mean = readings.reduce((a, b) => a + b, 0) / readings.length;
-        observedValue = mean;
-        if (readings.length > 1) {
-          const variance =
-            readings.reduce((a, b) => a + (b - mean) ** 2, 0) / (readings.length - 1);
-          uA = Math.sqrt(variance) / Math.sqrt(readings.length);
-        }
-      }
+      const previousObserved =
+        obs.pointLabel != null && prevByPoint.has(obs.pointLabel)
+          ? (prevByPoint.get(obs.pointLabel) as number)
+          : null;
 
-      const standardValue = obs.standardValue ?? 0;
-      const correction = observedValue == null ? null : standardValue - observedValue;
-      const error = observedValue == null ? null : observedValue - standardValue;
+      const r = computePoint({
+        readings,
+        standardValue: obs.standardValue ?? 0,
+        previousObserved,
+        mpe: data.mpe,
+      });
+
+      // Fall back to any previously stored observed value when no readings.
+      const observedValue = r.mean ?? obs.observedValue ?? null;
+
+      if (r.result) {
+        evaluated += 1;
+        if (r.result === 'PASS') passCount += 1; else failCount += 1;
+      }
 
       await this.prisma.observation.update({
         where: { id: obs.id },
         data: {
           observedValue,
-          correction,
-          error,
-          data: { ...data, uA, mean: observedValue } as Prisma.InputJsonValue,
+          correction: r.correction,
+          error: r.error,
+          data: {
+            ...data,
+            mean: observedValue,
+            stdDev: r.stdDev,
+            repeatability: r.repeatability,
+            uA: r.uA,
+            drift: r.drift,
+            result: r.result,
+          } as Prisma.InputJsonValue,
         },
       });
     }
-    return this.findOne(id);
+
+    const refreshed = await this.findOne(id);
+    const overall = evaluated === 0 ? null : failCount === 0 ? 'PASS' : 'FAIL';
+    return { ...refreshed, summary: { evaluated, passCount, failCount, overall } };
   }
 
   /** Auto-build GUM uncertainty budget from job references & instrument resolution. */
@@ -193,7 +234,13 @@ export class DatasheetsService {
     const env = ds.environmental as any;
     const unc = ds.uncertainty as any;
 
-    const obsRows = ds.observations.map((o) => `
+    const obsRows = ds.observations.map((o) => {
+      const d: any = (o.data as any) ?? {};
+      const result: string | null = d.result ?? null;
+      const resultCell = result
+        ? `<td style="font-weight:bold;color:${result === 'PASS' ? '#237804' : '#a8071a'}">${result}</td>`
+        : '<td>—</td>';
+      return `
       <tr>
         <td>${o.pointLabel || '—'}</td>
         <td>${o.unit || '—'}</td>
@@ -202,8 +249,24 @@ export class DatasheetsService {
         <td>${o.observedValue != null ? Number(o.observedValue).toFixed(4) : '—'}</td>
         <td>${o.correction != null ? Number(o.correction).toFixed(4) : '—'}</td>
         <td>${o.error != null ? Number(o.error).toFixed(4) : '—'}</td>
-        <td>${(o.data as any)?.uA != null ? Number((o.data as any).uA).toExponential(3) : '—'}</td>
-      </tr>`).join('');
+        <td>${d.stdDev != null ? Number(d.stdDev).toExponential(3) : '—'}</td>
+        <td>${d.repeatability != null ? Number(d.repeatability).toFixed(4) : '—'}</td>
+        <td>${d.drift != null ? Number(d.drift).toFixed(4) : '—'}</td>
+        <td>${d.uA != null ? Number(d.uA).toExponential(3) : '—'}</td>
+        ${resultCell}
+      </tr>`;
+    }).join('');
+
+    // Overall Pass/Fail summary across evaluated points.
+    const evaluated = ds.observations.filter((o) => (o.data as any)?.result).length;
+    const failed = ds.observations.filter((o) => (o.data as any)?.result === 'FAIL').length;
+    const overallResult = evaluated === 0 ? null : failed === 0 ? 'PASS' : 'FAIL';
+    const resultSummary = overallResult
+      ? `<div class="env" style="background:${overallResult === 'PASS' ? '#f6ffed' : '#fff1f0'};border-color:${overallResult === 'PASS' ? '#b7eb8f' : '#ffa39e'}">
+          <div class="env-item"><div class="env-label">Overall Result</div><div class="env-value" style="color:${overallResult === 'PASS' ? '#237804' : '#a8071a'}">${overallResult}</div></div>
+          <div class="env-item"><div class="env-label">Points Evaluated</div><div class="env-value">${evaluated}</div></div>
+          <div class="env-item"><div class="env-label">Failed</div><div class="env-value">${failed}</div></div>
+        </div>` : '';
 
     const uncSection = unc ? `
       <div class="section">
@@ -275,6 +338,8 @@ export class DatasheetsService {
     <div class="env-item"><div class="env-label">Pressure</div><div class="env-value">${env.pressure ?? '—'} kPa</div></div>
   </div>` : ''}
 
+  ${resultSummary}
+
   <div class="section">
     <h3>Measurement Observations</h3>
     <table>
@@ -287,10 +352,14 @@ export class DatasheetsService {
           <th>Observed Mean</th>
           <th>Correction</th>
           <th>Error</th>
-          <th>u<sub>A</sub> (Repeatability)</th>
+          <th>Std Dev (s)</th>
+          <th>Repeatability</th>
+          <th>Drift</th>
+          <th>u<sub>A</sub></th>
+          <th>Result</th>
         </tr>
       </thead>
-      <tbody>${obsRows || '<tr><td colspan="8" style="text-align:center;color:#888">No observations recorded</td></tr>'}</tbody>
+      <tbody>${obsRows || '<tr><td colspan="12" style="text-align:center;color:#888">No observations recorded</td></tr>'}</tbody>
     </table>
   </div>
 
