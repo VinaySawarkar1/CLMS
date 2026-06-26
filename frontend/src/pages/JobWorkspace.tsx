@@ -2,19 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Button, Card, Col, Divider, Form, Input, Row, Select,
-  Space, Spin, Steps, Table, Tabs, Tag, Timeline, Typography,
+  Alert, Button, Card, Col, Divider, Empty, Form, Input, Popconfirm, Row, Select,
+  Space, Spin, Steps, Table, Tabs, Tag, Timeline, Typography, Upload, message,
 } from 'antd';
 import {
   ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
   PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined,
   HistoryOutlined, WarningOutlined, CommentOutlined,
+  PictureOutlined, UploadOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
   getDatasheet, getJob, getJobs, openCertificateReport, openDatasheetReport, signCertificate,
   lookupCmc, lookupMpe,
+  getInstrumentImages, uploadInstrumentImage, deleteInstrumentImage, openInstrumentImageFile,
 } from '../api';
 import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
@@ -91,6 +93,16 @@ export default function JobWorkspace() {
         </Space>
       ),
       children: <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />,
+    },
+    {
+      key: 'images',
+      label: (
+        <Space>
+          <PictureOutlined />
+          Images
+        </Space>
+      ),
+      children: <ImagesTab job={job} />,
     },
     {
       key: 'history',
@@ -1333,6 +1345,121 @@ function CertificateTab({ job, onChanged }: any) {
           onClose={() => setFinalLockEmail(null)}
           style={{ marginTop: 12 }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Module 8: Instrument images (before/after/damage/accessory) ──
+const IMAGE_CATEGORIES = ['BEFORE', 'AFTER', 'DAMAGE', 'ACCESSORY'] as const;
+const CATEGORY_LABELS: Record<string, string> = {
+  BEFORE: 'Before Calibration',
+  AFTER: 'After Calibration',
+  DAMAGE: 'Damage Photos',
+  ACCESSORY: 'Accessories',
+};
+
+function ImagesTab({ job }: any) {
+  const qc = useQueryClient();
+  const [category, setCategory] = useState<string>('BEFORE');
+  const [remarks, setRemarks] = useState('');
+  const [pending, setPending] = useState<{ name: string; type: string; base64: string } | null>(null);
+
+  const { data: images = [], isLoading } = useQuery({
+    queryKey: ['instrument-images', job.id],
+    queryFn: () => getInstrumentImages({ jobId: job.id }),
+    enabled: !!job?.id,
+  });
+
+  const uploadMut = useMutation({
+    mutationFn: () => uploadInstrumentImage({
+      jobId: job.id,
+      instrumentId: job.instrumentId,
+      category,
+      fileName: pending!.name,
+      fileType: pending!.type,
+      fileBase64: pending!.base64,
+      remarks: remarks || undefined,
+    }),
+    onSuccess: () => {
+      message.success('Image uploaded');
+      setPending(null); setRemarks('');
+      qc.invalidateQueries({ queryKey: ['instrument-images', job.id] });
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Upload failed'),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => deleteInstrumentImage(id),
+    onSuccess: () => {
+      message.success('Image removed');
+      qc.invalidateQueries({ queryKey: ['instrument-images', job.id] });
+    },
+  });
+
+  const readFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result);
+      setPending({ name: file.name, type: file.type || 'application/octet-stream', base64: result.slice(result.indexOf(',') + 1) });
+    };
+    reader.readAsDataURL(file);
+    return false; // prevent antd auto-upload
+  };
+
+  return (
+    <div>
+      <Card size="small" title="Upload Image" style={{ marginBottom: 16 }}>
+        <Space wrap align="end">
+          <div>
+            <Text style={{ display: 'block', fontSize: 12, color: '#888' }}>Category</Text>
+            <Select
+              value={category}
+              onChange={setCategory}
+              style={{ width: 200 }}
+              options={IMAGE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
+            />
+          </div>
+          <div>
+            <Text style={{ display: 'block', fontSize: 12, color: '#888' }}>Remarks (optional)</Text>
+            <Input value={remarks} onChange={(e) => setRemarks(e.target.value)} style={{ width: 240 }} placeholder="e.g. scratch on dial" />
+          </div>
+          <Upload beforeUpload={readFile} maxCount={1} accept="image/*" fileList={pending ? [{ uid: '1', name: pending.name } as any] : []} onRemove={() => setPending(null)}>
+            <Button icon={<UploadOutlined />}>Select Image</Button>
+          </Upload>
+          <Button type="primary" loading={uploadMut.isPending} disabled={!pending} onClick={() => uploadMut.mutate()}>Upload</Button>
+        </Space>
+      </Card>
+
+      {isLoading ? <Spin /> : (images as any[]).length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No images captured for this job yet" />
+      ) : (
+        IMAGE_CATEGORIES.map((cat) => {
+          const group = (images as any[]).filter((i) => i.category === cat);
+          if (!group.length) return null;
+          return (
+            <div key={cat} style={{ marginBottom: 20 }}>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                {CATEGORY_LABELS[cat]} <Tag>{group.length}</Tag>
+              </Text>
+              <Space wrap>
+                {group.map((img) => (
+                  <Card key={img.id} size="small" style={{ width: 200 }}
+                    actions={[
+                      <Button key="open" type="link" icon={<PictureOutlined />} onClick={() => openInstrumentImageFile(img.id)}>Open</Button>,
+                      <Popconfirm key="del" title="Delete this image?" onConfirm={() => delMut.mutate(img.id)}>
+                        <Button type="link" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>,
+                    ]}
+                  >
+                    <Text ellipsis style={{ fontSize: 12 }}>{img.fileName}</Text>
+                    {img.remarks && <div><Text type="secondary" style={{ fontSize: 11 }}>{img.remarks}</Text></div>}
+                  </Card>
+                ))}
+              </Space>
+            </div>
+          );
+        })
       )}
     </div>
   );

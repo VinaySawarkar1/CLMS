@@ -277,3 +277,27 @@ export const createAuditPlan = (b: any) => post('/audit-plans', b);
 export const updateAuditPlan = (id: string, b: any) => patch(`/audit-plans/${id}`, b);
 export const addAuditFinding = (id: string, b: any) => post(`/audit-plans/${id}/findings`, b);
 export const updateAuditFinding = (id: string, fid: string, b: any) => patch(`/audit-plans/${id}/findings/${fid}`, b);
+
+// Instrument Images (Module 8)
+export const getInstrumentImages = (params?: { jobId?: string; instrumentId?: string }) =>
+  get('/instrument-images', params);
+export const uploadInstrumentImage = (b: any) => post('/instrument-images', b);
+export const deleteInstrumentImage = (id: string) => del(`/instrument-images/${id}`);
+export async function openInstrumentImageFile(id: string) {
+  const res = await api.get(`/instrument-images/${id}/file`, { responseType: 'blob' });
+  window.open(URL.createObjectURL(res.data), '_blank');
+}
+
+// Complaints (Module 9)
+export const getComplaints = () => get('/complaints');
+export const createComplaint = (b: any) => post('/complaints', b);
+export const updateComplaint = (id: string, b: any) => patch(`/complaints/${id}`, b);
+export const deleteComplaint = (id: string) => del(`/complaints/${id}`);
+
+// KPI Dashboard (Module 10)
+export const getKpis = () => get('/dashboard/kpis');
+
+// Customer Feedback (Module 11)
+export const getFeedback = () => get('/feedback');
+export const getFeedbackSummary = () => get('/feedback/summary');
+export const createFeedback = (b: any) => post('/feedback', b);

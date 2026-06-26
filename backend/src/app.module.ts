@@ -25,6 +25,9 @@ import { PortalModule } from './modules/portal/portal.module';
 import { LabsModule } from './modules/labs/labs.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { CalibrationMastersModule } from './modules/masters/calibration-masters.module';
+import { InstrumentImagesModule } from './modules/instruments/instrument-images.module';
+import { ComplaintsModule } from './modules/quality/complaints.module';
+import { FeedbackModule } from './modules/portal/feedback.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
@@ -64,6 +67,9 @@ import { HealthController } from './health.controller';
     LabsModule,
     MastersModule,
     CalibrationMastersModule,
+    InstrumentImagesModule,
+    ComplaintsModule,
+    FeedbackModule,
     QuotationsModule,
     DocumentsModule,
     AuditPlansModule,

@@ -11,7 +11,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
   GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
-  ApartmentOutlined,
+  ApartmentOutlined, StarOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -51,6 +51,8 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'quality', label: 'Quality & Compliance',
     children: [
       { key: '/quality', label: 'NCR / CAPA', icon: <AlertOutlined />, perm: 'quality' },
+      { key: '/complaints', label: 'Complaints', icon: <AlertOutlined />, perm: 'quality' },
+      { key: '/feedback', label: 'Customer Feedback', icon: <StarOutlined />, perm: 'quality' },
       { key: '/reports', label: 'Reports', icon: <BarChartOutlined />, perm: 'jobs' },
       { key: '/documents', label: 'Documents', icon: <FileSyncOutlined />, perm: 'quality' },
       { key: '/internal-audit', label: 'Internal Audit', icon: <SafetyOutlined />, perm: 'audit' },

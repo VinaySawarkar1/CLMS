@@ -4,11 +4,12 @@ import {
   FileTextOutlined, ClockCircleOutlined, WarningOutlined,
   SafetyCertificateOutlined, ExperimentOutlined, TeamOutlined, RiseOutlined,
   PlusOutlined, ToolOutlined, UserOutlined, FileSearchOutlined,
+  DollarOutlined, FieldTimeOutlined, DashboardOutlined,
 } from '@ant-design/icons';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import { getDashboard, getJobs } from '../api';
+import { getDashboard, getJobs, getKpis } from '../api';
 import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
@@ -157,6 +158,16 @@ export default function Dashboard() {
     queryKey: ['jobs-all'],
     queryFn: () => getJobs(),
   });
+
+  const { data: kpis, isLoading: kpisLoading } = useQuery({
+    queryKey: ['dashboard-kpis'],
+    queryFn: getKpis,
+  });
+
+  const monthly: { month: string; count: number }[] = kpis?.monthlyCalibration ?? [];
+  const maxMonthly = Math.max(1, ...monthly.map((m) => m.count));
+  const productivity: { engineer: string; jobs: number }[] = kpis?.engineerProductivity ?? [];
+  const maxProd = Math.max(1, ...productivity.map((p) => p.jobs));
 
   // Build pipeline chart data from jobs
   const pipelineData = (() => {
