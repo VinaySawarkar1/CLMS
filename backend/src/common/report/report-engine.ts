@@ -208,18 +208,19 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   .page { max-width: 780px; margin: 0 auto; padding: 16px; }
 
   /* ── Top header ── */
-  .top-header { display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 3px double #1565c0; padding-bottom: 10px; margin-bottom: 4px; }
-  .lab-info { flex: 1; }
-  .cert-heading { text-align: center; flex: 2; }
-  .cert-heading h1 { font-size: 17px; font-weight: bold; color: #1a237e; margin: 0; letter-spacing: 1px; }
-  .cert-heading h2 { font-size: 13px; font-weight: normal; color: #333; margin: 3px 0 0; }
-  .cert-heading .issued-by { font-size: 10px; color: #555; margin: 0; }
-  .lab-name-big { font-size: 14px; font-weight: bold; color: #1a237e; }
-  .lab-addr { font-size: 10px; color: #444; margin-top: 2px; }
-  .nabl-badge { text-align: right; font-size: 10px; color: #555; }
-  .nabl-badge .cc { font-weight: bold; font-size: 12px; color: #1a237e; }
-  .nabl-logo-wrap { display: flex; flex-direction: column; align-items: center; min-width: 90px; }
+  .top-header { display: flex; align-items: stretch;
+    border-bottom: 3px solid #1565c0; padding-bottom: 8px; margin-bottom: 4px; gap: 8px; }
+  .lab-info { flex: 0 0 auto; width: 220px; }
+  .lab-logo-img { max-height: 52px; max-width: 130px; object-fit: contain; display: block; margin-bottom: 4px; }
+  .lab-name-big { font-size: 12px; font-weight: bold; color: #1a237e; line-height: 1.3; }
+  .lab-addr { font-size: 9.5px; color: #333; margin-top: 1px; line-height: 1.4; }
+  .cert-heading { flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 0 8px; }
+  .cert-heading h1 { font-size: 16px; font-weight: bold; color: #1a237e; margin: 0 0 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .cert-heading .issued-by-label { font-size: 10px; color: #444; margin: 0; line-height: 1.4; }
+  .cert-heading .issued-by-name { font-size: 11px; font-weight: bold; color: #1a237e; margin: 2px 0 0; }
+  .cert-heading .iso-line { font-size: 10px; color: #555; margin-top: 4px; }
+  .nabl-logo-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 90px; flex-shrink: 0; }
 
   /* ── Meta row (certificate no., dates, page) ── */
   .meta-strip { background: #e8eaf6; border: 1px solid #9fa8da; margin-top: 6px; }
@@ -284,60 +285,56 @@ export function renderCertificateHtml(d: CertificateReportData): string {
 
 <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
 <div class="top-header">
+
+  <!-- LEFT: Lab logo + name + address -->
   <div class="lab-info">
-    ${d.labLogoUrl ? `<img src="${d.labLogoUrl}" alt="Lab Logo" style="max-height:56px;max-width:160px;object-fit:contain;display:block;margin-bottom:5px;"/>` : ''}
+    ${d.labLogoUrl ? `<img class="lab-logo-img" src="${esc(d.labLogoUrl)}" alt="Lab Logo"/>` : ''}
     <div class="lab-name-big">${esc(d.labName || 'Calibration Laboratory')}</div>
     ${d.labAddress ? `<div class="lab-addr">${esc(d.labAddress)}</div>` : ''}
     ${(d.labPhone || d.labEmail) ? `<div class="lab-addr">${d.labPhone ? 'Tel: ' + esc(d.labPhone) : ''}${d.labPhone && d.labEmail ? ' &nbsp;|&nbsp; ' : ''}${d.labEmail ? 'E: ' + esc(d.labEmail) : ''}</div>` : ''}
     ${d.labWebsite ? `<div class="lab-addr">Web: ${esc(d.labWebsite)}</div>` : ''}
   </div>
+
+  <!-- CENTER: Certificate title -->
   <div class="cert-heading">
     <h1>CERTIFICATE OF CALIBRATION</h1>
-    <h2>ISSUED BY &nbsp;${esc(d.labName || 'Calibration Laboratory')}</h2>
-    <div class="issued-by">ISO / IEC 17025 · ${esc(d.type)}</div>
+    <div class="issued-by-label">ISSUED BY</div>
+    <div class="issued-by-name">${esc(d.labName || 'Calibration Laboratory')}</div>
+    <div class="iso-line">ISO / IEC 17025 · NABL</div>
   </div>
+
+  <!-- RIGHT: NABL circular stamp -->
   <div class="nabl-logo-wrap">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 230" width="78" height="90" aria-label="NABL Logo">
-      <!-- Outer ring -->
-      <circle cx="100" cy="100" r="94" fill="#1a237e" />
-      <circle cx="100" cy="100" r="86" fill="white" />
-      <circle cx="100" cy="100" r="80" fill="none" stroke="#1a237e" stroke-width="1.5"/>
-      <!-- Inner decorative ring -->
-      <circle cx="100" cy="100" r="60" fill="#1a237e" />
-      <circle cx="100" cy="100" r="54" fill="white" />
-      <!-- Five-pointed star -->
-      <polygon points="100,32 113,72 155,72 122,96 134,136 100,112 66,136 78,96 45,72 87,72"
-        fill="#1a237e" transform="translate(0,8)" />
-      <!-- Text on outer ring — English (top arc) -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="82" height="82" aria-label="NABL Logo">
       <defs>
-        <path id="topArc" d="M 12,100 A 88,88 0 0,1 188,100" />
-        <path id="botArc" d="M 20,110 A 82,82 0 0,0 180,110" />
-        <path id="hindiArc" d="M 18,100 A 82,82 0 0,0 182,100" />
+        <path id="topArc"  d="M 14,100 A 86,86 0 0,1 186,100"/>
+        <path id="botArc"  d="M 22,116 A 80,80 0 0,0 178,116"/>
       </defs>
-      <text font-family="Arial,sans-serif" font-size="8.5" fill="white" font-weight="bold" letter-spacing="0.5">
-        <textPath href="#topArc" startOffset="2%">NATIONAL ACCREDITATION BOARD FOR TESTING AND</textPath>
+      <!-- Outer navy ring -->
+      <circle cx="100" cy="100" r="98" fill="#1a237e"/>
+      <circle cx="100" cy="100" r="88" fill="#fff"/>
+      <circle cx="100" cy="100" r="82" fill="none" stroke="#1a237e" stroke-width="1"/>
+      <!-- Inner filled circle -->
+      <circle cx="100" cy="100" r="64" fill="#1a237e"/>
+      <circle cx="100" cy="100" r="58" fill="#fff"/>
+      <!-- Six-pointed star (simpler than 5) — use 5-pointed -->
+      <polygon points="100,44 112,80 150,80 120,102 131,138 100,116 69,138 80,102 50,80 88,80"
+               fill="#1a237e"/>
+      <!-- Arc text top -->
+      <text font-family="Arial,sans-serif" font-size="9" fill="#fff" font-weight="bold" letter-spacing="0.3">
+        <textPath href="#topArc" startOffset="3%">NATIONAL ACCREDITATION BOARD FOR TESTING AND</textPath>
       </text>
-      <text font-family="Arial,sans-serif" font-size="8.5" fill="white" font-weight="bold" letter-spacing="0.5">
-        <textPath href="#botArc" startOffset="8%">CALIBRATION LABORATORIES · INDIA ·</textPath>
+      <!-- Arc text bottom -->
+      <text font-family="Arial,sans-serif" font-size="9" fill="#fff" font-weight="bold" letter-spacing="0.3">
+        <textPath href="#botArc" startOffset="12%">CALIBRATION LABORATORIES</textPath>
       </text>
-      <!-- Hindi text ring (simplified) -->
-      <text font-family="Arial,sans-serif" font-size="7.5" fill="#1a237e" text-anchor="middle">
-        <textPath href="#hindiArc" startOffset="15%">राष्ट्रीय परीक्षण एवं अंशांकन प्रयोगशाला</textPath>
-      </text>
-      <!-- INDIA text inside star area -->
-      <text x="100" y="174" font-family="Arial,sans-serif" font-size="7" fill="white" text-anchor="middle" font-weight="bold">INDIA</text>
-      <!-- Bottom laurel leaves (simplified) -->
-      <g fill="#1a237e" opacity="0.85">
-        <ellipse cx="68" cy="196" rx="14" ry="5" transform="rotate(-30,68,196)"/>
-        <ellipse cx="56" cy="204" rx="12" ry="4" transform="rotate(-20,56,204)"/>
-        <ellipse cx="132" cy="196" rx="14" ry="5" transform="rotate(30,132,196)"/>
-        <ellipse cx="144" cy="204" rx="12" ry="4" transform="rotate(20,144,204)"/>
-      </g>
-      <!-- NABL text -->
-      <text x="100" y="225" font-family="Arial Black,Arial,sans-serif" font-size="22" fill="#1a237e" text-anchor="middle" font-weight="900" letter-spacing="3">NABL</text>
+      <!-- NABL label at bottom -->
+      <text x="100" y="192" font-family="Arial Black,Arial,sans-serif" font-size="18" fill="#1a237e"
+            text-anchor="middle" font-weight="900" letter-spacing="2">NABL</text>
     </svg>
-    ${d.labAccreditation ? `<div style="font-size:9px;color:#1a237e;font-weight:bold;text-align:center;margin-top:2px">${esc(d.labAccreditation)}</div>` : ''}
+    ${d.labAccreditation ? `<div style="font-size:9px;color:#1a237e;font-weight:bold;text-align:center;margin-top:1px">${esc(d.labAccreditation)}</div>` : ''}
   </div>
+
 </div>
 
 <!-- ══ CERT META STRIP ════════════════════════════════════════════ -->

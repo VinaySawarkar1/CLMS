@@ -400,9 +400,11 @@ export default function Jobs() {
                 <Select
                   placeholder={customerId ? 'Select instrument' : 'Select customer first'}
                   disabled={!customerId}
+                  showSearch
+                  filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
                   options={instruments.map((i: any) => ({
                     value: i.id,
-                    label: `${i.name}${i.serialNumber ? ` (${i.serialNumber})` : ''}`,
+                    label: [i.name, i.make, i.serialNumber ? `SN:${i.serialNumber}` : '', i.idNumber ? `ID:${i.idNumber}` : ''].filter(Boolean).join(' · '),
                   }))}
                 />
               </Form.Item>
@@ -640,7 +642,7 @@ export default function Jobs() {
                 onChange={setBulkSelectedInstruments}
                 options={(bulkInstruments as any[]).map((i: any) => ({
                   value: i.id,
-                  label: `${i.name}${i.serialNumber ? ` (SN: ${i.serialNumber})` : ''}`,
+                  label: [i.name, i.make, i.serialNumber ? `SN:${i.serialNumber}` : '', i.idNumber ? `ID:${i.idNumber}` : ''].filter(Boolean).join(' · '),
                 }))}
                 style={{ width: '100%' }}
                 filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}

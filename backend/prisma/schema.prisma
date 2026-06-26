@@ -43,8 +43,11 @@ enum JobStatus {
 }
 
 enum SignatureStage {
+  ENGINEER
+  REVIEWER
   TECHNICAL_MANAGER
   QUALITY_MANAGER
+  FINAL_LOCK
 }
 
 enum CertificateType {
