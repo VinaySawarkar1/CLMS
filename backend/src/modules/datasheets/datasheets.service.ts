@@ -117,6 +117,14 @@ export class DatasheetsService {
     let failCount = 0;
     let evaluated = 0;
 
+    // Automatic corrections (Module 13): reference + environmental + instrument,
+    // stored on the datasheet's environmental JSON as `corrections`.
+    const corr: any = (ds.environmental as any)?.corrections ?? {};
+    const appliedCorrection =
+      (Number(corr.reference) || 0) +
+      (Number(corr.environmental) || 0) +
+      (Number(corr.instrument) || 0);
+
     for (const obs of ds.observations) {
       const data: any = (obs.data as any) ?? {};
       const readings: number[] = Array.isArray(data.readings)
@@ -133,6 +141,7 @@ export class DatasheetsService {
         standardValue: obs.standardValue ?? 0,
         previousObserved,
         mpe: data.mpe,
+        appliedCorrection,
       });
 
       // Fall back to any previously stored observed value when no readings.
@@ -157,6 +166,7 @@ export class DatasheetsService {
             uA: r.uA,
             drift: r.drift,
             result: r.result,
+            appliedCorrection,
           } as Prisma.InputJsonValue,
         },
       });

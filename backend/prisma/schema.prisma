@@ -817,3 +817,20 @@ model CustomerFeedback {
   @@index([labId])
   @@index([customerId])
 }
+
+// ─────────────── Module 13: Reusable formulas (config-driven) ─────
+model FormulaMaster {
+  id          String   @id @default(uuid())
+  labId       String
+  name        String
+  expression  String   // e.g. "ROUND(AVERAGE(r1,r2,r3) - std, 3)"
+  variables   String[] // declared variable names
+  constants   Json?    // { "k": 2, "g": 9.81 }
+  unit        String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([labId])
+}

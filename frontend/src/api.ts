@@ -248,6 +248,17 @@ export const importMpeRules = (records: any[]) => post('/calibration-masters/mpe
 export const lookupMpe = (p: { discipline: string; parameter: string; value?: number; accuracyClass?: string; standard?: string }) =>
   get('/calibration-masters/mpe/lookup', p);
 
+// Reusable formulas + unit conversion (Module 13)
+export const getFormulas = () => get('/calibration-masters/formulas');
+export const createFormula = (b: any) => post('/calibration-masters/formulas', b);
+export const updateFormula = (id: string, b: any) => patch(`/calibration-masters/formulas/${id}`, b);
+export const deleteFormula = (id: string) => del(`/calibration-masters/formulas/${id}`);
+export const evaluateFormula = (b: { expression: string; variables?: Record<string, number> }) =>
+  post('/calibration-masters/formulas/evaluate', b);
+export const getUnits = () => get('/calibration-masters/units');
+export const convertUnit = (p: { value: number; from: string; to: string }) =>
+  get('/calibration-masters/convert', p);
+
 // Instrument calibration recall (due / overdue)
 export const getRecallDue = (days?: number) => get('/instruments/due/recall', { days });
 

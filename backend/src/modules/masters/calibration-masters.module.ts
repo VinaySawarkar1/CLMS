@@ -5,6 +5,8 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { evaluate } from '../../common/formula/formula-engine';
+import { convert, supportedUnits } from '../../common/formula/unit-convert';
 
 // ─────────────────────────── CMC / Scope master ──────────────────────────────
 
@@ -209,6 +211,74 @@ class CalibrationMastersService {
       : rule.mpeValue;
     return { rule, mpeValue: rule.mpeValue, mpeIsPercent: rule.mpeIsPercent, mpeAbsolute, unit: rule.unit };
   }
+
+  // ── Module 13: Reusable formulas + unit conversion ──
+
+  listFormulas(labId: string) {
+    return this.prisma.formulaMaster.findMany({
+      where: { labId, isActive: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  createFormula(labId: string, d: any) {
+    if (!d.name || !d.expression) throw new BadRequestException('name and expression are required');
+    // Validate the expression compiles against its declared variables/constants.
+    this.evaluateFormula(d.expression, this.zeroContext(d.variables, d.constants));
+    return this.prisma.formulaMaster.create({
+      data: {
+        labId,
+        name: d.name,
+        expression: d.expression,
+        variables: Array.isArray(d.variables) ? d.variables : [],
+        constants: (d.constants ?? undefined) as Prisma.InputJsonValue | undefined,
+        unit: d.unit,
+        description: d.description,
+      },
+    });
+  }
+
+  async updateFormula(id: string, labId: string, d: any) {
+    const existing = await this.prisma.formulaMaster.findFirst({ where: { id, labId } });
+    if (!existing) throw new NotFoundException('Formula not found');
+    if (d.expression) this.evaluateFormula(d.expression, this.zeroContext(d.variables ?? existing.variables, d.constants));
+    return this.prisma.formulaMaster.update({ where: { id }, data: d as Prisma.FormulaMasterUpdateInput });
+  }
+
+  async removeFormula(id: string, labId: string) {
+    const existing = await this.prisma.formulaMaster.findFirst({ where: { id, labId } });
+    if (!existing) throw new NotFoundException('Formula not found');
+    await this.prisma.formulaMaster.update({ where: { id }, data: { isActive: false } });
+    return { deleted: true };
+  }
+
+  /** Evaluate an arbitrary expression against supplied variables + constants. */
+  evaluateFormula(expression: string, variables: Record<string, number>) {
+    try {
+      return evaluate(expression, variables);
+    } catch (e: any) {
+      throw new BadRequestException(`Formula error: ${e?.message ?? 'invalid expression'}`);
+    }
+  }
+
+  private zeroContext(variables?: string[], constants?: Record<string, number>): Record<string, number> {
+    const ctx: Record<string, number> = {};
+    for (const v of variables ?? []) ctx[v] = 0;
+    for (const [k, val] of Object.entries(constants ?? {})) ctx[k] = Number(val) || 0;
+    return ctx;
+  }
+
+  convertUnit(value: number, from: string, to: string) {
+    try {
+      return { value, from, to, result: convert(value, from, to) };
+    } catch (e: any) {
+      throw new BadRequestException(e?.message ?? 'Conversion failed');
+    }
+  }
+
+  units() {
+    return supportedUnits();
+  }
 }
 
 @UseGuards(JwtAuthGuard)
@@ -301,6 +371,44 @@ class CalibrationMastersController {
       catch (e: any) { out.push({ error: e?.message, input: r }); }
     }
     return { imported: out.filter((r) => !r.error).length, errors: out.filter((r) => r.error) };
+  }
+
+  // ── Module 13: Reusable formulas + unit conversion ──
+
+  @Get('formulas')
+  listFormulas(@Request() req: any) {
+    return this.svc.listFormulas(req.user.labId);
+  }
+
+  @Post('formulas')
+  createFormula(@Request() req: any, @Body() body: any) {
+    return this.svc.createFormula(req.user.labId, body);
+  }
+
+  @Patch('formulas/:id')
+  updateFormula(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateFormula(id, req.user.labId, body);
+  }
+
+  @Delete('formulas/:id')
+  removeFormula(@Request() req: any, @Param('id') id: string) {
+    return this.svc.removeFormula(id, req.user.labId);
+  }
+
+  /** Evaluate an expression against supplied variables (live formula tester). */
+  @Post('formulas/evaluate')
+  evaluate(@Body() body: { expression: string; variables?: Record<string, number> }) {
+    return { result: this.svc.evaluateFormula(body.expression, body.variables ?? {}) };
+  }
+
+  @Get('units')
+  units() {
+    return this.svc.units();
+  }
+
+  @Get('convert')
+  convert(@Query('value') value: string, @Query('from') from: string, @Query('to') to: string) {
+    return this.svc.convertUnit(Number(value), from, to);
   }
 }
 

@@ -11,6 +11,7 @@ import dayjs from 'dayjs';
 import {
   getCmcScopes, createCmcScope, updateCmcScope, deleteCmcScope,
   getMpeRules, createMpeRule, updateMpeRule, deleteMpeRule, lookupMpe,
+  getFormulas, createFormula, deleteFormula, evaluateFormula, convertUnit,
 } from '../api';
 import { exportToCsv } from '../utils/export';
 
@@ -252,9 +253,119 @@ export default function CalibrationMasters() {
           items={[
             { key: 'cmc', label: 'CMC / NABL Scope', children: <CmcScopeTab /> },
             { key: 'mpe', label: 'MPE Rules', children: <MpeTab /> },
+            { key: 'formulas', label: 'Formulas & Units', children: <FormulasTab /> },
           ]}
         />
       </Card>
     </div>
+  );
+}
+
+// ── Module 13: Reusable formulas + unit conversion ──────────────────────────
+function FormulasTab() {
+  const qc = useQueryClient();
+  const [form] = Form.useForm();
+  const [open, setOpen] = useState(false);
+  const [testVars, setTestVars] = useState('');
+  const [testExpr, setTestExpr] = useState('');
+  const [testResult, setTestResult] = useState<string>('');
+  const [conv, setConv] = useState<{ value?: number; from: string; to: string; result?: number }>({ from: 'mm', to: 'inch' });
+
+  const { data: formulas = [], isLoading } = useQuery({ queryKey: ['formulas'], queryFn: getFormulas });
+
+  const saveMut = useMutation({
+    mutationFn: (v: any) => createFormula({
+      ...v,
+      variables: (v.variables ? String(v.variables).split(',').map((s: string) => s.trim()).filter(Boolean) : []),
+      constants: v.constants ? JSON.parse(v.constants) : undefined,
+    }),
+    onSuccess: () => { message.success('Formula saved'); setOpen(false); form.resetFields(); qc.invalidateQueries({ queryKey: ['formulas'] }); },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Save failed (check expression / constants JSON)'),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => deleteFormula(id),
+    onSuccess: () => { message.success('Removed'); qc.invalidateQueries({ queryKey: ['formulas'] }); },
+  });
+
+  const runTest = async () => {
+    try {
+      const variables = testVars ? JSON.parse(testVars) : {};
+      const r = await evaluateFormula({ expression: testExpr, variables });
+      setTestResult(String(r.result));
+    } catch (e: any) {
+      setTestResult(e?.response?.data?.message ?? 'Error');
+    }
+  };
+
+  const runConvert = async () => {
+    if (conv.value == null) return;
+    try {
+      const r = await convertUnit({ value: conv.value, from: conv.from, to: conv.to });
+      setConv((c) => ({ ...c, result: r.result }));
+    } catch (e: any) {
+      message.error(e?.response?.data?.message ?? 'Conversion failed');
+    }
+  };
+
+  const columns = [
+    { title: 'Name', dataIndex: 'name', key: 'name', render: (v: string) => <Text strong>{v}</Text> },
+    { title: 'Expression', dataIndex: 'expression', key: 'expression', render: (v: string) => <Tag style={{ fontFamily: 'monospace' }}>{v}</Tag> },
+    { title: 'Variables', dataIndex: 'variables', key: 'variables', render: (v: string[]) => (v ?? []).join(', ') || '—' },
+    { title: 'Unit', dataIndex: 'unit', key: 'unit', render: (v: string) => v || '—' },
+    {
+      title: '', key: 'actions', width: 60,
+      render: (_: any, r: any) => (
+        <Popconfirm title="Remove this formula?" onConfirm={() => delMut.mutate(r.id)}>
+          <Button size="small" danger icon={<DeleteOutlined />} />
+        </Popconfirm>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <Row gutter={16}>
+        <Col xs={24} md={14}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text type="secondary">Reusable formulas (functions: SQRT, ABS, ROUND, IF, AVERAGE, SUM, MAX, MIN, LOG, SIN, COS, TAN).</Text>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setOpen(true); }}>Add Formula</Button>
+          </div>
+          <Table rowKey="id" size="small" loading={isLoading} dataSource={formulas as any[]} columns={columns} pagination={{ pageSize: 8 }} />
+        </Col>
+        <Col xs={24} md={10}>
+          <Card size="small" title="Formula Tester" style={{ marginBottom: 16 }}>
+            <Input placeholder="Expression e.g. ROUND((a+b)/2 - std, 3)" value={testExpr} onChange={(e) => setTestExpr(e.target.value)} style={{ marginBottom: 8 }} />
+            <Input placeholder='Variables JSON e.g. {"a":10.1,"b":10.3,"std":10}' value={testVars} onChange={(e) => setTestVars(e.target.value)} style={{ marginBottom: 8 }} />
+            <Space>
+              <Button onClick={runTest} icon={<ThunderboltOutlined />}>Evaluate</Button>
+              {testResult !== '' && <Tag color="green" style={{ fontFamily: 'monospace' }}>= {testResult}</Tag>}
+            </Space>
+          </Card>
+          <Card size="small" title="Unit Converter">
+            <Space wrap>
+              <InputNumber placeholder="Value" value={conv.value} onChange={(v) => setConv((c) => ({ ...c, value: v ?? undefined }))} />
+              <Input placeholder="from (mm)" style={{ width: 90 }} value={conv.from} onChange={(e) => setConv((c) => ({ ...c, from: e.target.value }))} />
+              <Input placeholder="to (inch)" style={{ width: 90 }} value={conv.to} onChange={(e) => setConv((c) => ({ ...c, to: e.target.value }))} />
+              <Button onClick={runConvert}>Convert</Button>
+              {conv.result != null && <Tag color="blue" style={{ fontFamily: 'monospace' }}>= {Number(conv.result).toPrecision(6)}</Tag>}
+            </Space>
+            <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 11 }}>Supports length, mass, pressure, time and temperature (C/F/K).</Text></div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Modal title="Add Formula" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={saveMut.isPending}>
+        <Form form={form} layout="vertical" onFinish={(v) => saveMut.mutate(v)}>
+          <Form.Item name="name" label="Name" rules={[{ required: true }]}><Input placeholder="e.g. Mean Correction" /></Form.Item>
+          <Form.Item name="expression" label="Expression" rules={[{ required: true }]}><Input placeholder="ROUND(AVERAGE(r1,r2,r3) - std, 3)" /></Form.Item>
+          <Form.Item name="variables" label="Variables (comma-separated)"><Input placeholder="r1, r2, r3, std" /></Form.Item>
+          <Form.Item name="constants" label="Constants (JSON, optional)"><Input placeholder='{"k": 2}' /></Form.Item>
+          <Row gutter={12}>
+            <Col span={12}><Form.Item name="unit" label="Unit"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="description" label="Description"><Input /></Form.Item></Col>
+          </Row>
+        </Form>
+      </Modal>
+    </>
   );
 }

@@ -15,6 +15,11 @@ export interface PointInput {
   previousObserved?: number | null;
   /** Maximum permissible error (absolute). When omitted, Pass/Fail is null. */
   mpe?: number | null;
+  /**
+   * Total applied correction (reference + environmental + instrument), added to
+   * the mean reading before deriving error/correction/Pass-Fail (Module 13).
+   */
+  appliedCorrection?: number | null;
 }
 
 export interface PointResult {
@@ -47,7 +52,9 @@ export function computePoint(input: PointInput): PointResult {
   let uA = 0;
 
   if (readings.length) {
-    mean = readings.reduce((a, b) => a + b, 0) / readings.length;
+    const rawMean = readings.reduce((a, b) => a + b, 0) / readings.length;
+    // Apply automatic corrections (reference/environmental/instrument).
+    mean = rawMean + (Number(input.appliedCorrection) || 0);
     repeatability = Math.max(...readings) - Math.min(...readings);
     stdDev = sampleStdDev(readings);
     uA = stdDev / Math.sqrt(readings.length);
