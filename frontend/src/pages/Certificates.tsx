@@ -5,11 +5,11 @@ import {
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined, HistoryOutlined, EditOutlined,
+  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined, HistoryOutlined, EditOutlined, QrcodeOutlined,
 } from '@ant-design/icons';
 import {
   getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser,
-  reviseCertificate, getCertificateRevisions,
+  reviseCertificate, getCertificateRevisions, openStickerReport,
 } from '../api';
 import { exportToCsv } from '../utils/export';
 
@@ -322,6 +322,12 @@ export default function Certificates() {
                   onClick={() => openCertificateReport(cert.id)}
                 >
                   Print / View PDF
+                </Button>
+                <Button
+                  icon={<QrcodeOutlined />}
+                  onClick={() => openStickerReport(cert.id)}
+                >
+                  Sticker
                 </Button>
                 {cert.isLocked && isAdmin && (
                   <Button icon={<EditOutlined />} onClick={() => setReviseOpen(true)}>
