@@ -45,7 +45,11 @@ export interface CertificateReportData {
   labAddress?: string | null;
   labPhone?: string | null;
   labEmail?: string | null;
+  labWebsite?: string | null;
   labAccreditation?: string | null;  // NABL CC No.
+  labLogoUrl?: string | null;        // base64 data URL or https URL
+  labSignatoryName?: string | null;
+  labSignatoryDesignation?: string | null;
 
   // Customer
   customerName: string;
@@ -307,9 +311,11 @@ function renderNablHtml(d: CertificateReportData, iso = false): string {
 <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
 <div class="top-header">
   <div class="lab-info">
+    ${d.labLogoUrl ? `<img src="${d.labLogoUrl}" alt="Lab Logo" style="max-height:60px;max-width:180px;object-fit:contain;display:block;margin-bottom:6px;"/>` : ''}
     <div class="lab-name-big">${esc(d.labName || 'Calibration Laboratory')}</div>
-    <div class="lab-addr">${esc(d.labAddress || '')}</div>
-    ${d.labPhone ? `<div class="lab-addr">Tel: ${esc(d.labPhone)}${d.labEmail ? ' &nbsp;|&nbsp; E-Mail: ' + esc(d.labEmail) : ''}</div>` : ''}
+    ${d.labAddress ? `<div class="lab-addr">${esc(d.labAddress)}</div>` : ''}
+    ${(d.labPhone || d.labEmail) ? `<div class="lab-addr">${d.labPhone ? 'Tel: ' + esc(d.labPhone) : ''}${d.labPhone && d.labEmail ? ' &nbsp;|&nbsp; ' : ''}${d.labEmail ? 'E-Mail: ' + esc(d.labEmail) : ''}</div>` : ''}
+    ${d.labWebsite ? `<div class="lab-addr">Web: ${esc(d.labWebsite)}</div>` : ''}
   </div>
   <div class="cert-heading">
     <h1>${iso ? 'ISO/IEC 17025 CALIBRATION REPORT' : 'CERTIFICATE OF CALIBRATION'}</h1>
@@ -455,8 +461,8 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
   </div>
   <div class="sign-block">
     <div style="height:36px"></div>
-    <div class="sign-name">Authorized Signatory</div>
-    <div class="sign-desig">Technical Manager</div>
+    <div class="sign-name">${esc(d.labSignatoryName || 'Authorized Signatory')}</div>
+    <div class="sign-desig">${esc(d.labSignatoryDesignation || 'Technical Manager')}</div>
   </div>` : ''}
 </div>
 
@@ -504,6 +510,7 @@ function renderCompactHtml(d: CertificateReportData): string {
   .unc { margin-top:6px; font-size:11px; border:1px solid #43a047; background:#e8f5e9; padding:4px 8px; }
   .foot { margin-top:8px; font-size:9px; color:#666; border-top:1px solid #ccc; padding-top:4px; }
 </style></head><body>
+${d.labLogoUrl ? `<div style="text-align:center;margin-bottom:6px"><img src="${d.labLogoUrl}" alt="Logo" style="max-height:48px;max-width:160px;object-fit:contain"/></div>` : ''}
 <h2>${esc(d.labName || 'Calibration Laboratory')}</h2>
 <div class="sub">CERTIFICATE OF CALIBRATION &nbsp;|&nbsp; ${esc(d.certificateNumber)} &nbsp;|&nbsp; ${new Date(d.issueDate).toLocaleDateString('en-IN')}</div>
 <div class="grid">
@@ -593,10 +600,13 @@ function renderCustomerBrandedHtml(d: CertificateReportData): string {
   .footer { background:#f5f5f5; border-top:1px solid #ddd; padding:12px 28px; font-size:10px; color:#666; display:flex; justify-content:space-between; }
 </style></head><body>
 <div class="header">
-  <div>
-    <h1>${esc(d.labName || 'Calibration Laboratory')}</h1>
-    <div class="cert-no">Cert. No.: ${esc(d.certificateNumber)} &nbsp;|&nbsp; Date: ${new Date(d.issueDate).toLocaleDateString('en-IN')}</div>
-    ${d.labAccreditation ? `<div class="cert-no">NABL Accredited — ${esc(d.labAccreditation)}</div>` : ''}
+  <div style="display:flex;align-items:center;gap:14px">
+    ${d.labLogoUrl ? `<img src="${d.labLogoUrl}" alt="Logo" style="max-height:52px;max-width:140px;object-fit:contain;filter:brightness(0) invert(1);opacity:0.9"/>` : ''}
+    <div>
+      <h1>${esc(d.labName || 'Calibration Laboratory')}</h1>
+      <div class="cert-no">Cert. No.: ${esc(d.certificateNumber)} &nbsp;|&nbsp; Date: ${new Date(d.issueDate).toLocaleDateString('en-IN')}</div>
+      ${d.labAccreditation ? `<div class="cert-no">NABL Accredited — ${esc(d.labAccreditation)}</div>` : ''}
+    </div>
   </div>
   <div style="text-align:right; opacity:0.9; font-size:12px"><b>CERTIFICATE OF CALIBRATION</b><br/>ISO/IEC 17025:2017</div>
 </div>
