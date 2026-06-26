@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
   Card, Col, Row, Typography, Space, Tag, Button, Divider, Alert, Spin, message,
+  Form, Input,
 } from 'antd';
 import {
   SettingOutlined, CheckCircleFilled, SafetyCertificateOutlined,
   FileTextOutlined, CompressOutlined, ApartmentOutlined, UserOutlined,
-  DatabaseOutlined,
+  DatabaseOutlined, EditOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLabSettings, updateLabSettings, loadSampleData, getUser } from '../api';
@@ -92,6 +93,20 @@ export default function Settings() {
     onError: () => message.error('Failed to save settings'),
   });
 
+  const [profileForm] = Form.useForm();
+  const [profileEditing, setProfileEditing] = useState(false);
+  const profileMutation = useMutation({
+    mutationFn: (values: Record<string, string>) => updateLabSettings(labId, values),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lab-settings', labId] });
+      message.success('Lab profile saved');
+      setProfileEditing(false);
+    },
+    onError: () => message.error('Failed to save profile'),
+  });
+
+  const s = settings as any ?? {};
+
   const [seedLoading, setSeedLoading] = useState(false);
   const [seedResult, setSeedResult] = useState<{ type: 'success' | 'info'; msg: string } | null>(null);
 
@@ -165,6 +180,107 @@ export default function Settings() {
         <Divider style={{ margin: '16px 0' }} />
         <Paragraph type="secondary" style={{ margin: 0, fontSize: 12 }}>
           Lab information is managed by the platform administrator. Contact support to update accreditation details.
+        </Paragraph>
+      </Card>
+
+      {/* Lab Profile (editable) */}
+      <Card
+        style={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: 24 }}
+        title={
+          <Space>
+            <EditOutlined style={{ color: '#52c41a' }} />
+            <span style={{ fontWeight: 700 }}>Lab Profile</span>
+          </Space>
+        }
+        extra={
+          profileEditing ? (
+            <Space>
+              <Button size="small" onClick={() => setProfileEditing(false)}>Cancel</Button>
+              <Button
+                size="small" type="primary" icon={<SaveOutlined />}
+                loading={profileMutation.isPending}
+                onClick={() => profileForm.submit()}
+              >Save</Button>
+            </Space>
+          ) : (
+            <Button
+              size="small" icon={<EditOutlined />}
+              onClick={() => {
+                profileForm.setFieldsValue({
+                  labPhone: s.labPhone ?? '',
+                  labEmail: s.labEmail ?? '',
+                  labWebsite: s.labWebsite ?? '',
+                  logoUrl: s.logoUrl ?? '',
+                  signatoryName: s.signatoryName ?? '',
+                  signatoryDesignation: s.signatoryDesignation ?? '',
+                });
+                setProfileEditing(true);
+              }}
+            >Edit</Button>
+          )
+        }
+      >
+        {isLoading ? <Spin /> : profileEditing ? (
+          <Form form={profileForm} layout="vertical" onFinish={(vals) => profileMutation.mutate(vals)}>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={8}>
+                <Form.Item name="labPhone" label="Phone">
+                  <Input placeholder="+91 98765 43210" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="labEmail" label="Email" rules={[{ type: 'email', message: 'Enter valid email' }]}>
+                  <Input placeholder="lab@example.com" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="labWebsite" label="Website">
+                  <Input placeholder="https://www.yourlab.com" />
+                </Form.Item>
+              </Col>
+              <Col xs={24}>
+                <Form.Item name="logoUrl" label="Logo URL" help="Paste a public image URL or base64 data URL — shown on certificates">
+                  <Input placeholder="https://..." />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="signatoryName" label="Authorized Signatory Name">
+                  <Input placeholder="Dr. A. Kumar" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="signatoryDesignation" label="Authorized Signatory Designation">
+                  <Input placeholder="Technical Manager / Quality Manager" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Form>
+        ) : (
+          <Row gutter={[24, 16]}>
+            {[
+              { label: 'Phone', value: s.labPhone },
+              { label: 'Email', value: s.labEmail },
+              { label: 'Website', value: s.labWebsite },
+              { label: 'Authorized Signatory', value: s.signatoryName ? `${s.signatoryName}${s.signatoryDesignation ? ` — ${s.signatoryDesignation}` : ''}` : undefined },
+              { label: 'Logo URL', value: s.logoUrl },
+            ].map(({ label, value }) => (
+              <Col xs={24} md={8} key={label}>
+                <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>
+                <div style={{ fontWeight: 500, marginTop: 4, wordBreak: 'break-all', fontSize: 13 }}>
+                  {value || <Text type="secondary">Not set</Text>}
+                </div>
+              </Col>
+            ))}
+            {s.logoUrl && (
+              <Col xs={24}>
+                <img src={s.logoUrl} alt="Lab Logo Preview" style={{ maxHeight: 60, maxWidth: 200, objectFit: 'contain', border: '1px solid #f0f0f0', borderRadius: 8, padding: 4 }} />
+              </Col>
+            )}
+          </Row>
+        )}
+        <Divider style={{ margin: '16px 0 0' }} />
+        <Paragraph type="secondary" style={{ margin: 0, fontSize: 12 }}>
+          These details appear in the header and footer of all calibration certificates.
         </Paragraph>
       </Card>
 

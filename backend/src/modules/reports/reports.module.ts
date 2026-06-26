@@ -27,6 +27,12 @@ import {
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async getLabSettings(labId: string): Promise<Record<string, any>> {
+    const key = `lab_settings:${labId}`;
+    const row = await this.prisma.setting.findUnique({ where: { key } });
+    return (row?.value as any) ?? {};
+  }
+
   async certificateHtml(certificateId: string): Promise<string> {
     const cert = await this.prisma.certificate.findUnique({
       where: { id: certificateId },
@@ -53,6 +59,7 @@ export class ReportsService {
     if (!cert) throw new NotFoundException('Certificate not found');
 
     const job = cert.job as any;
+    const labSettings = await this.getLabSettings(job.lab?.id ?? '');
     const datasheet = job.datasheets[0];
     const env = (datasheet?.environmental as any) ?? null;
 
@@ -106,6 +113,13 @@ export class ReportsService {
       labName: job.lab?.name,
       labAddress: job.lab?.address,
       labAccreditation: job.lab?.accreditationNumber,
+      labPhone: labSettings.labPhone,
+      labEmail: labSettings.labEmail,
+      labWebsite: labSettings.labWebsite,
+      labLogoUrl: labSettings.logoUrl,
+      labSignatoryName: labSettings.signatoryName,
+      labSignatoryDesignation: labSettings.signatoryDesignation,
+      template: labSettings.certTemplate ?? 'nabl',
 
       // Customer
       customerName: job.customer.name,
