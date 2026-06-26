@@ -39,6 +39,7 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
+          <Route path="/verify" element={<VerifyCertificate />} />
           <Route path="/verify/:id" element={<VerifyCertificate />} />
           <Route path="/portal" element={<CustomerPortal />} />
           <Route path="/register-lab" element={<RegisterLab />} />
@@ -65,6 +66,7 @@ export default function App() {
             </>
           ) : (
             <>
+              <Route path="/verify" element={<VerifyCertificate />} />
               <Route path="/verify/:id" element={<VerifyCertificate />} />
               <Route path="/portal" element={<CustomerPortal />} />
               <Route path="/" element={<Dashboard />} />

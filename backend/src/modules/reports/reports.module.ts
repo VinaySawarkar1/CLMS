@@ -105,6 +105,8 @@ export class ReportsService {
       certificateNumber: cert.certificateNumber,
       ulrNumber: ulr,
       type: cert.type,
+      revision: cert.revision,
+      isDraft: !cert.isLocked,
       issueDate: cert.issueDate,
       pageNumber: 1,
       totalPages: 1,

@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Row, Space, Steps, Tag, Typography, message, Spin,
+  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Modal, Row, Select, Space, Steps, Tag, Timeline, Typography, message, Spin,
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined,
+  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined, HistoryOutlined, EditOutlined,
 } from '@ant-design/icons';
-import { getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser } from '../api';
+import {
+  getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser,
+  reviseCertificate, getCertificateRevisions,
+} from '../api';
 import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
@@ -31,6 +34,10 @@ export default function Certificates() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [genType, setGenType] = useState<'NABL' | 'NON_NABL'>('NABL');
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const [reviseReason, setReviseReason] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const PAGE_SIZE = 10;
 
   const { data: jobs = [], isLoading } = useQuery({
@@ -72,13 +79,31 @@ export default function Certificates() {
   });
 
   const genMut = useMutation({
-    mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }),
+    mutationFn: (jobId: string) => generateCertificate({ jobId, type: genType }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
       message.success('Certificate generated successfully');
     },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to generate certificate'),
+  });
+
+  const reviseMut = useMutation({
+    mutationFn: () => reviseCertificate(cert!.id, reviseReason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      setReviseOpen(false);
+      setReviseReason('');
+      message.success('New revision created — certificate reopened for re-signing');
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to create revision'),
+  });
+
+  const { data: revisionData } = useQuery({
+    queryKey: ['cert-revisions', cert?.id],
+    queryFn: () => getCertificateRevisions(cert!.id),
+    enabled: !!cert?.id && historyOpen,
   });
 
 
@@ -263,25 +288,46 @@ export default function Certificates() {
         onClose={() => setSelectedJobId(null)}
         width={560}
         footer={
-          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }} wrap>
             {!cert && !detailLoading && detail && isAdmin && (
-              <Button
-                type="primary"
-                icon={<PlusCircleOutlined />}
-                loading={genMut.isPending}
-                onClick={() => genMut.mutate(detail.id)}
-              >
-                Generate Certificate
-              </Button>
+              <>
+                <Select
+                  value={genType}
+                  onChange={(v) => setGenType(v)}
+                  style={{ width: 150 }}
+                  options={[
+                    { value: 'NABL', label: 'NABL Certificate' },
+                    { value: 'NON_NABL', label: 'Non-NABL Certificate' },
+                  ]}
+                />
+                <Button
+                  type="primary"
+                  icon={<PlusCircleOutlined />}
+                  loading={genMut.isPending}
+                  onClick={() => genMut.mutate(detail.id)}
+                >
+                  Generate
+                </Button>
+              </>
             )}
             {cert && (
               <>
+                {cert.revision > 0 && (
+                  <Button icon={<HistoryOutlined />} onClick={() => setHistoryOpen(true)}>
+                    History
+                  </Button>
+                )}
                 <Button
                   icon={<PrinterOutlined />}
                   onClick={() => openCertificateReport(cert.id)}
                 >
                   Print / View PDF
                 </Button>
+                {cert.isLocked && isAdmin && (
+                  <Button icon={<EditOutlined />} onClick={() => setReviseOpen(true)}>
+                    Create Revision
+                  </Button>
+                )}
                 {!cert.isLocked && nextStage && (
                   <Button
                     type="primary"
@@ -325,6 +371,7 @@ export default function Certificates() {
               </Descriptions.Item>
               <Descriptions.Item label="Certificate No." span={1}>
                 <Tag color="geekblue">{cert.certificateNumber}</Tag>
+                {cert.revision > 0 && <Tag color="volcano">Rev {cert.revision}</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label="Customer" span={2}>
                 {detail?.customer?.name}
@@ -343,6 +390,11 @@ export default function Certificates() {
                   ? <Tag color="green" icon={<LockOutlined />}>Yes — Immutable</Tag>
                   : <Tag color="orange">No — Pending signatures</Tag>}
               </Descriptions.Item>
+              {cert.revision > 0 && cert.revisionReason && (
+                <Descriptions.Item label="Revision Reason" span={2}>
+                  <Text type="secondary">{cert.revisionReason}</Text>
+                </Descriptions.Item>
+              )}
             </Descriptions>
 
             {/* Signature workflow */}
@@ -381,6 +433,62 @@ export default function Certificates() {
           </Space>
         )}
       </Drawer>
+
+      {/* ── Create Revision modal ── */}
+      <Modal
+        title="Create Certificate Revision"
+        open={reviseOpen}
+        onCancel={() => setReviseOpen(false)}
+        okText="Create Revision"
+        okButtonProps={{ disabled: !reviseReason.trim(), loading: reviseMut.isPending }}
+        onOk={() => reviseMut.mutate()}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="The current certificate cannot be edited"
+          description="A new revision will be created. The current version is archived read-only, signatures are cleared, and the certificate is reopened for re-review and re-signing."
+        />
+        <Text strong>Reason for revision</Text>
+        <Input.TextArea
+          rows={3}
+          value={reviseReason}
+          onChange={(e) => setReviseReason(e.target.value)}
+          placeholder="e.g. Corrected nominal value at 50% range; customer reported transcription error."
+          style={{ marginTop: 8 }}
+        />
+      </Modal>
+
+      {/* ── Revision history modal ── */}
+      <Modal
+        title={<Space><HistoryOutlined />Revision History</Space>}
+        open={historyOpen}
+        onCancel={() => setHistoryOpen(false)}
+        footer={null}
+      >
+        {(revisionData?.history?.length ?? 0) === 0 ? (
+          <Text type="secondary">No previous revisions archived.</Text>
+        ) : (
+          <Timeline
+            items={(revisionData?.history ?? []).map((r: any) => ({
+              color: 'blue',
+              children: (
+                <div>
+                  <Text strong>{r.certificateNumber}</Text>{' '}
+                  <Tag color="volcano">Rev {r.revision}</Tag>
+                  <div><Text type="secondary" style={{ fontSize: 12 }}>
+                    Archived {new Date(r.archivedAt).toLocaleString()}
+                  </Text></div>
+                  {r.revisionReason && (
+                    <div><Text style={{ fontSize: 13 }}>Reason: {r.revisionReason}</Text></div>
+                  )}
+                </div>
+              ),
+            }))}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

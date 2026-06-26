@@ -385,8 +385,34 @@ model Certificate {
   pdfPath           String?
   isLocked          Boolean            @default(false)
   decisionRule      String?
+  // Revision control: 0 = original issue, 1 = Revision-1, etc.
+  // The certificate row always holds the LATEST revision; superseded revisions
+  // are archived (read-only) in CertificateRevision.
+  revision          Int                @default(0)
+  revisionReason    String?
   signatures        DigitalSignature[]
+  revisions         CertificateRevision[]
   createdAt         DateTime           @default(now())
+}
+
+// Immutable archive of a superseded certificate revision. One row is written
+// for each revision step, preserving the full history of a certificate.
+model CertificateRevision {
+  id                String          @id @default(uuid())
+  certificateId     String
+  certificate       Certificate     @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  revision          Int
+  certificateNumber String
+  type              CertificateType
+  issueDate         DateTime
+  qrHash            String?
+  decisionRule      String?
+  revisionReason    String?
+  // Snapshot of the certificate state (signatures, lock flag) at archive time.
+  snapshot          Json?
+  archivedAt        DateTime        @default(now())
+
+  @@index([certificateId])
 }
 
 model DigitalSignature {

@@ -32,6 +32,8 @@ export interface CertificateReportData {
   certificateNumber: string;
   ulrNumber?: string | null;         // Unique Lab Reference (NABL ULR No.)
   type: string;
+  revision?: number;                 // 0 = original issue, 1+ = Revision-n
+  isDraft?: boolean;                 // true until all signatures collected → DRAFT watermark
   issueDate: Date;
   pageNumber?: number;
   totalPages?: number;
@@ -277,10 +279,20 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   .page-footer-bar { display: flex; justify-content: space-between; font-size: 9px; color: #888;
     border-top: 1px dotted #ccc; margin-top: 4px; padding-top: 3px; }
 
+  /* ── Draft watermark (shown until certificate is fully signed/locked) ── */
+  .draft-watermark { position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg); z-index: 0; pointer-events: none;
+    font-size: 120px; font-weight: 900; letter-spacing: 12px;
+    color: rgba(220, 0, 0, 0.12); text-transform: uppercase; white-space: nowrap; }
+  .page { position: relative; z-index: 1; }
+  .rev-tag { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: bold;
+    color: #c62828; border: 1px solid #c62828; border-radius: 3px; padding: 0 3px; vertical-align: middle; }
+
   @media print { .page { padding: 0; } }
 </style>
 </head>
 <body>
+${d.isDraft ? '<div class="draft-watermark">DRAFT</div>' : ''}
 <div class="page">
 
 <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
@@ -350,7 +362,7 @@ export function renderCertificateHtml(d: CertificateReportData): string {
       <td class="hdr">No. of Pages</td>
     </tr>
     <tr>
-      <td><b>${esc(d.certificateNumber)}</b></td>
+      <td><b>${esc(d.certificateNumber)}</b>${d.revision && d.revision > 0 ? `<span class="rev-tag">REV ${d.revision}</span>` : ''}</td>
       <td>${fmtDate(d.dateOfReceipt)}</td>
       <td><b>${fmtDate(d.calibrationDate || d.issueDate)}</b></td>
       <td>${fmtDate(d.nextCalibrationDate)}</td>

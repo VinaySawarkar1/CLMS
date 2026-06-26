@@ -159,6 +159,10 @@ export async function openDatasheetReport(datasheetId: string) {
 export const generateCertificate = (b: any) => post('/certificates/generate', b);
 export const getCertificate = (id: string) => get(`/certificates/${id}`);
 export const signCertificate = (id: string, stage: string) => post(`/certificates/${id}/sign`, { stage });
+export const reviseCertificate = (id: string, reason: string) => post(`/certificates/${id}/revise`, { reason });
+export const getCertificateRevisions = (id: string) => get(`/certificates/${id}/revisions`);
+// Public lookup (no auth) by certificate number or job number.
+export const lookupCertificate = (q: string) => get('/certificates/lookup', { q });
 
 // Tasks
 export const getTaskBoard = () => get('/tasks/board');
