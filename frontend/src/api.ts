@@ -113,8 +113,6 @@ export const getCustomerTimeline = (id: string) => get(`/customers/${id}/timelin
 export const createCustomer = (b: any) => post('/customers', b);
 export const updateCustomer = (id: string, b: any) => patch(`/customers/${id}`, b);
 export const deleteCustomer = (id: string) => del(`/customers/${id}`);
-export const importCustomers = (records: any[]) => post('/customers/import', { records });
-
 // Instruments
 export const getInstruments = (customerId?: string) => get('/instruments', { customerId });
 export const createInstrument = (b: any) => post('/instruments', b);
@@ -184,7 +182,7 @@ export const setTaskStatus = (id: string, status: string) => patch(`/tasks/${id}
 // Billing
 export const getInvoices = () => get('/billing/invoices');
 export const createInvoice = (b: any) => post('/billing/invoices', b);
-export const payInvoice = (id: string, b: any) => post(`/billing/invoices/${id}/payments`, b);
+export const payInvoice = (id: string, b: any) => post(`/billing/invoices/${id}/pay`, b);
 
 // Inventory
 export const getInventory = (category?: string) => get('/inventory/items', { category });
@@ -325,3 +323,49 @@ export async function downloadBackup() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ── CRM Modules ──────────────────────────────────────────────────────────────
+
+// Enhanced Customer API
+export const getCustomerStats = (id: string) => get(`/customers/${id}/stats`);
+export const getCustomerLedger = (id: string) => get(`/customers/${id}/ledger`);
+export const importCustomers = (records: any[]) => post('/customers/import', { records });
+
+// Enhanced Quotations
+export const getQuotation = (id: string) => get(`/quotations/${id}`);
+export const updateQuotation = (id: string, b: any) => patch(`/quotations/${id}`, b);
+export const deleteQuotation = (id: string) => del(`/quotations/${id}`);
+export const duplicateQuotation = (id: string) => post(`/quotations/${id}/duplicate`, {});
+export const getQuotationStats = () => get('/quotations/stats');
+
+// Purchase Orders
+export const getPurchaseOrders = (params?: { search?: string; status?: string }) => get('/purchase-orders', params);
+export const getPurchaseOrder = (id: string) => get(`/purchase-orders/${id}`);
+export const createPurchaseOrder = (b: any) => post('/purchase-orders', b);
+export const updatePurchaseOrder = (id: string, b: any) => patch(`/purchase-orders/${id}`, b);
+export const setPurchaseOrderStatus = (id: string, status: string, reason?: string) =>
+  patch(`/purchase-orders/${id}/status`, { status, reason });
+export const deletePurchaseOrder = (id: string) => del(`/purchase-orders/${id}`);
+export const getPurchaseOrderStats = () => get('/purchase-orders/stats');
+
+// Delivery Challans
+export const getDeliveryChallans = (params?: { search?: string; status?: string }) => get('/delivery-challans', params);
+export const getDeliveryChallan = (id: string) => get(`/delivery-challans/${id}`);
+export const createDeliveryChallan = (b: any) => post('/delivery-challans', b);
+export const updateDeliveryChallan = (id: string, b: any) => patch(`/delivery-challans/${id}`, b);
+export const dispatchChallan = (id: string) => patch(`/delivery-challans/${id}/dispatch`, {});
+export const markChallanDelivered = (id: string) => patch(`/delivery-challans/${id}/deliver`, {});
+export const setDeliveryChallanStatus = (id: string, status: string, reason?: string) =>
+  patch(`/delivery-challans/${id}/status`, { status, reason });
+export const deleteDeliveryChallan = (id: string) => del(`/delivery-challans/${id}`);
+export const getDeliveryChallanStats = () => get('/delivery-challans/stats');
+
+// Enhanced Invoices
+export const getInvoice = (id: string) => get(`/billing/invoices/${id}`);
+export const createInvoiceDraft = (b: any) => post('/billing/invoices/draft', b);
+export const finaliseInvoice = (id: string) => patch(`/billing/invoices/${id}/finalise`, {});
+export const updateInvoice = (id: string, b: any) => patch(`/billing/invoices/${id}`, b);
+export const recordPayment = (id: string, b: any) => post(`/billing/invoices/${id}/pay`, b);
+export const cancelInvoice = (id: string) => patch(`/billing/invoices/${id}/cancel`, {});
+export const deleteInvoice = (id: string) => del(`/billing/invoices/${id}`);
+export const getInvoiceStats = () => get('/billing/invoices/stats');

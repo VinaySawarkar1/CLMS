@@ -30,6 +30,10 @@ import Documents from './pages/Documents';
 import InternalAudit from './pages/InternalAudit';
 import CustomerPortal from './pages/CustomerPortal';
 import Settings from './pages/Settings';
+import Quotations from './pages/Quotations';
+import Invoices from './pages/Invoices';
+import PurchaseOrders from './pages/PurchaseOrders';
+import DeliveryChallans from './pages/DeliveryChallans';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
@@ -95,6 +99,10 @@ export default function App() {
         <Route element={<LayoutShell onLogout={() => setAuthed(false)} />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
+          <Route path="/quotations" element={<Quotations />} />
+          <Route path="/invoices" element={<Invoices />} />
+          <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/delivery-challans" element={<DeliveryChallans />} />
           <Route path="/instruments" element={<Instruments />} />
           <Route path="/reference-standards" element={<ReferenceStandards />} />
           <Route path="/calibration-masters" element={<CalibrationMasters />} />

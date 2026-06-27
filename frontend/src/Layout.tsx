@@ -12,6 +12,7 @@ import {
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
   GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
   ApartmentOutlined, StarOutlined, AppstoreOutlined,
+  ShoppingCartOutlined, CarOutlined, DollarOutlined, FileDoneOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -32,9 +33,18 @@ const NAV_GROUPS: NavGroup[] = [
   },
   // Note: '/' navigates back to the Hub launcher (full-screen, no sidebar)
   {
-    key: 'calibration', label: 'Calibration',
+    key: 'crm', label: 'CRM & Sales',
     children: [
       { key: '/customers', label: 'Customers', icon: <TeamOutlined />, perm: 'customers' },
+      { key: '/quotations', label: 'Quotations', icon: <FileDoneOutlined />, perm: 'billing' },
+      { key: '/purchase-orders', label: 'Purchase Orders', icon: <ShoppingCartOutlined />, perm: 'billing' },
+      { key: '/delivery-challans', label: 'Delivery Challans', icon: <CarOutlined />, perm: 'billing' },
+      { key: '/invoices', label: 'Invoices', icon: <DollarOutlined />, perm: 'billing' },
+    ],
+  },
+  {
+    key: 'calibration', label: 'Calibration',
+    children: [
       { key: '/instruments', label: 'Instrument Entry', icon: <ToolOutlined />, perm: 'instruments' },
       { key: '/reference-standards', label: 'Reference Standards', icon: <GoldOutlined />, perm: 'instruments' },
       { key: '/calibration-masters', label: 'Calibration Masters', icon: <ApartmentOutlined />, perm: 'instruments' },
@@ -42,6 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: '/certificates', label: 'Certificates', icon: <SafetyCertificateOutlined />, perm: 'certificates' },
     ],
   },
+
   {
     key: 'operations', label: 'Operations',
     children: [

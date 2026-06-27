@@ -95,6 +95,56 @@ export class CustomersService {
     return this.prisma.customer.delete({ where: { id } });
   }
 
+  async stats(id: string, labId: string) {
+    await this.findOne(id, labId);
+    const [quotations, invoices, purchaseOrders, deliveryChallans] = await Promise.all([
+      this.prisma.quotation.aggregate({ where: { customerId: id, labId }, _count: true, _sum: { totalAmount: true } }),
+      this.prisma.invoice.aggregate({ where: { customerId: id, labId }, _count: true, _sum: { totalAmount: true } }),
+      this.prisma.purchaseOrder.aggregate({ where: { supplierId: id, labId }, _count: true, _sum: { totalAmount: true } }),
+      this.prisma.deliveryChallan.count({ where: { customerId: id, labId } }),
+    ]);
+    const payments = await this.prisma.payment.aggregate({
+      where: { invoice: { customerId: id, labId } }, _sum: { amount: true },
+    });
+    const outstanding = (invoices._sum.totalAmount ?? 0) - (payments._sum.amount ?? 0);
+    return {
+      quotations: { count: quotations._count, total: quotations._sum.totalAmount ?? 0 },
+      invoices: { count: invoices._count, total: invoices._sum.totalAmount ?? 0 },
+      purchaseOrders: { count: purchaseOrders._count, total: purchaseOrders._sum.totalAmount ?? 0 },
+      deliveryChallans,
+      paymentsReceived: payments._sum.amount ?? 0,
+      outstanding: Math.max(0, outstanding),
+    };
+  }
+
+  async ledger(id: string, labId: string) {
+    await this.findOne(id, labId);
+    const [invoices, purchaseOrders] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { customerId: id, labId },
+        include: { payments: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.purchaseOrder.findMany({
+        where: { supplierId: id, labId },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+    const entries: any[] = [];
+    for (const inv of invoices) {
+      entries.push({ date: inv.issueDate ?? inv.createdAt, type: 'INVOICE', ref: inv.invoiceNumber, debit: inv.totalAmount, credit: 0 });
+      for (const p of inv.payments) {
+        entries.push({ date: p.paidAt, type: 'PAYMENT', ref: inv.invoiceNumber, debit: 0, credit: p.amount });
+      }
+    }
+    for (const po of purchaseOrders) {
+      entries.push({ date: po.poDate, type: 'PURCHASE_ORDER', ref: po.poNumber, debit: 0, credit: po.totalAmount });
+    }
+    entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let balance = 0;
+    return entries.map(e => { balance += (e.debit - e.credit); return { ...e, balance }; });
+  }
+
   async bulkCreate(labId: string, records: CreateCustomerDto[]) {
     const results: any[] = [];
     for (const dto of records) {
