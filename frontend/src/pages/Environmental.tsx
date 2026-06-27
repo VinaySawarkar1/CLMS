@@ -4,10 +4,9 @@ import {
   Alert, Button, Card, Col, Form, Input, InputNumber, Popconfirm, Row, Space, Table, Tag, Typography, message,
 } from 'antd';
 import {
-  CloudOutlined, ThunderboltOutlined, DeleteOutlined, ExportOutlined, ImportOutlined,
+  CloudOutlined, ThunderboltOutlined, DeleteOutlined, ImportOutlined,
 } from '@ant-design/icons';
 import { getEnvironmental, recordEnvironmental, deleteEnvironmental, importEnvironmental } from '../api';
-import { exportToCsv } from '../utils/export';
 import ImportModal from '../components/ImportModal';
 
 const { Title, Text } = Typography;
@@ -103,19 +102,6 @@ export default function Environmental() {
           </Col>
           <Col>
             <Space>
-              <Button
-                icon={<ExportOutlined />}
-                onClick={() => exportToCsv('environmental.csv', data as any[], [
-                  { key: 'recordedAt', label: 'Recorded At' },
-                  { key: 'location', label: 'Location' },
-                  { key: 'temperature', label: 'Temperature (°C)' },
-                  { key: 'humidity', label: 'Humidity (%RH)' },
-                  { key: 'pressure', label: 'Pressure (kPa)' },
-                  { key: 'operator', label: 'Operator' },
-                ])}
-              >
-                Export CSV
-              </Button>
               <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import CSV</Button>
             </Space>
           </Col>

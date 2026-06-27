@@ -7,13 +7,12 @@ import {
 import {
   PlusOutlined, EditOutlined, StopOutlined, EyeOutlined, DownloadOutlined,
   PaperClipOutlined, FilePdfOutlined, FileWordOutlined, FileExcelOutlined,
-  FileOutlined, ExportOutlined,
+  FileOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getDocuments, createDocument, updateDocument, deleteDocument, api,
 } from '../api';
-import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -137,17 +136,6 @@ export default function Documents() {
 
   const filtered = activeTab === 'All' ? allDocs : allDocs.filter((d: any) => d.category === activeTab);
 
-  const handleExport = () => {
-    exportToCsv('documents.csv', filtered, [
-      { key: 'docNumber', label: 'Doc Number' },
-      { key: 'title', label: 'Title' },
-      { key: 'category', label: 'Category' },
-      { key: 'revision', label: 'Revision' },
-      { key: 'status', label: 'Status' },
-      { key: 'reviewDueAt', label: 'Review Due' },
-    ]);
-  };
-
   const columns = [
     { title: 'Doc Number', dataIndex: 'docNumber', key: 'docNumber', width: 120 },
     {
@@ -225,7 +213,6 @@ export default function Documents() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={3} style={{ margin: 0 }}>Document Control</Title>
         <Space>
-          <Button icon={<ExportOutlined />} onClick={handleExport}>Export CSV</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New Document</Button>
         </Space>
       </div>

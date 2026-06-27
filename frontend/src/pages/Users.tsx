@@ -12,6 +12,7 @@ const ASSIGNABLE_ROLES = [
   { value: 'TECHNICAL_MANAGER', label: 'Technical Manager' },
   { value: 'CALIBRATION_ENGINEER', label: 'Calibration Engineer' },
   { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+  { value: 'QUALITY_MANAGER', label: 'Quality Manager' },
   { value: 'DATA_ENTRY_OPERATOR', label: 'Data Entry Operator' },
 ];
 
@@ -20,10 +21,11 @@ const ROLE_COLOR: Record<string, string> = {
   TECHNICAL_MANAGER: 'geekblue',
   CALIBRATION_ENGINEER: 'cyan',
   SERVICE_ENGINEER: 'blue',
+  QUALITY_MANAGER: 'orange',
   DATA_ENTRY_OPERATOR: 'default',
 };
 
-const ENGINEER_ROLES = new Set(['CALIBRATION_ENGINEER', 'SERVICE_ENGINEER']);
+const ENGINEER_ROLES = new Set(['CALIBRATION_ENGINEER', 'SERVICE_ENGINEER', 'QUALITY_MANAGER']);
 
 export default function Users() {
   const qc = useQueryClient();

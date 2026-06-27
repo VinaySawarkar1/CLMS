@@ -178,15 +178,13 @@ class PortalService {
   }
 
   async submitComplaint(customerId: string, labId: string, body: { description: string; subject?: string }) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { name: true, email: true },
-    });
-    return this.prisma.nCR.create({
+    return this.prisma.complaint.create({
       data: {
         labId,
-        reference: `CMP/${new Date().getFullYear()}/${randomUUID().slice(0, 8).toUpperCase()}`,
-        description: `[Customer: ${customer?.name ?? customerId}] ${body.subject ? body.subject + ' — ' : ''}${body.description}`,
+        complaintNo: `PORTAL/${new Date().getFullYear()}/${randomUUID().slice(0, 8).toUpperCase()}`,
+        customerId,
+        subject: body.subject,
+        description: body.description,
         status: 'OPEN',
       },
     });

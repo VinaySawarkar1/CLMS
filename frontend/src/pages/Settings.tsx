@@ -74,7 +74,11 @@ function LabDetailsSection() {
   const qc = useQueryClient();
   const [form] = Form.useForm();
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [sig1Preview, setSig1Preview] = useState<string | null>(null);
+  const [sig2Preview, setSig2Preview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const sig1Ref = useRef<HTMLInputElement>(null);
+  const sig2Ref = useRef<HTMLInputElement>(null);
 
   const { data: lab, isLoading } = useQuery({
     queryKey: ['lab', labId],
@@ -108,15 +112,22 @@ function LabDetailsSection() {
     form.setFieldsValue({
       signatoryName: d.signatoryName ?? '',
       signatoryDesignation: d.signatoryDesignation ?? '',
+      signatory2Name: d.signatory2Name ?? '',
+      signatory2Designation: d.signatory2Designation ?? '',
     });
+    if (d.signatorySignatureUrl) setSig1Preview(d.signatorySignatureUrl);
+    if (d.signatory2SignatureUrl) setSig2Preview(d.signatory2SignatureUrl);
   }, [labSettings]);
 
   const saveMut = useMutation({
     mutationFn: async (vals: any) => {
-      const { signatoryName, signatoryDesignation, ...labVals } = vals;
+      const { signatoryName, signatoryDesignation, signatory2Name, signatory2Designation, ...labVals } = vals;
       await Promise.all([
         updateLabDetails(labId, { ...labVals, logoUrl: logoPreview }),
-        updateLabSettings(labId, { signatoryName, signatoryDesignation }),
+        updateLabSettings(labId, {
+          signatoryName, signatoryDesignation, signatorySignatureUrl: sig1Preview,
+          signatory2Name, signatory2Designation, signatory2SignatureUrl: sig2Preview,
+        }),
       ]);
     },
     onSuccess: () => {
@@ -133,6 +144,15 @@ function LabDetailsSection() {
     if (file.size > 500 * 1024) { message.error('Logo must be under 500 KB'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSigChange = (e: React.ChangeEvent<HTMLInputElement>, setSig: (v: string | null) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 200 * 1024) { message.error('Signature image must be under 200 KB'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setSig(ev.target?.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -253,14 +273,74 @@ function LabDetailsSection() {
                 Certificate Signature Block
               </Divider>
             </Col>
-            <Col span={12}>
-              <Form.Item name="signatoryName" label="Authorized Signatory Name" help="Appears on all certificates">
+            <Col span={24}>
+              <Text strong style={{ fontSize: 13 }}>Technical Signatory</Text>
+              <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>(Calibration verifier)</Text>
+            </Col>
+            <Col span={10}>
+              <Form.Item name="signatoryName" label="Technical Signatory Name" help="Appears on all certificates">
                 <Input placeholder="e.g. Dr. A. Kumar" />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="signatoryDesignation" label="Signatory Designation">
+            <Col span={10}>
+              <Form.Item name="signatoryDesignation" label="Technical Signatory Designation">
                 <Input placeholder="e.g. Technical Manager" />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Form.Item label="Signature Image">
+                <div
+                  style={{
+                    width: 100, height: 60, border: '1.5px dashed #d9d9d9', borderRadius: 6,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: '#fafafa', cursor: 'pointer', overflow: 'hidden',
+                  }}
+                  onClick={() => sig1Ref.current?.click()}
+                >
+                  {sig1Preview
+                    ? <img src={sig1Preview} alt="Signature 1" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    : <Text type="secondary" style={{ fontSize: 10, textAlign: 'center', padding: '0 4px' }}>Click to upload signature</Text>
+                  }
+                </div>
+                <input ref={sig1Ref} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleSigChange(e, setSig1Preview)} />
+                {sig1Preview && (
+                  <Button size="small" danger type="link" style={{ padding: 0, fontSize: 11 }} onClick={() => setSig1Preview(null)}>Remove</Button>
+                )}
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Text strong style={{ fontSize: 13 }}>Authorized Signatory</Text>
+              <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>(Approver / Director)</Text>
+            </Col>
+            <Col span={10}>
+              <Form.Item name="signatory2Name" label="Authorized Signatory Name">
+                <Input placeholder="e.g. Mr. R. Sharma" />
+              </Form.Item>
+            </Col>
+            <Col span={10}>
+              <Form.Item name="signatory2Designation" label="Authorized Signatory Designation">
+                <Input placeholder="e.g. Director" />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Form.Item label="Signature Image">
+                <div
+                  style={{
+                    width: 100, height: 60, border: '1.5px dashed #d9d9d9', borderRadius: 6,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: '#fafafa', cursor: 'pointer', overflow: 'hidden',
+                  }}
+                  onClick={() => sig2Ref.current?.click()}
+                >
+                  {sig2Preview
+                    ? <img src={sig2Preview} alt="Signature 2" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    : <Text type="secondary" style={{ fontSize: 10, textAlign: 'center', padding: '0 4px' }}>Click to upload signature</Text>
+                  }
+                </div>
+                <input ref={sig2Ref} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleSigChange(e, setSig2Preview)} />
+                {sig2Preview && (
+                  <Button size="small" danger type="link" style={{ padding: 0, fontSize: 11 }} onClick={() => setSig2Preview(null)}>Remove</Button>
+                )}
               </Form.Item>
             </Col>
           </Row>

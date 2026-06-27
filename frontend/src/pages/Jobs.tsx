@@ -2,18 +2,17 @@ import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Drawer, Form, Modal, Row, Select, Space, Table, Tag,
+  Button, Card, Col, Drawer, Form, Modal, Row, Select, Space, Table, Tag, Tooltip,
   Typography, Input, Switch, DatePicker, message, Descriptions, Badge, Steps,
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined, ExportOutlined,
+  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined,
 } from '@ant-design/icons';
 import {
   assignJob, createJob, createJobBatch, generateCertificate, getCustomers, getEngineers,
   getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
-import { exportToCsv } from '../utils/export';
 import { findProcedure, groupedProcedures, Procedure } from '../procedures';
 
 const { Title, Text } = Typography;
@@ -216,22 +215,19 @@ export default function Jobs() {
       ),
     },
     {
-      title: 'Customer',
-      dataIndex: ['customer', 'name'],
-      key: 'customer',
-      render: (v: string, row: any) => v
-        ? <RouterLink to={`/customers?highlight=${row.customer?.id}`}><Tag color="purple" style={{ cursor: 'pointer' }}>{v}</Tag></RouterLink>
-        : <Text type="secondary">—</Text>,
-    },
-    {
-      title: 'Instrument',
-      key: 'instrument',
+      title: 'Customer / Instrument',
+      key: 'customerInstrument',
       render: (_: any, row: any) => (
         <Space direction="vertical" size={0}>
-          <Text>{row.instrument?.name}</Text>
-          {row.isOnsite && (
-            <Tag color="geekblue" icon={<EnvironmentOutlined />} style={{ fontSize: 11 }}>Onsite</Tag>
-          )}
+          {row.customer?.name
+            ? <RouterLink to={`/customers?highlight=${row.customer?.id}`} style={{ fontWeight: 600 }}>{row.customer.name}</RouterLink>
+            : <Text type="secondary">—</Text>}
+          <Space size={4}>
+            <Text type="secondary" style={{ fontSize: 12 }}>{row.instrument?.name}</Text>
+            {row.isOnsite && (
+              <Tag color="geekblue" icon={<EnvironmentOutlined />} style={{ fontSize: 10, padding: '0 4px' }}>Onsite</Tag>
+            )}
+          </Space>
         </Space>
       ),
     },
@@ -260,31 +256,31 @@ export default function Jobs() {
     {
       title: 'Actions',
       key: 'actions',
-      width: 220,
+      width: 100,
       render: (_: any, row: any) => (
-        <Space size={6} wrap>
-          <RouterLink to={`/jobs/${row.id}`}>
-            <Button size="small" type="primary" icon={<ThunderboltOutlined />}>
-              Open
-            </Button>
-          </RouterLink>
+        <Space size={4}>
+          <Tooltip title="Open Job">
+            <RouterLink to={`/jobs/${row.id}`}>
+              <Button size="small" type="primary" icon={<ThunderboltOutlined />} />
+            </RouterLink>
+          </Tooltip>
           {isAdmin && (
-            <Button
-              size="small"
-              icon={<UserOutlined />}
-              onClick={() => { setAssignTarget(row); assignForm.setFieldValue('engineerId', row.engineerId || undefined); }}
-            >
-              Assign
-            </Button>
+            <Tooltip title="Assign Engineer">
+              <Button
+                size="small"
+                icon={<UserOutlined />}
+                onClick={() => { setAssignTarget(row); assignForm.setFieldValue('engineerId', row.engineerId || undefined); }}
+              />
+            </Tooltip>
           )}
           {row.status !== 'CLOSED' && (
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => setStatusTarget(row)}
-            >
-              Status
-            </Button>
+            <Tooltip title="Update Status">
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => setStatusTarget(row)}
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -305,7 +301,6 @@ export default function Jobs() {
                 Calibration Jobs
               </Space>
             </Title>
-            <Text type="secondary">Track and manage all calibration jobs through their lifecycle</Text>
           </Col>
           <Col>
             {isAdmin && (
@@ -342,19 +337,6 @@ export default function Jobs() {
               options={STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
             />
           </Space>
-          <Button
-            icon={<ExportOutlined />}
-            onClick={() => exportToCsv('jobs.csv', jobs as any[], [
-              { key: 'jobNumber', label: 'Job No' },
-              { key: 'customer.name', label: 'Customer' },
-              { key: 'instrument.name', label: 'Instrument' },
-              { key: 'engineer.user.fullName', label: 'Engineer' },
-              { key: 'status', label: 'Status' },
-              { key: 'createdAt', label: 'Created At' },
-            ])}
-          >
-            Export CSV
-          </Button>
         </div>
         <Table
           columns={columns}
@@ -371,7 +353,7 @@ export default function Jobs() {
           rowKey="id"
           loading={isLoading}
           pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} jobs` }}
-          size="middle"
+          size="small"
           scroll={{ x: 900 }}
         />
       </Card>

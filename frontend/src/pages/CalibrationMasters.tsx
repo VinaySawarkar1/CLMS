@@ -5,7 +5,7 @@ import {
   Row, Space, Switch, Table, Tabs, Tag, Typography,
 } from 'antd';
 import {
-  ApartmentOutlined, DeleteOutlined, EditOutlined, ExportOutlined, PlusOutlined, ThunderboltOutlined,
+  ApartmentOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -13,7 +13,6 @@ import {
   getMpeRules, createMpeRule, updateMpeRule, deleteMpeRule, lookupMpe,
   getFormulas, createFormula, deleteFormula, evaluateFormula, convertUnit,
 } from '../api';
-import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -81,11 +80,6 @@ function CmcScopeTab() {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <Text type="secondary">NABL scope &amp; best CMC per discipline / parameter / range — fetched automatically during calibration.</Text>
         <Space>
-          <Button icon={<ExportOutlined />} onClick={() => exportToCsv('cmc-scope.csv', rows as any[], [
-            { key: 'discipline', label: 'Discipline' }, { key: 'parameter', label: 'Parameter' },
-            { key: 'rangeText', label: 'Range' }, { key: 'cmc', label: 'Best CMC' },
-            { key: 'method', label: 'Method' }, { key: 'scope', label: 'Scope' }, { key: 'revision', label: 'Revision' },
-          ])}>Export CSV</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>Add CMC / Scope</Button>
         </Space>
       </div>

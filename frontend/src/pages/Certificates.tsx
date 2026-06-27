@@ -5,13 +5,12 @@ import {
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined, HistoryOutlined, EditOutlined, QrcodeOutlined,
+  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, HistoryOutlined, EditOutlined, QrcodeOutlined,
 } from '@ant-design/icons';
 import {
   getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser,
   reviseCertificate, getCertificateRevisions, openStickerReport, getDatasheet, getLab,
 } from '../api';
-import { exportToCsv } from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -158,19 +157,6 @@ export default function Certificates() {
           onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
           style={{ width: 340 }}
         />
-        <Button
-          icon={<ExportOutlined />}
-          onClick={() => exportToCsv('certificates.csv', certJobs as any[], [
-            { key: 'jobNumber', label: 'Job No' },
-            { key: 'certificate.certificateNumber', label: 'Cert Number' },
-            { key: 'customer.name', label: 'Customer' },
-            { key: 'instrument.name', label: 'Instrument' },
-            { key: 'status', label: 'Status' },
-            { key: 'certificate.isLocked', label: 'Locked' },
-          ])}
-        >
-          Export CSV
-        </Button>
       </div>
 
       {/* Info banner */}
