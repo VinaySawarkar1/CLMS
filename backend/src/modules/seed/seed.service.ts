@@ -120,7 +120,63 @@ export class SeedService {
       ),
     );
 
-    // ── 9. Inventory Items (stored in Setting table) ──────────────────
+    // ── 9. Purchase Orders ────────────────────────────────────────────
+    const poData = [
+      { poNumber: 'PO-2024-001', supplierId: customers[0].id, totalAmount: 12500, status: 'APPROVED', lineItems: [{ description: 'Vernier Caliper Reference Grade', qty: 1, rate: 12500 }] },
+      { poNumber: 'PO-2024-002', supplierId: customers[1].id, totalAmount: 45000, status: 'PENDING_APPROVAL', lineItems: [{ description: 'Precision Thermometer 1502A', qty: 1, rate: 45000 }] },
+      { poNumber: 'PO-2024-003', supplierId: customers[2].id, totalAmount: 28000, status: 'DRAFT', lineItems: [{ description: 'Calibration Weight Set E2 500g', qty: 2, rate: 14000 }] },
+      { poNumber: 'PO-2024-004', supplierId: customers[3].id, totalAmount: 18000, status: 'APPROVED', lineItems: [{ description: 'Dead Weight Tester Accessories', qty: 1, rate: 18000 }] },
+      { poNumber: 'PO-2024-005', supplierId: customers[4].id, totalAmount: 5500, status: 'DRAFT', lineItems: [{ description: 'Certificate Paper A4 Premium', qty: 10, rate: 550 }] },
+    ];
+    await Promise.all(
+      poData.map((p) =>
+        this.prisma.purchaseOrder.create({ data: { labId, ...p } }),
+      ),
+    );
+
+    // ── 10. Delivery Challans ─────────────────────────────────────────
+    const challanData = [
+      { challanNumber: 'DC-2024-001', customerId: customers[0].id, challanType: 'OUTWARD', status: 'DISPATCHED', vehicleNumber: 'MH-04-AB-1234', driverName: 'Ramesh Kumar', transporterName: 'Blue Dart Logistics' },
+      { challanNumber: 'DC-2024-002', customerId: customers[1].id, challanType: 'INWARD', status: 'RECEIVED', vehicleNumber: 'MH-02-CD-5678', driverName: 'Suresh Patil', transporterName: 'DTDC Courier' },
+      { challanNumber: 'DC-2024-003', customerId: customers[2].id, challanType: 'OUTWARD', status: 'DRAFT', vehicleNumber: '', driverName: '', transporterName: 'Self Pickup' },
+      { challanNumber: 'DC-2024-004', customerId: customers[3].id, challanType: 'OUTWARD', status: 'DISPATCHED', vehicleNumber: 'DL-01-EF-9012', driverName: 'Vijay Singh', transporterName: 'FedEx India' },
+      { challanNumber: 'DC-2024-005', customerId: customers[4].id, challanType: 'INWARD', status: 'DRAFT', vehicleNumber: 'KA-03-GH-3456', driverName: 'Arjun Nair', transporterName: 'Delhivery' },
+    ];
+    await Promise.all(
+      challanData.map((c) =>
+        this.prisma.deliveryChallan.create({ data: { labId, ...c } }),
+      ),
+    );
+
+    // ── 11. Leads / Pipeline ──────────────────────────────────────────
+    const leadData = [
+      { title: 'Annual Calibration Contract - Ashok Leyland', companyName: 'Ashok Leyland Ltd', contactName: 'Mr. Venkat Rao', contactEmail: 'venkat@ashokleyland.com', contactPhone: '+91-44-24763000', stage: 'PROPOSAL', value: 250000, source: 'REFERRAL', probability: 70 },
+      { title: 'New Lab Setup Consultation - DRDO', companyName: 'DRDO Hyderabad', contactName: 'Dr. Meera Krishnan', contactEmail: 'meera@drdo.gov.in', contactPhone: '+91-40-23045678', stage: 'NEGOTIATION', value: 500000, source: 'OTHER', probability: 60 },
+      { title: 'Pressure Lab Instruments - Larsen & Toubro', companyName: 'L&T Engineering', contactName: 'Mr. Raj Sharma', contactEmail: 'raj.sharma@lnteng.com', contactPhone: '+91-22-67525656', stage: 'QUALIFIED', value: 180000, source: 'COLD_CALL', probability: 40 },
+      { title: 'ISO 17025 Audit Support - Bosch India', companyName: 'Bosch India Ltd', contactName: 'Ms. Priya Nambiar', contactEmail: 'priya.nambiar@bosch.in', contactPhone: '+91-80-22991111', stage: 'CONTACTED', value: 120000, source: 'WEBSITE', probability: 25 },
+      { title: 'Mass Calibration Services - Cipla Ltd', companyName: 'Cipla Pharmaceuticals', contactName: 'Mr. Amit Desai', contactEmail: 'amit.desai@cipla.com', contactPhone: '+91-22-23082891', stage: 'WON', value: 95000, source: 'EXHIBITION', probability: 100 },
+    ];
+    await Promise.all(
+      leadData.map((l) =>
+        this.prisma.lead.create({ data: { labId, ...l } }),
+      ),
+    );
+
+    // ── 12. CRM Activities ────────────────────────────────────────────
+    const activityData = [
+      { type: 'CALL', title: 'Follow-up call on calibration contract renewal', customerId: customers[0].id, isDone: true, outcome: 'Customer confirmed renewal. Sending revised quote.' },
+      { type: 'EMAIL', title: 'Sent updated quotation QUO-2024-002 to Mahindra', customerId: customers[1].id, isDone: true, outcome: 'Attached PDF quote with NABL certificate samples.' },
+      { type: 'MEETING', title: 'On-site visit to BEL Bangalore facility', customerId: customers[2].id, isDone: false, dueDate: addDays(now, 5), description: 'Meeting with QA team to discuss scope of calibration.' },
+      { type: 'TASK', title: 'Certificate portal demo for IOCL team', customerId: customers[3].id, isDone: false, dueDate: addDays(now, 3), description: 'Show online certificate verification and customer portal.' },
+      { type: 'NOTE', title: 'Follow up on ISRO annual contract', customerId: customers[4].id, isDone: false, dueDate: addDays(now, 10), description: 'Awaiting purchase order from procurement.' },
+    ];
+    await Promise.all(
+      activityData.map((a) =>
+        this.prisma.crmActivity.create({ data: { labId, ...a } }),
+      ),
+    );
+
+    // ── 14. Inventory Items (stored in Setting table) ──────────────────
     const inventoryItems = [
       { id: randomUUID(), name: 'E2 Calibration Weights Set', category: 'Mass Standards', quantity: 3, location: 'Mass Lab Cabinet A' },
       { id: randomUUID(), name: 'Reference Pressure Gauge', category: 'Pressure Standards', quantity: 2, location: 'Pressure Lab' },
@@ -138,7 +194,7 @@ export class SeedService {
       ),
     );
 
-    // ── 10. NCRs ──────────────────────────────────────────────────────
+    // ── 15. NCRs ──────────────────────────────────────────────────────
     const ncrData = [
       { reference: 'NCR-2024-001', description: 'Calibration certificate issued without required signatures — missing Technical Manager sign-off on 3 certificates.', status: 'OPEN' },
       { reference: 'NCR-2024-002', description: 'Environmental temperature exceeded 25°C for 45 minutes during calibration session on 2024-06-10.', status: 'OPEN' },
@@ -150,7 +206,7 @@ export class SeedService {
       ncrData.map((n) => this.prisma.nCR.create({ data: { labId, ...n } })),
     );
 
-    // ── 11. Lab Documents ─────────────────────────────────────────────
+    // ── 16. Lab Documents ─────────────────────────────────────────────
     const docData = [
       { docNumber: 'SOP-CAL-001', title: 'Calibration Procedure for Dimensional Instruments', category: 'SOP', revision: '02', status: 'ACTIVE' },
       { docNumber: 'SOP-CAL-002', title: 'Calibration Procedure for Pressure Gauges', category: 'SOP', revision: '01', status: 'ACTIVE' },
@@ -162,7 +218,7 @@ export class SeedService {
       docData.map((d) => this.prisma.labDocument.create({ data: { labId, ...d } })),
     );
 
-    // ── 12. Internal Audits ───────────────────────────────────────────
+    // ── 17. Internal Audits ───────────────────────────────────────────
     const auditData = [
       { auditNumber: 'IA-2024-01', plannedDate: addDays(now, 30), auditor: 'Quality Manager', scope: 'Calibration Process and Certificate Issuance', status: 'PLANNED' },
       { auditNumber: 'IA-2024-02', plannedDate: addDays(now, 60), auditor: 'Technical Manager', scope: 'Reference Standards and Traceability', status: 'PLANNED' },
@@ -177,18 +233,13 @@ export class SeedService {
     return {
       message: 'Sample data loaded successfully',
       counts: {
-        customers: 5,
-        instruments: 5,
-        masterInstruments: 5,
-        jobs: 5,
-        tasks: 5,
-        environmentalRecords: 5,
-        quotations: 5,
-        invoices: 5,
-        inventoryItems: 5,
-        ncrs: 5,
-        documents: 5,
-        internalAudits: 5,
+        customers: 5, instruments: 5, masterInstruments: 5,
+        jobs: 5, tasks: 5, environmentalRecords: 5,
+        quotations: 5, invoices: 5,
+        purchaseOrders: 5, deliveryChallans: 5,
+        leads: 5, crmActivities: 5,
+        inventoryItems: 5, ncrs: 5,
+        documents: 5, internalAudits: 5,
       },
     };
   }

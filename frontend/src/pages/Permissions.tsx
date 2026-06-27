@@ -9,23 +9,38 @@ const { Title, Text } = Typography;
 // Roles that can have their access configured by the LAB_ADMIN.
 const ROLES = [
   { key: 'TECHNICAL_MANAGER', label: 'Technical Mgr' },
+  { key: 'QUALITY_MANAGER', label: 'Quality Mgr' },
   { key: 'CALIBRATION_ENGINEER', label: 'Calib. Engineer' },
   { key: 'SERVICE_ENGINEER', label: 'Service Engineer' },
   { key: 'DATA_ENTRY_OPERATOR', label: 'Data Entry' },
 ];
 
 const MODULES = [
-  { key: 'customers', label: 'Customers' },
-  { key: 'instruments', label: 'Instruments' },
+  // Calibration
   { key: 'jobs', label: 'Jobs' },
   { key: 'certificates', label: 'Certificates' },
-  { key: 'billing', label: 'Billing' },
+  { key: 'instruments', label: 'Instruments' },
+  { key: 'reference-standards', label: 'Reference Standards' },
+  { key: 'calibration-masters', label: 'Calibration Masters' },
+  { key: 'environmental', label: 'Environmental' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'engineers', label: 'Engineers' },
+  // CRM & Sales
+  { key: 'customers', label: 'Customers' },
+  { key: 'quotations', label: 'Quotations' },
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'purchase-orders', label: 'Purchase Orders' },
+  { key: 'delivery-challans', label: 'Delivery Challans' },
+  { key: 'leads', label: 'Leads / Pipeline' },
+  { key: 'crm-activities', label: 'CRM Activities' },
+  // Quality
+  { key: 'quality', label: 'NCR / CAPA' },
+  { key: 'complaints', label: 'Complaints & Feedback' },
+  { key: 'documents', label: 'Lab Documents' },
+  { key: 'internal-audit', label: 'Internal Audit' },
+  { key: 'reports', label: 'Reports' },
+  // Operations
   { key: 'inventory', label: 'Inventory' },
-  { key: 'environmental', label: 'Environmental' },
-  { key: 'quality', label: 'Quality (NCR/CAPA)' },
-  { key: 'audit', label: 'Audit Trail' },
   { key: 'notifications', label: 'Notifications' },
 ];
 

@@ -1,13 +1,13 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Card, Col, Row, Typography, Space, Tag, Button, Divider, Alert, Spin, message,
-  Form, Input, Upload, Tabs, Select, Table, Popconfirm,
+  Form, Input, Upload, Tabs, Select, Table, Popconfirm, Modal,
 } from 'antd';
 import {
   SettingOutlined, CheckCircleFilled, SafetyCertificateOutlined,
   FileTextOutlined, CompressOutlined, ApartmentOutlined, UserOutlined,
   DatabaseOutlined, UploadOutlined, PlusOutlined, DeleteOutlined, SaveOutlined,
-  BankOutlined, CalculatorOutlined, ExportOutlined, DownloadOutlined,
+  BankOutlined, CalculatorOutlined, ExportOutlined, DownloadOutlined, EyeOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLabSettings, updateLabSettings, loadSampleData, getUser, getLab, updateLabDetails, downloadBackup,
@@ -80,30 +80,36 @@ function LabDetailsSection() {
     queryKey: ['lab', labId],
     queryFn: () => getLab(labId),
     enabled: !!labId,
-    onSuccess: (d: any) => {
-      form.setFieldsValue({
-        name: d.name, accreditationNumber: d.accreditationNumber, address: d.address,
-        contactEmail: d.contactEmail, phone: d.phone, website: d.website,
-        city: d.city, state: d.state, pinCode: d.pinCode,
-        gstin: d.gstin, pan: d.pan,
-        bankName: d.bankName, bankAccountNumber: d.bankAccountNumber,
-        bankIfsc: d.bankIfsc, bankBranch: d.bankBranch,
-      });
-      if (d.logoUrl) setLogoPreview(d.logoUrl);
-    },
-  } as any);
+  });
 
-  useQuery({
+  const { data: labSettings } = useQuery({
     queryKey: ['lab-settings', labId],
     queryFn: () => getLabSettings(labId),
     enabled: !!labId,
-    onSuccess: (d: any) => {
-      form.setFieldsValue({
-        signatoryName: d.signatoryName ?? '',
-        signatoryDesignation: d.signatoryDesignation ?? '',
-      });
-    },
-  } as any);
+  });
+
+  useEffect(() => {
+    if (!lab) return;
+    const d = lab as any;
+    form.setFieldsValue({
+      name: d.name, accreditationNumber: d.accreditationNumber, address: d.address,
+      contactEmail: d.contactEmail, phone: d.phone, website: d.website,
+      city: d.city, state: d.state, pinCode: d.pinCode,
+      gstin: d.gstin, pan: d.pan,
+      bankName: d.bankName, bankAccountNumber: d.bankAccountNumber,
+      bankIfsc: d.bankIfsc, bankBranch: d.bankBranch,
+    });
+    if (d.logoUrl) setLogoPreview(d.logoUrl);
+  }, [lab]);
+
+  useEffect(() => {
+    if (!labSettings) return;
+    const d = labSettings as any;
+    form.setFieldsValue({
+      signatoryName: d.signatoryName ?? '',
+      signatoryDesignation: d.signatoryDesignation ?? '',
+    });
+  }, [labSettings]);
 
   const saveMut = useMutation({
     mutationFn: async (vals: any) => {
@@ -377,6 +383,204 @@ function UncertaintyTypesSection() {
   );
 }
 
+// ── Certificate Preview ─────────────────────────────────────────────────────
+
+const CERT_PREVIEWS: Record<string, React.ReactNode> = {
+  nabl: (
+    <div style={{ fontFamily: 'serif', fontSize: 12, padding: 16, border: '1px solid #ccc', borderRadius: 6, background: '#fff', minHeight: 400 }}>
+      <div style={{ textAlign: 'center', borderBottom: '2px solid #1677ff', paddingBottom: 8, marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 16 }}>CALIBRATION CERTIFICATE</div>
+        <div style={{ fontSize: 11, color: '#666' }}>Issued under NABL Accreditation</div>
+        <Tag color="blue" style={{ marginTop: 4 }}>NABL Logo · Accreditation No. CC-XXXX</Tag>
+      </div>
+      <Row gutter={8} style={{ marginBottom: 8 }}>
+        <Col span={12}><Text strong>Certificate No:</Text> CAL/2024/001</Col>
+        <Col span={12}><Text strong>Date of Issue:</Text> 27 Jun 2026</Col>
+        <Col span={12}><Text strong>Customer:</Text> Tata Motors Ltd</Col>
+        <Col span={12}><Text strong>Job No:</Text> JOB-2024-001</Col>
+      </Row>
+      <Divider style={{ margin: '8px 0' }} />
+      <div style={{ marginBottom: 8 }}><Text strong>Instrument:</Text> Vernier Caliper · Mitutoyo 530-119 · SN: VC-001</div>
+      <div style={{ marginBottom: 8 }}><Text strong>Range:</Text> 0–300 mm &nbsp;<Text strong>Least Count:</Text> 0.02 mm</div>
+      <Divider style={{ margin: '8px 0' }} />
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>Calibration Results</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead><tr style={{ background: '#e6f4ff' }}><th style={{ border: '1px solid #ccc', padding: 4 }}>Nominal (mm)</th><th style={{ border: '1px solid #ccc', padding: 4 }}>Measured (mm)</th><th style={{ border: '1px solid #ccc', padding: 4 }}>Error (mm)</th><th style={{ border: '1px solid #ccc', padding: 4 }}>U (k=2)</th></tr></thead>
+        <tbody>
+          {[['50.00','50.02','0.02','±0.03'],['100.00','100.01','0.01','±0.03'],['200.00','199.99','-0.01','±0.04']].map(([n,m,e,u]) => (
+            <tr key={n}><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{n}</td><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{m}</td><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{e}</td><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{u}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div><Text strong>Traceability:</Text> NPL/BIPM</div>
+        <div><Text strong>Authorized Signatory</Text><br /><Text type="secondary" style={{ fontSize: 11 }}>Technical Manager</Text></div>
+      </div>
+    </div>
+  ),
+  iso17025: (
+    <div style={{ fontFamily: 'sans-serif', fontSize: 12, padding: 16, border: '1px solid #13c2c2', borderRadius: 6, background: '#fff', minHeight: 400 }}>
+      <div style={{ textAlign: 'center', marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: '#13c2c2' }}>ISO/IEC 17025 CALIBRATION REPORT</div>
+        <div style={{ fontSize: 11, color: '#888' }}>Formal Report with Full Uncertainty Budget</div>
+      </div>
+      <Row gutter={8} style={{ marginBottom: 8, fontSize: 11 }}>
+        <Col span={12}><Text strong>Report No:</Text> ISO/2024/001</Col>
+        <Col span={12}><Text strong>Date:</Text> 27 Jun 2026</Col>
+        <Col span={12}><Text strong>Scope:</Text> Dimensional Measurement</Col>
+        <Col span={12}><Text strong>Method:</Text> ISO 3611:2010</Col>
+      </Row>
+      <Divider style={{ margin: '8px 0', borderColor: '#13c2c2' }} />
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>Measurement Uncertainty Budget</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead><tr style={{ background: '#e6fffb' }}><th style={{ border: '1px solid #ccc', padding: 4 }}>Source</th><th style={{ border: '1px solid #ccc', padding: 4 }}>Value</th><th style={{ border: '1px solid #ccc', padding: 4 }}>Distribution</th><th style={{ border: '1px solid #ccc', padding: 4 }}>ui (mm)</th></tr></thead>
+        <tbody>
+          {[['Type A (Repeat)','0.005','Normal','0.005'],['Resolution','0.01','Rectangular','0.006'],['Reference Std','0.001','Normal','0.0005']].map(([s,v,d,u]) => (
+            <tr key={s}><td style={{ border: '1px solid #ccc', padding: 4 }}>{s}</td><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{v}</td><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{d}</td><td style={{ border: '1px solid #ccc', padding: 4, textAlign: 'center' }}>{u}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 8, fontWeight: 600 }}>Expanded Uncertainty U = 0.024 mm (k=2, 95% confidence)</div>
+    </div>
+  ),
+  compact: (
+    <div style={{ fontFamily: 'sans-serif', fontSize: 12, padding: 12, border: '1px solid #52c41a', borderRadius: 6, background: '#fff', minHeight: 300 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #52c41a', paddingBottom: 8, marginBottom: 8 }}>
+        <div><div style={{ fontWeight: 700 }}>CALIBRATION CERTIFICATE</div><div style={{ fontSize: 11, color: '#888' }}>Compact Format</div></div>
+        <Tag color="success">No. CAL/2024/001</Tag>
+      </div>
+      <Row gutter={4} style={{ fontSize: 11, marginBottom: 6 }}>
+        <Col span={8}><Text strong>Customer:</Text> Tata Motors</Col>
+        <Col span={8}><Text strong>Instrument:</Text> Vernier Caliper</Col>
+        <Col span={8}><Text strong>SN:</Text> VC-001</Col>
+        <Col span={8}><Text strong>Range:</Text> 0–300 mm</Col>
+        <Col span={8}><Text strong>LC:</Text> 0.02 mm</Col>
+        <Col span={8}><Text strong>Date:</Text> 27 Jun 2026</Col>
+      </Row>
+      <Divider style={{ margin: '6px 0' }} />
+      <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4 }}>Results Summary</div>
+      <div style={{ fontSize: 11 }}>Max Error: 0.02 mm &nbsp;|&nbsp; Expanded Uncertainty: ±0.03 mm (k=2) &nbsp;|&nbsp; <Tag color="success" style={{ fontSize: 10 }}>PASS</Tag></div>
+      <div style={{ marginTop: 12, textAlign: 'right', fontSize: 11 }}><Text strong>Signatory:</Text> Dr. A. Kumar</div>
+    </div>
+  ),
+  traceability: (
+    <div style={{ fontFamily: 'serif', fontSize: 12, padding: 16, border: '1px solid #722ed1', borderRadius: 6, background: '#fff', minHeight: 400 }}>
+      <div style={{ textAlign: 'center', color: '#722ed1', fontWeight: 700, fontSize: 15, marginBottom: 8 }}>DETAILED TRACEABILITY CERTIFICATE</div>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>Traceability Chain</div>
+      <div style={{ fontSize: 11, paddingLeft: 8, borderLeft: '3px solid #722ed1', marginBottom: 8 }}>
+        <div>BIPM (International) → NPL India (National) → NABL Lab (Reference) → Your Lab → Customer Instrument</div>
+      </div>
+      <Divider style={{ margin: '8px 0', borderColor: '#722ed1' }} />
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>Reference Standards Used</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead><tr style={{ background: '#f9f0ff' }}><th style={{ border: '1px solid #ccc', padding: 4 }}>Standard</th><th style={{ border: '1px solid #ccc', padding: 4 }}>Cert No</th><th style={{ border: '1px solid #ccc', padding: 4 }}>Valid Until</th><th style={{ border: '1px solid #ccc', padding: 4 }}>U</th></tr></thead>
+        <tbody>
+          {[['Length Bar NPL','NPL/2024/001','Dec 2026','±0.5 µm'],['Gauge Block Set','NABL/2024/045','Mar 2027','±0.1 µm']].map(([s,c,v,u]) => (
+            <tr key={s}><td style={{ border: '1px solid #ccc', padding: 4 }}>{s}</td><td style={{ border: '1px solid #ccc', padding: 4 }}>{c}</td><td style={{ border: '1px solid #ccc', padding: 4 }}>{v}</td><td style={{ border: '1px solid #ccc', padding: 4 }}>{u}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ),
+  'customer-branded': (
+    <div style={{ fontFamily: 'sans-serif', fontSize: 12, padding: 16, border: '1px solid #fa8c16', borderRadius: 6, background: '#fff', minHeight: 360 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ width: 80, height: 40, border: '1px dashed #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 10 }}>Customer Logo</div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>CALIBRATION CERTIFICATE</div>
+          <div style={{ fontSize: 11, color: '#888' }}>No. CAL/2024/001 · 27 Jun 2026</div>
+        </div>
+      </div>
+      <Divider style={{ margin: '8px 0', borderColor: '#fa8c16' }} />
+      <Row gutter={8} style={{ fontSize: 11, marginBottom: 8 }}>
+        <Col span={12}><Text strong>Prepared for:</Text> Tata Motors Ltd</Col>
+        <Col span={12}><Text strong>Instrument:</Text> Vernier Caliper</Col>
+        <Col span={12}><Text strong>Serial No:</Text> VC-001</Col>
+        <Col span={12}><Text strong>Result:</Text> <Tag color="success" style={{ fontSize: 10 }}>SATISFACTORY</Tag></Col>
+      </Row>
+      <div style={{ marginTop: 12, fontSize: 11, color: '#888', textAlign: 'center' }}>
+        Calibrated by · Lab Name · Accreditation No.
+      </div>
+    </div>
+  ),
+};
+
+function CertificateTemplatesSection({ isLoading, selectedTemplate, onSelect }: { isLoading: boolean; selectedTemplate: string; onSelect: (id: string) => void }) {
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewTemplate = TEMPLATES.find(t => t.id === previewId);
+
+  if (isLoading) return <Spin />;
+
+  return (
+    <>
+      <Row gutter={[16, 16]}>
+        {TEMPLATES.map((t) => {
+          const isSelected = selectedTemplate === t.id;
+          return (
+            <Col xs={24} sm={12} md={8} key={t.id}>
+              <Card
+                hoverable
+                onClick={() => onSelect(t.id)}
+                style={{
+                  borderRadius: 14,
+                  border: `2px solid ${isSelected ? t.borderColor : '#f0f0f0'}`,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                  background: isSelected ? t.borderColor + '08' : '#fff',
+                  boxShadow: isSelected ? `0 4px 16px ${t.borderColor}30` : '0 2px 8px rgba(0,0,0,0.04)',
+                  position: 'relative',
+                }}
+                styles={{ body: { padding: '20px 16px' } }}
+              >
+                {isSelected && <CheckCircleFilled style={{ position: 'absolute', top: 12, right: 12, color: t.borderColor, fontSize: 20 }} />}
+                <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                  <div>{t.icon}</div>
+                  <div>
+                    <Text strong style={{ fontSize: 14 }}>{t.name}</Text>
+                    <div style={{ marginTop: 4 }}>
+                      <Tag style={{ background: t.badgeColor + '15', color: t.badgeColor, border: `1px solid ${t.badgeColor}40`, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{t.badge}</Tag>
+                    </div>
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.5 }}>{t.description}</Text>
+                  <Space size={8}>
+                    {isSelected && <Tag icon={<CheckCircleFilled />} color="success" style={{ borderRadius: 8, fontWeight: 600 }}>Selected</Tag>}
+                    <Button
+                      size="small"
+                      icon={<EyeOutlined />}
+                      onClick={(e) => { e.stopPropagation(); setPreviewId(t.id); }}
+                    >
+                      Preview
+                    </Button>
+                  </Space>
+                </Space>
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
+
+      <Modal
+        open={!!previewId}
+        onCancel={() => setPreviewId(null)}
+        footer={
+          <Space>
+            <Button onClick={() => setPreviewId(null)}>Close</Button>
+            <Button
+              type="primary"
+              onClick={() => { if (previewId) { onSelect(previewId); setPreviewId(null); } }}
+            >
+              Use This Template
+            </Button>
+          </Space>
+        }
+        title={previewTemplate ? <Space>{previewTemplate.icon}<Text strong>{previewTemplate.name}</Text><Tag style={{ background: previewTemplate.badgeColor + '15', color: previewTemplate.badgeColor, border: `1px solid ${previewTemplate.badgeColor}40` }}>{previewTemplate.badge}</Tag></Space> : 'Preview'}
+        width={680}
+      >
+        {previewId && CERT_PREVIEWS[previewId]}
+      </Modal>
+    </>
+  );
+}
+
 // ── Main Settings Page ──────────────────────────────────────────────────────
 
 function DataExportSection() {
@@ -640,43 +844,7 @@ export default function Settings() {
     {
       key: 'templates',
       label: <Space><FileTextOutlined />Certificate Templates</Space>,
-      children: isLoading ? <Spin /> : (
-        <Row gutter={[16, 16]}>
-          {TEMPLATES.map((t) => {
-            const isSelected = selectedTemplate === t.id;
-            return (
-              <Col xs={24} sm={12} md={8} key={t.id}>
-                <Card
-                  hoverable
-                  onClick={() => templateMut.mutate(t.id)}
-                  style={{
-                    borderRadius: 14,
-                    border: `2px solid ${isSelected ? t.borderColor : '#f0f0f0'}`,
-                    cursor: 'pointer', transition: 'all 0.2s',
-                    background: isSelected ? t.borderColor + '08' : '#fff',
-                    boxShadow: isSelected ? `0 4px 16px ${t.borderColor}30` : '0 2px 8px rgba(0,0,0,0.04)',
-                    position: 'relative',
-                  }}
-                  styles={{ body: { padding: '20px 16px' } }}
-                >
-                  {isSelected && <CheckCircleFilled style={{ position: 'absolute', top: 12, right: 12, color: t.borderColor, fontSize: 20 }} />}
-                  <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                    <div>{t.icon}</div>
-                    <div>
-                      <Text strong style={{ fontSize: 14 }}>{t.name}</Text>
-                      <div style={{ marginTop: 4 }}>
-                        <Tag style={{ background: t.badgeColor + '15', color: t.badgeColor, border: `1px solid ${t.badgeColor}40`, borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{t.badge}</Tag>
-                      </div>
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.5 }}>{t.description}</Text>
-                    {isSelected && <Tag icon={<CheckCircleFilled />} color="success" style={{ marginTop: 4, borderRadius: 8, fontWeight: 600 }}>Selected</Tag>}
-                  </Space>
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
-      ),
+      children: <CertificateTemplatesSection isLoading={isLoading} selectedTemplate={selectedTemplate} onSelect={(id) => templateMut.mutate(id)} />,
     },
     {
       key: 'seed',
