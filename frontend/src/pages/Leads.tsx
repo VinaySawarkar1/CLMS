@@ -164,7 +164,7 @@ export default function Leads() {
                         stages={STAGES}
                         onView={() => setViewing(lead)}
                         onEdit={() => openEdit(lead)}
-                        onStage={(s) => {
+                        onStage={(s: string) => {
                           if (s === 'LOST') { setLostModal({ id: lead.id }); }
                           else stageMut.mutate({ id: lead.id, stage: s });
                         }}
@@ -235,7 +235,7 @@ export default function Leads() {
           stages={STAGES}
           onClose={() => setViewing(null)}
           onEdit={() => { openEdit(viewing); setViewing(null); }}
-          onStage={(s) => {
+          onStage={(s: string) => {
             if (s === 'LOST') { setLostModal({ id: viewing.id }); setViewing(null); }
             else stageMut.mutate({ id: viewing.id, stage: s });
           }}
@@ -283,9 +283,11 @@ function LeadCard({ lead, stageColor, stages, onView, onEdit, onStage, onConvert
             <Button size="small" type="primary" icon={<UserSwitchOutlined />} onClick={onConvert} />
           </Tooltip>
         )}
-        <Popconfirm title="Delete lead?" onConfirm={onDelete} onClick={(e: any) => e.stopPropagation()}>
-          <Button size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <span onClick={(e) => e.stopPropagation()}>
+          <Popconfirm title="Delete lead?" onConfirm={onDelete}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </span>
       </div>
     </div>
   );
