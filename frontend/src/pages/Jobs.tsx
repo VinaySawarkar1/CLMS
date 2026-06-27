@@ -2,15 +2,15 @@ import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Drawer, Form, Modal, Row, Select, Space, Table, Tag, Tooltip,
+  Button, Card, Col, Drawer, Form, Modal, Popconfirm, Row, Select, Space, Table, Tag, Tooltip,
   Typography, Input, Switch, DatePicker, message, Descriptions, Badge, Steps,
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined,
+  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import {
-  assignJob, createJob, createJobBatch, generateCertificate, getCustomers, getEngineers,
+  assignJob, createJob, createJobBatch, deleteJob, generateCertificate, getCustomers, getEngineers,
   getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
 import { findProcedure, groupedProcedures, Procedure } from '../procedures';
@@ -173,6 +173,12 @@ export default function Jobs() {
     },
   });
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteJob(id),
+    onSuccess: () => { refresh(); message.success('Job deleted'); },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Delete failed'),
+  });
+
   const bulkCreateMut = useMutation({
     // Single transactional intake: one customer → one batch → a job per instrument,
     // each with its own status, datasheets and certificate (Module 2.1).
@@ -281,6 +287,13 @@ export default function Jobs() {
                 onClick={() => setStatusTarget(row)}
               />
             </Tooltip>
+          )}
+          {isAdmin && (
+            <Popconfirm title="Delete this job?" onConfirm={() => deleteMut.mutate(row.id)}>
+              <Tooltip title="Delete Job">
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Tooltip>
+            </Popconfirm>
           )}
         </Space>
       ),

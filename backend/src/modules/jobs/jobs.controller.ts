@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards,
+  Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { JobStatus, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -60,5 +60,10 @@ export class JobsController {
   @Patch(':id')
   update(@Request() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
     return this.jobs.updateJob(id, req.user.labId, body);
+  }
+
+  @Delete(':id')
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.jobs.deleteJob(id, req.user.labId);
   }
 }

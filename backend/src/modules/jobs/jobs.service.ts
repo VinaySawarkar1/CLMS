@@ -305,6 +305,11 @@ export class JobsService {
     return updated;
   }
 
+  async deleteJob(id: string, labId: string) {
+    await this.findOne(id, labId);
+    return this.prisma.job.delete({ where: { id } });
+  }
+
   async updateJob(id: string, labId: string, data: Record<string, any>) {
     await this.findOne(id, labId);
     const allowed = ['remarks', 'challanNo', 'poNumber', 'conditionOfItem', 'calibrationProcedure', 'calibrationProcedureNo', 'referenceDocumentNo'];

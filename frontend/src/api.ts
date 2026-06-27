@@ -130,6 +130,7 @@ export const getJobBatches = (customerId?: string) => get('/jobs/batches', { cus
 export const getJobBatch = (id: string) => get(`/jobs/batches/${id}`);
 export const assignJob = (id: string, engineerId: string) => patch(`/jobs/${id}/assign`, { engineerId });
 export const setJobStatus = (id: string, status: string) => patch(`/jobs/${id}/status`, { status });
+export const deleteJob = (id: string) => del(`/jobs/${id}`);
 
 // Engineers
 export const getEngineers = () => get('/engineers');
