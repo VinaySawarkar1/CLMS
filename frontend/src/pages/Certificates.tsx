@@ -82,7 +82,7 @@ export default function Certificates() {
   });
 
   const genMut = useMutation({
-    mutationFn: (jobId: string) => generateCertificate({ jobId, type: effectiveGenType }),
+    mutationFn: (jobId: string) => generateCertificate({ jobId, type: detail?.certificateType ?? 'NABL' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
@@ -302,25 +302,14 @@ export default function Certificates() {
         footer={
           <Space style={{ width: '100%', justifyContent: 'flex-end' }} wrap>
             {!cert && !detailLoading && detail && isAdmin && (
-              <>
-                <Select
-                  value={effectiveGenType}
-                  onChange={(v) => setGenType(v as any)}
-                  style={{ width: 180 }}
-                  options={[
-                    { value: 'NABL', label: 'NABL Certificate' },
-                    { value: 'NON_NABL', label: 'Non-NABL (Letterhead)' },
-                  ]}
-                />
-                <Button
-                  type="primary"
-                  icon={<PlusCircleOutlined />}
-                  loading={genMut.isPending}
-                  onClick={() => genMut.mutate(detail.id)}
-                >
-                  Generate {effectiveGenType === 'NABL' ? 'NABL' : 'Non-NABL'}
-                </Button>
-              </>
+              <Button
+                type="primary"
+                icon={<PlusCircleOutlined />}
+                loading={genMut.isPending}
+                onClick={() => genMut.mutate(detail.id)}
+              >
+                Generate {detail.certificateType === 'NON_NABL' ? 'Non-NABL' : 'NABL'} Certificate
+              </Button>
             )}
             {cert && (
               <>

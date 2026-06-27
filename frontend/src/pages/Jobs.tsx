@@ -159,7 +159,10 @@ export default function Jobs() {
   });
 
   const certMut = useMutation({
-    mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }),
+    mutationFn: (jobId: string) => {
+      const job = (jobs as any[]).find((j: any) => j.id === jobId);
+      return generateCertificate({ jobId, type: job?.certificateType ?? 'NABL' });
+    },
     onSuccess: () => {
       refresh();
       setStatusTarget(null);
@@ -480,6 +483,12 @@ export default function Jobs() {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="certificateType" label="Certificate Type" initialValue="NABL">
+            <Select options={[
+              { value: 'NABL', label: 'NABL Certificate (with NABL logo)' },
+              { value: 'NON_NABL', label: 'Non-NABL Certificate (company letterhead)' },
+            ]} />
+          </Form.Item>
           <Form.Item name="isOnsite" label="Onsite Calibration?" valuePropName="checked" initialValue={false}>
             <Switch checkedChildren="Onsite" unCheckedChildren="In-lab" />
           </Form.Item>

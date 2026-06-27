@@ -573,6 +573,7 @@ model Job {
   masterInstrumentId   String?
   masterInstrument     MasterInstrument? @relation(fields: [masterInstrumentId], references: [id])
   // Onsite calibration
+  certificateType String   @default("NABL")   // NABL | NON_NABL — set at job creation
   isOnsite     Boolean    @default(false)
   siteAddress  String?
   siteContact  String?
