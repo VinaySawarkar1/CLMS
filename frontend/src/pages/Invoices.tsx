@@ -51,22 +51,27 @@ function LineItemsEditor({ form }: { form: any }) {
     <div>
       <div style={{ background: '#f5f5f5', padding: 8, borderRadius: 6, marginBottom: 8 }}>
         <Row gutter={8}>
-          {['Description / HSN', 'Qty', 'Unit Price', 'Disc%', 'GST%', ''].map((h, i) => (
-            <Col key={i} span={i === 0 ? 8 : i === 5 ? 2 : 3}><Text strong style={{ fontSize: 12 }}>{h}</Text></Col>
-          ))}
+          <Col span={7}><Text strong style={{ fontSize: 12 }}>Description / HSN</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Qty</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit Price</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}>Disc%</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}>GST%</Text></Col>
+          <Col span={2}></Col>
         </Row>
       </div>
       {items.map((_: any, i: number) => (
         <Row gutter={8} key={i} style={{ marginBottom: 6 }}>
-          <Col span={8}>
+          <Col span={7}>
             <Form.Item name={['lineItems', i, 'description']} rules={[{ required: true, message: '' }]} style={{ margin: 0 }}>
               <Input placeholder="Description" />
             </Form.Item>
           </Col>
           <Col span={3}><Form.Item name={['lineItems', i, 'quantity']} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          <Col span={3}><Form.Item name={['lineItems', i, 'unit']} style={{ margin: 0 }}><Input placeholder="Nos/Hrs/Set" /></Form.Item></Col>
           <Col span={3}><Form.Item name={['lineItems', i, 'unitPrice']} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={0} prefix="₹" style={{ width: '100%' }} /></Form.Item></Col>
-          <Col span={3}><Form.Item name={['lineItems', i, 'discountPct']} style={{ margin: 0 }}><InputNumber min={0} max={100} suffix="%" style={{ width: '100%' }} /></Form.Item></Col>
-          <Col span={3}>
+          <Col span={2}><Form.Item name={['lineItems', i, 'discountPct']} style={{ margin: 0 }}><InputNumber min={0} max={100} suffix="%" style={{ width: '100%' }} /></Form.Item></Col>
+          <Col span={2}>
             <Form.Item name={['lineItems', i, 'gstRate']} style={{ margin: 0 }}>
               <Select style={{ width: '100%' }} options={GST_RATES.map(r => ({ value: r, label: `${r}%` }))} />
             </Form.Item>
@@ -107,6 +112,7 @@ export default function Invoices() {
     setEditing(row);
     form.setFieldsValue({
       customerId: row.customerId,
+      issueDate: row.issueDate ? dayjs(row.issueDate) : undefined,
       dueDate: row.dueDate ? dayjs(row.dueDate) : undefined,
       customerPoNumber: row.customerPoNumber,
       paymentTerms: row.paymentTerms,
@@ -120,7 +126,7 @@ export default function Invoices() {
 
   const createMut = useMutation({
     mutationFn: (vals: any) => {
-      const body = { ...vals, dueDate: vals.dueDate?.toISOString(), lineItems: vals.lineItems ?? [] };
+      const body = { ...vals, issueDate: vals.issueDate?.toISOString(), dueDate: vals.dueDate?.toISOString(), lineItems: vals.lineItems ?? [] };
       if (editing) return updateInvoice(editing.id, body);
       return vals._action === 'issue' ? createInvoiceDraft(body).then((r: any) => finaliseInvoice(r.id)) : createInvoiceDraft(body);
     },
@@ -261,7 +267,12 @@ export default function Invoices() {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={6}>
+              <Form.Item name="issueDate" label="Invoice Date">
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
               <Form.Item name="dueDate" label="Due Date">
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>

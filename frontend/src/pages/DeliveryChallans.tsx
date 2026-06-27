@@ -235,21 +235,35 @@ export default function DeliveryChallans() {
           <Form.List name="lineItems">
             {(fields, { add, remove }) => (
               <>
+                <div style={{ background: '#f5f5f5', padding: '4px 8px', borderRadius: 6, marginBottom: 6 }}>
+                  <Row gutter={8}>
+                    <Col span={10}><Text strong style={{ fontSize: 12 }}>Description</Text></Col>
+                    <Col span={3}><Text strong style={{ fontSize: 12 }}>Qty</Text></Col>
+                    <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit</Text></Col>
+                    <Col span={6}><Text strong style={{ fontSize: 12 }}>Remarks</Text></Col>
+                    <Col span={2}></Col>
+                  </Row>
+                </div>
                 {fields.map(({ key, name }) => (
                   <Row gutter={8} key={key} style={{ marginBottom: 6 }}>
-                    <Col span={14}>
+                    <Col span={10}>
                       <Form.Item name={[name, 'description']} rules={[{ required: true, message: '' }]} style={{ margin: 0 }}>
                         <Input placeholder="Item / product description" />
                       </Form.Item>
                     </Col>
-                    <Col span={4}>
+                    <Col span={3}>
                       <Form.Item name={[name, 'quantity']} rules={[{ required: true }]} style={{ margin: 0 }}>
                         <InputNumber min={0} placeholder="Qty" style={{ width: '100%' }} />
                       </Form.Item>
                     </Col>
-                    <Col span={4}>
+                    <Col span={3}>
                       <Form.Item name={[name, 'unit']} style={{ margin: 0 }}>
-                        <Input placeholder="Unit" />
+                        <Input placeholder="Nos/Pcs" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item name={[name, 'remarks']} style={{ margin: 0 }}>
+                        <Input placeholder="Condition / remarks" />
                       </Form.Item>
                     </Col>
                     <Col span={2}>
@@ -361,6 +375,7 @@ export default function DeliveryChallans() {
                   { title: 'Description', dataIndex: 'description', key: 'd' },
                   { title: 'Qty', dataIndex: 'quantity', key: 'q' },
                   { title: 'Unit', dataIndex: 'unit', key: 'u', render: (v: string) => v ?? '—' },
+                  { title: 'Remarks', dataIndex: 'remarks', key: 'r', render: (v: string) => v ?? '—' },
                 ]}
               />
             </div>

@@ -54,17 +54,18 @@ function LineItemsForm({ form }: { form: any }) {
     <div>
       <div style={{ background: '#f5f5f5', padding: 8, borderRadius: 6, marginBottom: 8 }}>
         <Row gutter={8}>
-          <Col span={8}><Text strong style={{ fontSize: 12 }}>Description</Text></Col>
+          <Col span={7}><Text strong style={{ fontSize: 12 }}>Description</Text></Col>
           <Col span={3}><Text strong style={{ fontSize: 12 }}>Qty</Text></Col>
-          <Col span={4}><Text strong style={{ fontSize: 12 }}>Unit Price</Text></Col>
-          <Col span={3}><Text strong style={{ fontSize: 12 }}>Disc%</Text></Col>
-          <Col span={3}><Text strong style={{ fontSize: 12 }}>GST%</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit Price</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}>Disc%</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}>GST%</Text></Col>
           <Col span={2}><Text strong style={{ fontSize: 12 }}>Del</Text></Col>
         </Row>
       </div>
       {items.map((_: any, i: number) => (
         <Row gutter={8} key={i} style={{ marginBottom: 6 }}>
-          <Col span={8}>
+          <Col span={7}>
             <Form.Item name={['lineItems', i, 'description']} rules={[{ required: true, message: '' }]} style={{ margin: 0 }}>
               <Input placeholder="Item description" />
             </Form.Item>
@@ -74,17 +75,22 @@ function LineItemsForm({ form }: { form: any }) {
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
-          <Col span={4}>
+          <Col span={3}>
+            <Form.Item name={['lineItems', i, 'unit']} style={{ margin: 0 }}>
+              <Input placeholder="Nos/Pcs/Set" />
+            </Form.Item>
+          </Col>
+          <Col span={3}>
             <Form.Item name={['lineItems', i, 'unitPrice']} rules={[{ required: true }]} style={{ margin: 0 }}>
               <InputNumber min={0} prefix="₹" style={{ width: '100%' }} />
             </Form.Item>
           </Col>
-          <Col span={3}>
+          <Col span={2}>
             <Form.Item name={['lineItems', i, 'discountPct']} style={{ margin: 0 }}>
               <InputNumber min={0} max={100} suffix="%" style={{ width: '100%' }} />
             </Form.Item>
           </Col>
-          <Col span={3}>
+          <Col span={2}>
             <Form.Item name={['lineItems', i, 'gstRate']} style={{ margin: 0 }}>
               <Select style={{ width: '100%' }} options={GST_RATES.map(r => ({ value: r, label: `${r}%` }))} />
             </Form.Item>
@@ -129,6 +135,7 @@ export default function PurchaseOrders() {
       supplierRef: row.supplierRef,
       paymentTerms: row.paymentTerms,
       deliveryAddress: row.deliveryAddress,
+      termsConditions: row.termsConditions,
       notes: row.notes,
       lineItems: row.lineItems ?? [],
     });
@@ -310,9 +317,18 @@ export default function PurchaseOrders() {
           <Divider>Line Items</Divider>
           <LineItemsForm form={form} />
           <Divider />
-          <Form.Item name="notes" label="Notes to Supplier">
-            <Input.TextArea rows={2} />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="termsConditions" label="Terms & Conditions">
+                <Input.TextArea rows={2} placeholder="Payment terms, warranty, delivery conditions..." />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="notes" label="Notes to Supplier">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 

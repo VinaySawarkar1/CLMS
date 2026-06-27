@@ -49,18 +49,23 @@ function LineItemsEditor({ form }: { form: any }) {
     <div>
       <div style={{ background: '#f5f5f5', padding: '6px 8px', borderRadius: 6, marginBottom: 8 }}>
         <Row gutter={8}>
-          {['Description', 'Qty', 'Unit Price', 'Disc%', 'GST%', ''].map((h, i) => (
-            <Col key={i} span={i === 0 ? 8 : i === 5 ? 2 : 3}><Text strong style={{ fontSize: 12 }}>{h}</Text></Col>
-          ))}
+          <Col span={7}><Text strong style={{ fontSize: 12 }}>Description</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Qty</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit</Text></Col>
+          <Col span={3}><Text strong style={{ fontSize: 12 }}>Unit Price</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}>Disc%</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}>GST%</Text></Col>
+          <Col span={2}><Text strong style={{ fontSize: 12 }}></Text></Col>
         </Row>
       </div>
       {items.map((_: any, i: number) => (
         <Row gutter={8} key={i} style={{ marginBottom: 6 }}>
-          <Col span={8}><Form.Item name={['items', i, 'description']} rules={[{ required: true, message: '' }]} style={{ margin: 0 }}><Input placeholder="Service / product" /></Form.Item></Col>
+          <Col span={7}><Form.Item name={['items', i, 'description']} rules={[{ required: true, message: '' }]} style={{ margin: 0 }}><Input placeholder="Service / product" /></Form.Item></Col>
           <Col span={3}><Form.Item name={['items', i, 'quantity']} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          <Col span={3}><Form.Item name={['items', i, 'unit']} style={{ margin: 0 }}><Input placeholder="Nos/Hrs/Set" /></Form.Item></Col>
           <Col span={3}><Form.Item name={['items', i, 'unitPrice']} rules={[{ required: true }]} style={{ margin: 0 }}><InputNumber min={0} prefix="₹" style={{ width: '100%' }} /></Form.Item></Col>
-          <Col span={3}><Form.Item name={['items', i, 'discountPct']} style={{ margin: 0 }}><InputNumber min={0} max={100} suffix="%" style={{ width: '100%' }} /></Form.Item></Col>
-          <Col span={3}><Form.Item name={['items', i, 'gstRate']} style={{ margin: 0 }}><Select style={{ width: '100%' }} options={GST_RATES.map(r => ({ value: r, label: `${r}%` }))} /></Form.Item></Col>
+          <Col span={2}><Form.Item name={['items', i, 'discountPct']} style={{ margin: 0 }}><InputNumber min={0} max={100} suffix="%" style={{ width: '100%' }} /></Form.Item></Col>
+          <Col span={2}><Form.Item name={['items', i, 'gstRate']} style={{ margin: 0 }}><Select style={{ width: '100%' }} options={GST_RATES.map(r => ({ value: r, label: `${r}%` }))} /></Form.Item></Col>
           <Col span={2}><Button danger icon={<DeleteOutlined />} size="small" onClick={() => removeRow(i)} disabled={items.length === 1} /></Col>
         </Row>
       ))}
