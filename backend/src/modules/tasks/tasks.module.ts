@@ -21,7 +21,7 @@ class TasksService {
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         status: data.engineerId ? 'ASSIGNED' : 'PENDING',
       },
-      include: { engineer: { select: { id: true, name: true } } },
+      include: { engineer: { select: { id: true, employeeCode: true, user: { select: { fullName: true } } } } },
     });
   }
 
@@ -32,7 +32,7 @@ class TasksService {
         labId,
         ...(isAdmin ? {} : { engineerId: userId ?? null }),
       },
-      include: { engineer: { select: { id: true, name: true } } },
+      include: { engineer: { select: { id: true, employeeCode: true, user: { select: { fullName: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
     const columns: Record<string, typeof tasks> = {};
@@ -52,7 +52,7 @@ class TasksService {
     return this.prisma.task.update({
       where: { id },
       data: updateData,
-      include: { engineer: { select: { id: true, name: true } } },
+      include: { engineer: { select: { id: true, employeeCode: true, user: { select: { fullName: true } } } } },
     });
   }
 
