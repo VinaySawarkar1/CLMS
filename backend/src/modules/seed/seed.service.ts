@@ -130,7 +130,7 @@ export class SeedService {
     ];
     await Promise.all(
       poData.map((p) =>
-        this.prisma.purchaseOrder.create({ data: { labId, ...p } }),
+        this.prisma.purchaseOrder.create({ data: { labId, ...p, status: p.status as any } }),
       ),
     );
 
@@ -144,7 +144,7 @@ export class SeedService {
     ];
     await Promise.all(
       challanData.map((c) =>
-        this.prisma.deliveryChallan.create({ data: { labId, ...c } }),
+        this.prisma.deliveryChallan.create({ data: { labId, ...c, status: c.status as any, challanType: c.challanType as any } }),
       ),
     );
 
@@ -158,7 +158,7 @@ export class SeedService {
     ];
     await Promise.all(
       leadData.map((l) =>
-        this.prisma.lead.create({ data: { labId, ...l } }),
+        this.prisma.lead.create({ data: { labId, ...l, stage: l.stage as any, source: l.source as any } }),
       ),
     );
 
@@ -172,7 +172,7 @@ export class SeedService {
     ];
     await Promise.all(
       activityData.map((a) =>
-        this.prisma.crmActivity.create({ data: { labId, ...a } }),
+        this.prisma.crmActivity.create({ data: { labId, ...a, type: a.type as any } }),
       ),
     );
 
