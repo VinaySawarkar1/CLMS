@@ -466,25 +466,18 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 <!-- ══ END OF CERTIFICATE ═════════════════════════════════════════ -->
 <div class="end-cert">*&nbsp;*&nbsp;*&nbsp;&nbsp; End of Certificate &nbsp;&nbsp;*&nbsp;*&nbsp;*</div>
 
-<!-- ══ SIGNATURES ════════════════════════════════════════════════ -->
+<!-- ══ SIGNATURES — always 2 blocks ══════════════════════════════ -->
 <div class="sign-row">
-  ${(d.signatures ?? []).map((s) => `
   <div class="sign-block">
-    <div style="height:36px"></div>
-    <div class="sign-name">${esc(s.by)}</div>
-    <div class="sign-desig">${esc(s.designation || s.stage)}</div>
-  </div>`).join('')}
-  ${!(d.signatures ?? []).length ? `
-  <div class="sign-block">
-    <div style="height:36px"></div>
-    <div class="sign-name">Calibrated By</div>
-    <div class="sign-desig">Calibration Engineer</div>
+    <div style="height:40px"></div>
+    <div class="sign-name">${esc((d.signatures ?? []).find((s: any) => s.stage === 'ENGINEER')?.by || 'Calibration Engineer')}</div>
+    <div class="sign-desig">Calibrated By</div>
   </div>
   <div class="sign-block">
-    <div style="height:36px"></div>
-    <div class="sign-name">${esc(d.labSignatoryName || 'Authorized Signatory')}</div>
+    <div style="height:40px"></div>
+    <div class="sign-name">${esc((d.signatures ?? []).find((s: any) => s.stage === 'TECHNICAL_MANAGER')?.by || d.labSignatoryName || 'Authorized Signatory')}</div>
     <div class="sign-desig">${esc(d.labSignatoryDesignation || 'Technical Manager')}</div>
-  </div>` : ''}
+  </div>
 </div>
 
 <!-- ══ FOOTER (LEGAL NOTES + QR) ════════════════════════════════ -->

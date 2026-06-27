@@ -22,10 +22,10 @@ import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROC
 
 const { Title, Text } = Typography;
 
-const SIG_STAGES = ['ENGINEER', 'REVIEWER', 'TECHNICAL_MANAGER', 'QUALITY_MANAGER', 'FINAL_LOCK'];
+const SIG_STAGES = ['ENGINEER', 'TECHNICAL_MANAGER'];
 const STAGE_LABELS: Record<string, string> = {
-  ENGINEER: 'Engineer', REVIEWER: 'Reviewer', TECHNICAL_MANAGER: 'Tech Manager',
-  QUALITY_MANAGER: 'QA Manager', FINAL_LOCK: 'Final Lock',
+  ENGINEER: 'Calibrated By',
+  TECHNICAL_MANAGER: 'Authorized Signatory',
 };
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
 

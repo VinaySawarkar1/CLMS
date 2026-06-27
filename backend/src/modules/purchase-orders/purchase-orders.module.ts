@@ -126,7 +126,7 @@ class PurchaseOrdersService {
     if (!po) throw new NotFoundException('Purchase Order not found');
     if (po.status !== 'DRAFT') throw new Error('Only DRAFT orders can be edited');
 
-    const items = dto.lineItems ?? (po.lineItems as LineItemDto[]);
+    const items = dto.lineItems ?? (po.lineItems as unknown as LineItemDto[]);
     const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(items);
 
     return this.prisma.purchaseOrder.update({
