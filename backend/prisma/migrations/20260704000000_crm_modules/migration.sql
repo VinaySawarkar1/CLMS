@@ -150,3 +150,11 @@ CREATE TABLE IF NOT EXISTS "DeliveryChallan" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "DeliveryChallan_labId_challanNumber_key" ON "DeliveryChallan"("labId", "challanNumber");
 CREATE INDEX IF NOT EXISTS "DeliveryChallan_labId_idx" ON "DeliveryChallan"("labId");
+
+-- Add GST/bank fields to Lab
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "gstin" TEXT;
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "pan" TEXT;
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankName" TEXT;
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankAccountNumber" TEXT;
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankIfsc" TEXT;
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankBranch" TEXT;

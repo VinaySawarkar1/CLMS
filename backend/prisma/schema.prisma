@@ -114,6 +114,12 @@ model Lab {
   state               String?
   pinCode             String?
   logoUrl             String?   // Base64 data-URL or object path for lab logo
+  gstin               String?
+  pan                 String?
+  bankName            String?
+  bankAccountNumber   String?
+  bankIfsc            String?
+  bankBranch          String?
   status              LabStatus  @default(PENDING)
   users               User[]
   customers           Customer[]

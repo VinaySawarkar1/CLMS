@@ -7,14 +7,15 @@ import {
 } from 'antd';
 import {
   CarOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, SendOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getDeliveryChallans, createDeliveryChallan, dispatchChallan,
   markChallanDelivered, setDeliveryChallanStatus, deleteDeliveryChallan,
-  getDeliveryChallanStats, getCustomers,
+  getDeliveryChallanStats, getCustomers, getLab, getUser,
 } from '../api';
+import { downloadChallanPdf } from '../utils/pdfExport';
 
 const { Title, Text } = Typography;
 
@@ -36,6 +37,8 @@ export default function DeliveryChallans() {
   const { data: challans = [], isLoading } = useQuery({ queryKey: ['deliveryChallans'], queryFn: () => getDeliveryChallans() });
   const { data: stats } = useQuery({ queryKey: ['dcStats'], queryFn: getDeliveryChallanStats });
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: () => getCustomers() });
+  const labId = getUser()?.labId ?? '';
+  const { data: company } = useQuery({ queryKey: ['lab', labId], queryFn: () => getLab(labId), enabled: !!labId });
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['deliveryChallans'] }); qc.invalidateQueries({ queryKey: ['dcStats'] }); };
 
@@ -111,6 +114,9 @@ export default function DeliveryChallans() {
         <Space>
           <Tooltip title="View Details">
             <Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(row)} />
+          </Tooltip>
+          <Tooltip title="Download PDF">
+            <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadChallanPdf(row, company ?? {})} />
           </Tooltip>
           {['DRAFT', 'CANCELLED'].includes(row.status) && (
             <Popconfirm title="Delete this challan?" onConfirm={() => deleteMut.mutate(row.id)} okType="danger">
@@ -294,7 +300,7 @@ export default function DeliveryChallans() {
       </Modal>
 
       {/* View Drawer */}
-      <Drawer title={`Delivery Challan — ${viewing?.challanNumber}`} open={!!viewing} onClose={() => setViewing(null)} width={620}>
+      <Drawer title={`Delivery Challan — ${viewing?.challanNumber}`} open={!!viewing} onClose={() => setViewing(null)} width={620} extra={<Button icon={<DownloadOutlined />} onClick={() => downloadChallanPdf(viewing, company ?? {})}>Download PDF</Button>}>
         {viewing && (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Steps

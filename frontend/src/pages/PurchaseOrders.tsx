@@ -7,13 +7,14 @@ import {
 } from 'antd';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, CopyOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, CopyOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder,
-  setPurchaseOrderStatus, deletePurchaseOrder, getPurchaseOrderStats, getCustomers,
+  setPurchaseOrderStatus, deletePurchaseOrder, getPurchaseOrderStats, getCustomers, getLab, getUser,
 } from '../api';
+import { downloadPurchaseOrderPdf } from '../utils/pdfExport';
 
 const { Title, Text } = Typography;
 
@@ -114,6 +115,8 @@ export default function PurchaseOrders() {
   const { data: orders = [], isLoading } = useQuery({ queryKey: ['purchaseOrders'], queryFn: () => getPurchaseOrders() });
   const { data: stats } = useQuery({ queryKey: ['poStats'], queryFn: getPurchaseOrderStats });
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: () => getCustomers() });
+  const labId = getUser()?.labId ?? '';
+  const { data: company } = useQuery({ queryKey: ['lab', labId], queryFn: () => getLab(labId), enabled: !!labId });
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['purchaseOrders'] }); qc.invalidateQueries({ queryKey: ['poStats'] }); };
 
@@ -182,6 +185,9 @@ export default function PurchaseOrders() {
         <Space>
           <Tooltip title="View Details">
             <Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(row)} />
+          </Tooltip>
+          <Tooltip title="Download PDF">
+            <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadPurchaseOrderPdf(row, company ?? {})} />
           </Tooltip>
           {['DRAFT', 'CANCELLED'].includes(row.status) && (
             <Popconfirm title="Delete this PO?" onConfirm={() => deleteMut.mutate(row.id)} okType="danger">
@@ -294,6 +300,7 @@ export default function PurchaseOrders() {
         open={!!viewing}
         onClose={() => setViewing(null)}
         width={600}
+        extra={<Button icon={<DownloadOutlined />} onClick={() => downloadPurchaseOrderPdf(viewing, company ?? {})}>Download PDF</Button>}
       >
         {viewing && (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>

@@ -81,6 +81,9 @@ function LabDetailsSection() {
         name: d.name, accreditationNumber: d.accreditationNumber, address: d.address,
         contactEmail: d.contactEmail, phone: d.phone, website: d.website,
         city: d.city, state: d.state, pinCode: d.pinCode,
+        gstin: d.gstin, pan: d.pan,
+        bankName: d.bankName, bankAccountNumber: d.bankAccountNumber,
+        bankIfsc: d.bankIfsc, bankBranch: d.bankBranch,
       });
       if (d.logoUrl) setLogoPreview(d.logoUrl);
     },
@@ -198,6 +201,41 @@ function LabDetailsSection() {
             <Col span={24}>
               <Form.Item name="website" label="Website">
                 <Input placeholder="https://example.com" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="gstin" label="GSTIN">
+                <Input placeholder="22AAAAA0000A1Z5" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="pan" label="PAN">
+                <Input placeholder="AAAAA0000A" />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Divider orientation="left" style={{ fontSize: 12, color: '#888', margin: '4px 0 12px' }}>
+                Bank Details (for invoices & quotations)
+              </Divider>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="bankName" label="Bank Name">
+                <Input placeholder="e.g. HDFC Bank" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="bankBranch" label="Branch">
+                <Input placeholder="e.g. Andheri West" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="bankAccountNumber" label="Account Number">
+                <Input placeholder="Account number" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="bankIfsc" label="IFSC Code">
+                <Input placeholder="e.g. HDFC0001234" />
               </Form.Item>
             </Col>
             <Col span={24}>

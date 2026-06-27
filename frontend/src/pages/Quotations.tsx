@@ -7,13 +7,14 @@ import {
 } from 'antd';
 import {
   FileDoneOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CopyOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined,
+  CopyOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getQuotations, createQuotation, setQuotationStatus, updateQuotation,
-  deleteQuotation, duplicateQuotation, getQuotationStats, getCustomers,
+  deleteQuotation, duplicateQuotation, getQuotationStats, getCustomers, getLab, getUser,
 } from '../api';
+import { downloadQuotationPdf } from '../utils/pdfExport';
 
 const { Title, Text } = Typography;
 
@@ -84,6 +85,8 @@ export default function Quotations() {
   const { data: quotes = [], isLoading } = useQuery({ queryKey: ['quotations'], queryFn: () => getQuotations() });
   const { data: stats } = useQuery({ queryKey: ['quotationStats'], queryFn: getQuotationStats });
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: () => getCustomers() });
+  const labId = getUser()?.labId ?? '';
+  const { data: company } = useQuery({ queryKey: ['lab', labId], queryFn: () => getLab(labId), enabled: !!labId });
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['quotations'] }); qc.invalidateQueries({ queryKey: ['quotationStats'] }); };
 
@@ -133,6 +136,7 @@ export default function Quotations() {
       render: (_: any, row: any) => (
         <Space>
           <Tooltip title="View"><Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(row)} /></Tooltip>
+          <Tooltip title="Download PDF"><Button size="small" icon={<DownloadOutlined />} onClick={() => downloadQuotationPdf(row, company ?? {})} /></Tooltip>
           {row.status === 'DRAFT' && (
             <Tooltip title="Mark Sent">
               <Button size="small" icon={<SendOutlined />} onClick={() => statusMut.mutate({ id: row.id, status: 'SENT' })} />
@@ -310,6 +314,7 @@ export default function Quotations() {
                 </>
               )}
               <Button icon={<CopyOutlined />} onClick={() => { dupMut.mutate(viewing.id); setViewing(null); }}>Duplicate</Button>
+              <Button icon={<DownloadOutlined />} onClick={() => downloadQuotationPdf(viewing, company ?? {})}>Download PDF</Button>
             </Space>
           </Space>
         )}

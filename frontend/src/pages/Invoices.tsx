@@ -7,13 +7,14 @@ import {
 } from 'antd';
 import {
   FileTextOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CheckCircleOutlined, DollarOutlined, CloseCircleOutlined,
+  CheckCircleOutlined, DollarOutlined, CloseCircleOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getInvoices, createInvoiceDraft, finaliseInvoice, updateInvoice,
-  recordPayment, cancelInvoice, deleteInvoice, getInvoiceStats, getCustomers,
+  recordPayment, cancelInvoice, deleteInvoice, getInvoiceStats, getCustomers, getLab, getUser,
 } from '../api';
+import { downloadInvoicePdf } from '../utils/pdfExport';
 
 const { Title, Text } = Typography;
 
@@ -96,6 +97,8 @@ export default function Invoices() {
   const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: () => getInvoices() });
   const { data: stats } = useQuery({ queryKey: ['invoiceStats'], queryFn: getInvoiceStats });
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: () => getCustomers() });
+  const labId = getUser()?.labId ?? '';
+  const { data: company } = useQuery({ queryKey: ['lab', labId], queryFn: () => getLab(labId), enabled: !!labId });
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['invoices'] }); qc.invalidateQueries({ queryKey: ['invoiceStats'] }); };
 
@@ -158,6 +161,7 @@ export default function Invoices() {
       render: (_: any, row: any) => (
         <Space>
           <Tooltip title="View Details"><Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(row)} /></Tooltip>
+          <Tooltip title="Download PDF"><Button size="small" icon={<DownloadOutlined />} onClick={() => downloadInvoicePdf(row, company ?? {})} /></Tooltip>
           {row.status === 'DRAFT' && (
             <Tooltip title="Finalise Invoice">
               <Button size="small" type="primary" icon={<CheckCircleOutlined />} onClick={() => finaliseMut.mutate(row.id)} />
@@ -324,7 +328,13 @@ export default function Invoices() {
       </Modal>
 
       {/* Invoice Detail Drawer */}
-      <Drawer title={`Invoice — ${viewing?.invoiceNumber}`} open={!!viewing} onClose={() => setViewing(null)} width={680}>
+      <Drawer
+        title={`Invoice — ${viewing?.invoiceNumber}`}
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        width={680}
+        extra={<Button icon={<DownloadOutlined />} onClick={() => downloadInvoicePdf(viewing, company ?? {})}>Download PDF</Button>}
+      >
         {viewing && (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Tag color={STATUS_COLOR[viewing.status]} style={{ fontSize: 14, padding: '4px 12px' }}>

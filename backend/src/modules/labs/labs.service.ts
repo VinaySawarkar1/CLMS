@@ -259,7 +259,7 @@ export class LabsService {
 
   /** LAB_ADMIN: update lab details (name, address, logo, etc.) */
   async updateDetails(labId: string, body: any) {
-    const allowed = ['name', 'accreditationNumber', 'address', 'contactEmail', 'phone', 'website', 'city', 'state', 'pinCode', 'logoUrl'];
+    const allowed = ['name', 'accreditationNumber', 'address', 'contactEmail', 'phone', 'website', 'city', 'state', 'pinCode', 'logoUrl', 'gstin', 'pan', 'bankName', 'bankAccountNumber', 'bankIfsc', 'bankBranch'];
     const data: any = {};
     for (const key of allowed) {
       if (body[key] !== undefined) data[key] = body[key];
