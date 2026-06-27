@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AutoComplete, Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select,
@@ -30,6 +31,7 @@ const IMPORT_COLS = [
 
 export default function Instruments() {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -115,7 +117,9 @@ export default function Instruments() {
     },
     {
       title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer',
-      render: (v: string) => v ? <Tag color="purple">{v}</Tag> : <Text type="secondary">—</Text>,
+      render: (v: string, row: any) => v
+        ? <Tag color="purple" style={{ cursor: 'pointer' }} onClick={() => nav(`/customers?highlight=${row.customer?.id}`)}>{v}</Tag>
+        : <Text type="secondary">—</Text>,
     },
     {
       title: 'Actions', key: 'actions', width: 100,

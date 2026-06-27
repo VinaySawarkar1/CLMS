@@ -216,7 +216,9 @@ export default function Jobs() {
       title: 'Customer',
       dataIndex: ['customer', 'name'],
       key: 'customer',
-      render: (v: string) => <Text>{v}</Text>,
+      render: (v: string, row: any) => v
+        ? <RouterLink to={`/customers?highlight=${row.customer?.id}`}><Tag color="purple" style={{ cursor: 'pointer' }}>{v}</Tag></RouterLink>
+        : <Text type="secondary">—</Text>,
     },
     {
       title: 'Instrument',

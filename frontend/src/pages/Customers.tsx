@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography, Row, Col, message,
@@ -26,6 +27,8 @@ const IMPORT_COLS = [
 
 export default function Customers() {
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlight');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -42,6 +45,16 @@ export default function Customers() {
     queryKey: ['customers', search],
     queryFn: () => getCustomers(search || undefined),
   });
+
+  useEffect(() => {
+    if (highlightId && (data as any[]).length > 0) {
+      const el = document.getElementById(`customer-row-${highlightId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Clear the param after a moment so browser back works cleanly
+      const t = setTimeout(() => setSearchParams({}, { replace: true }), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId, data]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['customers'] });
 
@@ -148,6 +161,12 @@ export default function Customers() {
           pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} customers` }}
           size="middle"
           scroll={{ x: 900 }}
+          onRow={(row: any) => ({
+            id: `customer-row-${row.id}`,
+            style: highlightId === row.id
+              ? { background: '#e6f4ff', transition: 'background 1s' }
+              : undefined,
+          })}
         />
       </Card>
 
