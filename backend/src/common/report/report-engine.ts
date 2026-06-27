@@ -149,13 +149,13 @@ function renderObservations(rows: ReportObservation[]): string {
   </tr>`).join('');
 }
 
-function renderReferenceStandards(refs: ReferenceStandardInfo[]): string {
+function renderReferenceStandards(refs: ReferenceStandardInfo[], isNabl = true): string {
   if (!refs.length) return '';
   return `
   <div class="section">
     <div class="section-title">Equipment &amp; Master Used for Calibration</div>
     <p style="font-size:11px;margin:0 0 6px;color:#333">
-      Used Standards are traceable to National / International Standards (Direct / through NABL Accredited Lab.)
+      Used Standards are traceable to National / International Standards${isNabl ? ' (Direct / through NABL Accredited Lab.)' : '.'}
     </p>
     <table class="data">
       <thead><tr>
@@ -312,40 +312,36 @@ ${d.isDraft ? '<div class="draft-watermark">DRAFT</div>' : ''}
     <h1>CERTIFICATE OF CALIBRATION</h1>
     <div class="issued-by-label">ISSUED BY</div>
     <div class="issued-by-name">${esc(d.labName || 'Calibration Laboratory')}</div>
-    <div class="iso-line">ISO / IEC 17025 · NABL</div>
+    ${d.type === 'NABL' ? `<div class="iso-line">ISO / IEC 17025 · NABL</div>` : '<div class="iso-line">CERTIFICATE OF CALIBRATION</div>'}
   </div>
 
-  <!-- RIGHT: NABL circular stamp -->
+  <!-- RIGHT: NABL circular stamp (NABL certificates only) -->
+  ${d.type === 'NABL' ? `
   <div class="nabl-logo-wrap">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="82" height="82" aria-label="NABL Logo">
       <defs>
         <path id="topArc"  d="M 14,100 A 86,86 0 0,1 186,100"/>
         <path id="botArc"  d="M 22,116 A 80,80 0 0,0 178,116"/>
       </defs>
-      <!-- Outer navy ring -->
       <circle cx="100" cy="100" r="98" fill="#1a237e"/>
       <circle cx="100" cy="100" r="88" fill="#fff"/>
       <circle cx="100" cy="100" r="82" fill="none" stroke="#1a237e" stroke-width="1"/>
-      <!-- Inner filled circle -->
       <circle cx="100" cy="100" r="64" fill="#1a237e"/>
       <circle cx="100" cy="100" r="58" fill="#fff"/>
-      <!-- Six-pointed star (simpler than 5) — use 5-pointed -->
       <polygon points="100,44 112,80 150,80 120,102 131,138 100,116 69,138 80,102 50,80 88,80"
                fill="#1a237e"/>
-      <!-- Arc text top -->
       <text font-family="Arial,sans-serif" font-size="9" fill="#fff" font-weight="bold" letter-spacing="0.3">
         <textPath href="#topArc" startOffset="3%">NATIONAL ACCREDITATION BOARD FOR TESTING AND</textPath>
       </text>
-      <!-- Arc text bottom -->
       <text font-family="Arial,sans-serif" font-size="9" fill="#fff" font-weight="bold" letter-spacing="0.3">
         <textPath href="#botArc" startOffset="12%">CALIBRATION LABORATORIES</textPath>
       </text>
-      <!-- NABL label at bottom -->
       <text x="100" y="192" font-family="Arial Black,Arial,sans-serif" font-size="18" fill="#1a237e"
             text-anchor="middle" font-weight="900" letter-spacing="2">NABL</text>
     </svg>
     ${d.labAccreditation ? `<div style="font-size:9px;color:#1a237e;font-weight:bold;text-align:center;margin-top:1px">${esc(d.labAccreditation)}</div>` : ''}
   </div>
+  ` : '<div style="min-width:90px;flex-shrink:0"></div>'}
 
 </div>
 
@@ -357,7 +353,7 @@ ${d.isDraft ? '<div class="draft-watermark">DRAFT</div>' : ''}
       <td class="hdr">Date of Receipt</td>
       <td class="hdr">Date of Calibration</td>
       <td class="hdr">Next Date of Calibration</td>
-      ${ulr ? `<td class="hdr">ULR No.</td>` : ''}
+      ${(d.type === 'NABL' && ulr) ? `<td class="hdr">ULR No.</td>` : ''}
       <td class="hdr">Page</td>
       <td class="hdr">No. of Pages</td>
     </tr>
@@ -366,7 +362,7 @@ ${d.isDraft ? '<div class="draft-watermark">DRAFT</div>' : ''}
       <td>${fmtDate(d.dateOfReceipt)}</td>
       <td><b>${fmtDate(d.calibrationDate || d.issueDate)}</b></td>
       <td>${fmtDate(d.nextCalibrationDate)}</td>
-      ${ulr ? `<td style="font-size:10px">${esc(ulr)}</td>` : ''}
+      ${(d.type === 'NABL' && ulr) ? `<td style="font-size:10px">${esc(ulr)}</td>` : ''}
       <td style="text-align:center">${pageNum}</td>
       <td style="text-align:center">${totalPages}</td>
     </tr>
@@ -427,7 +423,7 @@ ${d.isDraft ? '<div class="draft-watermark">DRAFT</div>' : ''}
 </div>
 
 <!-- ══ REFERENCE STANDARDS ════════════════════════════════════════ -->
-${renderReferenceStandards(d.referenceStandards ?? [])}
+${renderReferenceStandards(d.referenceStandards ?? [], d.type === 'NABL')}
 
 <!-- ══ UNCERTAINTY ════════════════════════════════════════════════ -->
 <div class="unc-box">
@@ -443,7 +439,7 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 
 <!-- ══ CALIBRATION RESULTS ════════════════════════════════════════ -->
 <div class="section" style="margin-top:10px">
-  ${d.nablDiscipline ? `<div class="discipline-line">${esc(d.nablDiscipline)}</div>` : ''}
+  ${(d.type === 'NABL' && d.nablDiscipline) ? `<div class="discipline-line">${esc(d.nablDiscipline)}</div>` : ''}
   <div class="section-title">Calibration Results</div>
   <table class="data">
     <thead><tr>

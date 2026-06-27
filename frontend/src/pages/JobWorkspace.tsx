@@ -37,6 +37,21 @@ const JOB_STATUS_COLORS: Record<string, string> = {
 type Row = { pointLabel: string; unit: string; nominal: string; standardValue: string; readings: string[] };
 const emptyRow = (unit = '', nread = 5): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(nread).fill('') });
 
+/** Smart number formatter: fixed decimal for normal values, scientific notation for very small/large. */
+function fmtSci(v: number): string {
+  if (v === 0 || !Number.isFinite(v)) return '0';
+  const abs = Math.abs(v);
+  if (abs < 0.0001 || abs >= 1e6) {
+    // Scientific notation: e.g. 1.23e-14 → "1.23 × 10⁻¹⁴"
+    const exp = v.toExponential(3);
+    const [coeff, expPart] = exp.split('e');
+    const expNum = parseInt(expPart, 10);
+    const sup = String(Math.abs(expNum)).split('').map((d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+d]).join('');
+    return `${coeff} × 10${expNum < 0 ? '⁻' : '⁺'}${sup}`;
+  }
+  return v.toPrecision(4).replace(/\.?0+$/, '');
+}
+
 export default function JobWorkspace() {
   const { id } = useParams();
   const jobId = id!;
@@ -370,7 +385,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       },
       {
         title: 'Std Dev', key: 'stdDev',
-        render: (_: any, row: any) => row.data?.stdDev != null ? Number(row.data.stdDev).toExponential(2) : '—',
+        render: (_: any, row: any) => row.data?.stdDev != null ? fmtSci(Number(row.data.stdDev)) : '—',
       },
       {
         title: 'Repeatability', key: 'repeatability',
@@ -384,7 +399,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       },
       {
         title: 'uA', key: 'uA',
-        render: (_: any, row: any) => row.data?.uA != null ? Number(row.data.uA).toExponential(2) : '—',
+        render: (_: any, row: any) => row.data?.uA != null ? fmtSci(Number(row.data.uA)) : '—',
       },
       {
         title: 'Result', key: 'result',
@@ -524,10 +539,25 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       ),
     },
     {
-      title: 'Unit', key: 'unit', width: 70,
-      render: (_: any, _row: any, i: number) => (
-        <Input size="small" value={rows[i].unit} onChange={(e) => setRow(i, { unit: e.target.value })} />
-      ),
+      title: 'Unit', key: 'unit', width: 100,
+      render: (_: any, _row: any, i: number) => {
+        const procUnits = selectedProc?.units ?? (selectedProc?.unit ? [selectedProc.unit] : []);
+        if (procUnits.length > 1) {
+          return (
+            <Select
+              size="small"
+              value={rows[i].unit || procUnits[0]}
+              onChange={(v: string) => setRow(i, { unit: v })}
+              style={{ width: '100%' }}
+              options={procUnits.map((u: string) => ({ value: u, label: u }))}
+            />
+          );
+        }
+        return (
+          <Input size="small" value={rows[i].unit} onChange={(e) => setRow(i, { unit: e.target.value })}
+            placeholder={procUnits[0] || 'unit'} />
+        );
+      },
     },
     {
       title: 'Nominal', key: 'nominal', width: 80,
