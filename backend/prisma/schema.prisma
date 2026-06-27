@@ -144,6 +144,8 @@ model Lab {
   state               String?
   pinCode             String?
   logoUrl             String?   // Base64 data-URL or object path for lab logo
+  nablLogoUrl         String?   // NABL logo (Base64 or path), shown on NABL certificates
+  isNabl              Boolean   @default(true)
   gstin               String?
   pan                 String?
   bankName            String?
@@ -725,6 +727,7 @@ model Task {
   title       String
   description String?
   status      String    @default("PENDING")
+  priority    String?
   engineerId  String?
   engineer    Engineer? @relation(fields: [engineerId], references: [id])
   dueDate     DateTime?

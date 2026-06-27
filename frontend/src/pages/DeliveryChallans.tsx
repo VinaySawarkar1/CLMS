@@ -7,11 +7,11 @@ import {
 } from 'antd';
 import {
   CarOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined, EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
-  getDeliveryChallans, createDeliveryChallan, dispatchChallan,
+  getDeliveryChallans, createDeliveryChallan, updateDeliveryChallan, dispatchChallan,
   markChallanDelivered, setDeliveryChallanStatus, deleteDeliveryChallan,
   getDeliveryChallanStats, getCustomers, getLab, getUser,
 } from '../api';
@@ -31,6 +31,7 @@ const STATUS_STEP: Record<string, number> = {
 export default function DeliveryChallans() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<any>(null);
   const [form] = Form.useForm();
 
@@ -42,15 +43,43 @@ export default function DeliveryChallans() {
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['deliveryChallans'] }); qc.invalidateQueries({ queryKey: ['dcStats'] }); };
 
+  const openEdit = (row: any) => {
+    setEditing(row);
+    form.setFieldsValue({
+      customerId: row.customerId,
+      challanType: row.challanType,
+      deliveryAddress: row.deliveryAddress,
+      transportMode: row.transportMode,
+      transporterName: row.transporterName,
+      vehicleNumber: row.vehicleNumber,
+      lrNumber: row.lrNumber,
+      eWayBillNumber: row.eWayBillNumber,
+      driverName: row.driverName,
+      driverMobile: row.driverMobile,
+      numberOfPackages: row.numberOfPackages,
+      weightKg: row.weightKg,
+      expectedDelivery: row.expectedDelivery ? dayjs(row.expectedDelivery) : undefined,
+      remarks: row.remarks,
+      lineItems: row.lineItems ?? [],
+    });
+    setOpen(true);
+  };
+
   const createMut = useMutation({
-    mutationFn: (vals: any) => createDeliveryChallan({
-      ...vals,
-      expectedDelivery: vals.expectedDelivery?.toISOString(),
-      lineItems: (vals.lineItems ?? []).map((item: any) => ({
-        description: item.description, quantity: Number(item.quantity || 0), unit: item.unit, remarks: item.remarks,
-      })),
-    }),
-    onSuccess: () => { message.success('Delivery Challan created'); setOpen(false); form.resetFields(); refresh(); },
+    mutationFn: (vals: any) => {
+      const body = {
+        ...vals,
+        expectedDelivery: vals.expectedDelivery?.toISOString(),
+        lineItems: (vals.lineItems ?? []).map((item: any) => ({
+          description: item.description, quantity: Number(item.quantity || 0), unit: item.unit, remarks: item.remarks,
+        })),
+      };
+      return editing ? updateDeliveryChallan(editing.id, body) : createDeliveryChallan(body);
+    },
+    onSuccess: () => {
+      message.success(editing ? 'Challan updated' : 'Delivery Challan created');
+      setOpen(false); setEditing(null); form.resetFields(); refresh();
+    },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed'),
   });
 
@@ -118,6 +147,11 @@ export default function DeliveryChallans() {
           <Tooltip title="Download PDF">
             <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadChallanPdf(row, company ?? {})} />
           </Tooltip>
+          {['DRAFT', 'DISPATCHED'].includes(row.status) && (
+            <Tooltip title="Edit">
+              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
+            </Tooltip>
+          )}
           {['DRAFT', 'CANCELLED'].includes(row.status) && (
             <Popconfirm title="Delete this challan?" onConfirm={() => deleteMut.mutate(row.id)} okType="danger">
               <Button size="small" danger icon={<DeleteOutlined />} />
@@ -156,14 +190,14 @@ export default function DeliveryChallans() {
         <Table rowKey="id" loading={isLoading} dataSource={challans as any[]} columns={columns} pagination={{ pageSize: 10 }} />
       </Card>
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       <Modal
-        title={<Space><CarOutlined />New Delivery Challan</Space>}
+        title={<Space><CarOutlined />{editing ? 'Edit Delivery Challan' : 'New Delivery Challan'}</Space>}
         open={open}
-        onCancel={() => { setOpen(false); form.resetFields(); }}
+        onCancel={() => { setOpen(false); setEditing(null); form.resetFields(); }}
         onOk={() => form.submit()}
         confirmLoading={createMut.isPending}
-        okText="Create Challan"
+        okText={editing ? 'Save Changes' : 'Create Challan'}
         width={820}
         destroyOnClose
       >

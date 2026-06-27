@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import {
   ShoppingCartOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, CopyOutlined, DownloadOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined, EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -109,6 +109,7 @@ function LineItemsForm({ form }: { form: any }) {
 export default function PurchaseOrders() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<any>(null);
   const [form] = Form.useForm();
 
@@ -120,13 +121,29 @@ export default function PurchaseOrders() {
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['purchaseOrders'] }); qc.invalidateQueries({ queryKey: ['poStats'] }); };
 
+  const openEdit = (row: any) => {
+    setEditing(row);
+    form.setFieldsValue({
+      supplierId: row.supplierId,
+      expectedDate: row.expectedDate ? dayjs(row.expectedDate) : undefined,
+      supplierRef: row.supplierRef,
+      paymentTerms: row.paymentTerms,
+      deliveryAddress: row.deliveryAddress,
+      notes: row.notes,
+      lineItems: row.lineItems ?? [],
+    });
+    setOpen(true);
+  };
+
   const createMut = useMutation({
-    mutationFn: (vals: any) => createPurchaseOrder({
-      ...vals,
-      expectedDate: vals.expectedDate?.toISOString(),
-      lineItems: vals.lineItems ?? [],
-    }),
-    onSuccess: () => { message.success('Purchase Order created'); setOpen(false); form.resetFields(); refresh(); },
+    mutationFn: (vals: any) => {
+      const body = { ...vals, expectedDate: vals.expectedDate?.toISOString(), lineItems: vals.lineItems ?? [] };
+      return editing ? updatePurchaseOrder(editing.id, body) : createPurchaseOrder(body);
+    },
+    onSuccess: () => {
+      message.success(editing ? 'Purchase Order updated' : 'Purchase Order created');
+      setOpen(false); setEditing(null); form.resetFields(); refresh();
+    },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed'),
   });
 
@@ -189,6 +206,11 @@ export default function PurchaseOrders() {
           <Tooltip title="Download PDF">
             <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadPurchaseOrderPdf(row, company ?? {})} />
           </Tooltip>
+          {['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(row.status) && (
+            <Tooltip title="Edit">
+              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
+            </Tooltip>
+          )}
           {['DRAFT', 'CANCELLED'].includes(row.status) && (
             <Popconfirm title="Delete this PO?" onConfirm={() => deleteMut.mutate(row.id)} okType="danger">
               <Tooltip title="Delete">
@@ -231,14 +253,14 @@ export default function PurchaseOrders() {
         <Table rowKey="id" loading={isLoading} dataSource={orders as any[]} columns={columns} pagination={{ pageSize: 10 }} />
       </Card>
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       <Modal
-        title={<Space><ShoppingCartOutlined />New Purchase Order</Space>}
+        title={<Space><ShoppingCartOutlined />{editing ? 'Edit Purchase Order' : 'New Purchase Order'}</Space>}
         open={open}
-        onCancel={() => { setOpen(false); form.resetFields(); }}
+        onCancel={() => { setOpen(false); setEditing(null); form.resetFields(); }}
         onOk={() => form.submit()}
         confirmLoading={createMut.isPending}
-        okText="Create PO"
+        okText={editing ? 'Save Changes' : 'Create PO'}
         width={860}
         destroyOnClose
       >

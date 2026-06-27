@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import {
   FileTextOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CheckCircleOutlined, DollarOutlined, CloseCircleOutlined, DownloadOutlined,
+  CheckCircleOutlined, DollarOutlined, CloseCircleOutlined, DownloadOutlined, EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -89,6 +89,7 @@ function LineItemsEditor({ form }: { form: any }) {
 export default function Invoices() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<any>(null);
   const [payFor, setPayFor] = useState<any>(null);
   const [form] = Form.useForm();
@@ -102,18 +103,31 @@ export default function Invoices() {
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['invoices'] }); qc.invalidateQueries({ queryKey: ['invoiceStats'] }); };
 
+  const openEdit = (row: any) => {
+    setEditing(row);
+    form.setFieldsValue({
+      customerId: row.customerId,
+      dueDate: row.dueDate ? dayjs(row.dueDate) : undefined,
+      customerPoNumber: row.customerPoNumber,
+      paymentTerms: row.paymentTerms,
+      placeOfSupply: row.placeOfSupply,
+      termsConditions: row.termsConditions,
+      notes: row.notes,
+      lineItems: row.lineItems ?? [],
+    });
+    setOpen(true);
+  };
+
   const createMut = useMutation({
     mutationFn: (vals: any) => {
-      const body = {
-        ...vals,
-        dueDate: vals.dueDate?.toISOString(),
-        lineItems: vals.lineItems ?? [],
-      };
+      const body = { ...vals, dueDate: vals.dueDate?.toISOString(), lineItems: vals.lineItems ?? [] };
+      if (editing) return updateInvoice(editing.id, body);
       return vals._action === 'issue' ? createInvoiceDraft(body).then((r: any) => finaliseInvoice(r.id)) : createInvoiceDraft(body);
     },
     onSuccess: (_, vars: any) => {
-      message.success(vars._action === 'issue' ? 'Invoice issued' : 'Draft saved');
-      setOpen(false); form.resetFields(); refresh();
+      const msg = editing ? 'Invoice updated' : (vars._action === 'issue' ? 'Invoice issued' : 'Draft saved');
+      message.success(msg);
+      setOpen(false); setEditing(null); form.resetFields(); refresh();
     },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed'),
   });
@@ -162,6 +176,9 @@ export default function Invoices() {
         <Space>
           <Tooltip title="View Details"><Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(row)} /></Tooltip>
           <Tooltip title="Download PDF"><Button size="small" icon={<DownloadOutlined />} onClick={() => downloadInvoicePdf(row, company ?? {})} /></Tooltip>
+          {row.status === 'DRAFT' && (
+            <Tooltip title="Edit Invoice"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} /></Tooltip>
+          )}
           {row.status === 'DRAFT' && (
             <Tooltip title="Finalise Invoice">
               <Button size="small" type="primary" icon={<CheckCircleOutlined />} onClick={() => finaliseMut.mutate(row.id)} />
@@ -212,12 +229,15 @@ export default function Invoices() {
         <Table rowKey="id" loading={isLoading} dataSource={invoices as any[]} columns={columns} pagination={{ pageSize: 10 }} />
       </Card>
 
-      {/* Create Invoice Modal */}
+      {/* Create / Edit Invoice Modal */}
       <Modal
-        title={<Space><FileTextOutlined />New Invoice</Space>}
+        title={<Space><FileTextOutlined />{editing ? 'Edit Invoice' : 'New Invoice'}</Space>}
         open={open}
-        onCancel={() => { setOpen(false); form.resetFields(); }}
-        footer={[
+        onCancel={() => { setOpen(false); setEditing(null); form.resetFields(); }}
+        footer={editing ? [
+          <Button key="cancel" onClick={() => { setOpen(false); setEditing(null); form.resetFields(); }}>Cancel</Button>,
+          <Button key="save" type="primary" onClick={() => form.submit()} loading={createMut.isPending}>Save Changes</Button>,
+        ] : [
           <Button key="cancel" onClick={() => { setOpen(false); form.resetFields(); }}>Cancel</Button>,
           <Button key="draft" onClick={() => { form.setFieldsValue({ _action: 'draft' }); form.submit(); }} loading={createMut.isPending}>Save as Draft</Button>,
           <Button key="issue" type="primary" onClick={() => { form.setFieldsValue({ _action: 'issue' }); form.submit(); }} loading={createMut.isPending}>Issue Invoice</Button>,

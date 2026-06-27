@@ -390,3 +390,8 @@ export const completeCrmActivity = (id: string, outcome?: string) =>
   patch(`/crm-activities/${id}/complete`, { outcome });
 export const deleteCrmActivity = (id: string) => del(`/crm-activities/${id}`);
 export const getCrmActivityStats = () => get('/crm-activities/stats');
+
+// Task CRUD + Assign
+export const updateTask = (id: string, b: any) => patch(`/tasks/${id}`, b);
+export const deleteTask = (id: string) => del(`/tasks/${id}`);
+export const getMyTasks = () => get('/tasks/mine');

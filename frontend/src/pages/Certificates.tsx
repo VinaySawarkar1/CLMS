@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Modal, Row, Select, Space, Steps, Tag, Timeline, Typography, message, Spin,
+  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Modal, Row, Select, Space, Steps, Table, Tabs, Tag, Timeline, Typography, message, Spin,
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons';
 import {
   getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser,
-  reviseCertificate, getCertificateRevisions, openStickerReport,
+  reviseCertificate, getCertificateRevisions, openStickerReport, getDatasheet, getLab,
 } from '../api';
 import { exportToCsv } from '../utils/export';
 
@@ -34,7 +34,10 @@ export default function Certificates() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [genType, setGenType] = useState<'NABL' | 'NON_NABL'>('NABL');
+  const [genType, setGenType] = useState<'NABL' | 'NON_NABL' | null>(null);
+  const [activeDs, setActiveDs] = useState<string | null>(null);
+  const labId = me?.labId ?? '';
+  const { data: labInfo } = useQuery({ queryKey: ['lab', labId], queryFn: () => getLab(labId), enabled: !!labId });
   const [reviseOpen, setReviseOpen] = useState(false);
   const [reviseReason, setReviseReason] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -79,7 +82,7 @@ export default function Certificates() {
   });
 
   const genMut = useMutation({
-    mutationFn: (jobId: string) => generateCertificate({ jobId, type: genType }),
+    mutationFn: (jobId: string) => generateCertificate({ jobId, type: effectiveGenType }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
@@ -105,6 +108,15 @@ export default function Certificates() {
     queryFn: () => getCertificateRevisions(cert!.id),
     enabled: !!cert?.id && historyOpen,
   });
+
+  const { data: dsDetail } = useQuery({
+    queryKey: ['datasheet', activeDs],
+    queryFn: () => getDatasheet(activeDs!),
+    enabled: !!activeDs,
+  });
+
+  // Derive effective genType from lab setting when not manually overridden
+  const effectiveGenType: 'NABL' | 'NON_NABL' = genType ?? (labInfo?.isNabl === false ? 'NON_NABL' : 'NABL');
 
 
   const signatureSteps = STAGES.map((st, idx) => {
@@ -292,12 +304,12 @@ export default function Certificates() {
             {!cert && !detailLoading && detail && isAdmin && (
               <>
                 <Select
-                  value={genType}
-                  onChange={(v) => setGenType(v)}
-                  style={{ width: 150 }}
+                  value={effectiveGenType}
+                  onChange={(v) => setGenType(v as any)}
+                  style={{ width: 180 }}
                   options={[
                     { value: 'NABL', label: 'NABL Certificate' },
-                    { value: 'NON_NABL', label: 'Non-NABL Certificate' },
+                    { value: 'NON_NABL', label: 'Non-NABL (Letterhead)' },
                   ]}
                 />
                 <Button
@@ -306,7 +318,7 @@ export default function Certificates() {
                   loading={genMut.isPending}
                   onClick={() => genMut.mutate(detail.id)}
                 >
-                  Generate
+                  Generate {effectiveGenType === 'NABL' ? 'NABL' : 'Non-NABL'}
                 </Button>
               </>
             )}
@@ -369,6 +381,13 @@ export default function Certificates() {
         )}
 
         {!detailLoading && cert && (
+          <Tabs
+            defaultActiveKey="cert"
+            items={[
+              {
+                key: 'cert',
+                label: 'Certificate',
+                children: (
           <Space direction="vertical" size={20} style={{ width: '100%' }}>
             {/* Job / Cert info */}
             <Descriptions column={2} size="small" bordered>
@@ -437,6 +456,70 @@ export default function Certificates() {
               />
             )}
           </Space>
+                ),
+              },
+              {
+                key: 'datasheets',
+                label: `Datasheets (${(detail?.datasheets ?? []).length})`,
+                children: (
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    {(detail?.datasheets ?? []).length === 0 ? (
+                      <Alert type="info" message="No datasheets recorded for this job." showIcon />
+                    ) : (
+                      (detail?.datasheets ?? []).map((ds: any, idx: number) => (
+                        <Card
+                          key={ds.id}
+                          size="small"
+                          title={<Space><Tag color="blue">DS {idx + 1}</Tag><Text>{ds.templateName}</Text></Space>}
+                          extra={
+                            <Button size="small" onClick={() => setActiveDs(activeDs === ds.id ? null : ds.id)}>
+                              {activeDs === ds.id ? 'Collapse' : 'Expand'}
+                            </Button>
+                          }
+                          style={{ borderRadius: 8 }}
+                        >
+                          {activeDs === ds.id && (
+                            <div>
+                              {dsDetail?.observations?.length > 0 ? (
+                                <Table
+                                  size="small"
+                                  pagination={false}
+                                  dataSource={(dsDetail.observations ?? []).map((o: any, i: number) => ({ ...o, key: i }))}
+                                  columns={[
+                                    { title: 'Point', dataIndex: 'pointLabel', key: 'pt', render: (v: any) => v ?? '—' },
+                                    { title: 'Nominal', dataIndex: 'nominal', key: 'nom', render: (v: any) => v ?? '—' },
+                                    { title: 'Std Value', dataIndex: 'standardValue', key: 'sv', render: (v: any) => v ?? '—' },
+                                    { title: 'Observed', dataIndex: 'observedValue', key: 'ov', render: (v: any) => v ?? '—' },
+                                    { title: 'Error', dataIndex: 'error', key: 'err', render: (v: any) => v ?? '—' },
+                                    { title: 'Unit', dataIndex: 'unit', key: 'u', render: (v: any) => v ?? '—' },
+                                  ]}
+                                />
+                              ) : (
+                                <Text type="secondary">No observation data recorded.</Text>
+                              )}
+                              {dsDetail?.uncertainty && (
+                                <Descriptions size="small" bordered style={{ marginTop: 12 }}>
+                                  <Descriptions.Item label="Expanded Uncertainty">
+                                    {dsDetail.uncertainty.expandedUncertainty ?? '—'}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label="Coverage Factor (k)">
+                                    {dsDetail.uncertainty.coverageFactor ?? 2}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label="Confidence Level">
+                                    {dsDetail.uncertainty.confidenceLevel ?? 95.45}%
+                                  </Descriptions.Item>
+                                </Descriptions>
+                              )}
+                            </div>
+                          )}
+                        </Card>
+                      ))
+                    )}
+                  </Space>
+                ),
+              },
+            ]}
+          />
         )}
       </Drawer>
 

@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import {
   FileDoneOutlined, PlusOutlined, DeleteOutlined, EyeOutlined,
-  CopyOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined,
+  CopyOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined, DownloadOutlined, EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -79,6 +79,7 @@ function LineItemsEditor({ form }: { form: any }) {
 export default function Quotations() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<any>(null);
   const [form] = Form.useForm();
 
@@ -90,13 +91,31 @@ export default function Quotations() {
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['quotations'] }); qc.invalidateQueries({ queryKey: ['quotationStats'] }); };
 
+  const openEdit = (row: any) => {
+    setEditing(row);
+    form.setFieldsValue({
+      customerId: row.customerId,
+      validUntil: row.validUntil ? dayjs(row.validUntil) : undefined,
+      subject: row.subject,
+      reference: row.reference,
+      deliveryTerms: row.deliveryTerms,
+      placeOfSupply: row.placeOfSupply,
+      termsConditions: row.termsConditions,
+      notes: row.notes,
+      items: row.items ?? [],
+    });
+    setOpen(true);
+  };
+
   const createMut = useMutation({
-    mutationFn: (vals: any) => createQuotation({
-      ...vals,
-      validUntil: vals.validUntil?.toISOString(),
-      items: vals.items ?? [],
-    }),
-    onSuccess: () => { message.success('Quotation created'); setOpen(false); form.resetFields(); refresh(); },
+    mutationFn: (vals: any) => {
+      const body = { ...vals, validUntil: vals.validUntil?.toISOString(), items: vals.items ?? [] };
+      return editing ? updateQuotation(editing.id, body) : createQuotation(body);
+    },
+    onSuccess: () => {
+      message.success(editing ? 'Quotation updated' : 'Quotation created');
+      setOpen(false); setEditing(null); form.resetFields(); refresh();
+    },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed'),
   });
 
@@ -137,6 +156,9 @@ export default function Quotations() {
         <Space>
           <Tooltip title="View"><Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(row)} /></Tooltip>
           <Tooltip title="Download PDF"><Button size="small" icon={<DownloadOutlined />} onClick={() => downloadQuotationPdf(row, company ?? {})} /></Tooltip>
+          {['DRAFT', 'SENT', 'VIEWED'].includes(row.status) && (
+            <Tooltip title="Edit"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} /></Tooltip>
+          )}
           {row.status === 'DRAFT' && (
             <Tooltip title="Mark Sent">
               <Button size="small" icon={<SendOutlined />} onClick={() => statusMut.mutate({ id: row.id, status: 'SENT' })} />
@@ -190,14 +212,14 @@ export default function Quotations() {
         <Table rowKey="id" loading={isLoading} dataSource={quotes as any[]} columns={columns} pagination={{ pageSize: 10 }} />
       </Card>
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       <Modal
-        title={<Space><FileDoneOutlined />New Quotation</Space>}
+        title={<Space><FileDoneOutlined />{editing ? 'Edit Quotation' : 'New Quotation'}</Space>}
         open={open}
-        onCancel={() => { setOpen(false); form.resetFields(); }}
+        onCancel={() => { setOpen(false); setEditing(null); form.resetFields(); }}
         onOk={() => form.submit()}
         confirmLoading={createMut.isPending}
-        okText="Create Quotation"
+        okText={editing ? 'Save Changes' : 'Create Quotation'}
         width={880}
         destroyOnClose
       >
