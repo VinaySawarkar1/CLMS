@@ -75,7 +75,7 @@ export default function Tasks() {
   const nextOf = (s: string) => COLUMNS[Math.min(COLUMNS.indexOf(s) + 1, COLUMNS.length - 1)];
 
   const engineerMap: Record<string, string> = {};
-  (engineers as any[]).forEach((e: any) => { engineerMap[e.id] = e.name; });
+  (engineers as any[]).forEach((e: any) => { engineerMap[e.id] = e.user?.fullName ?? e.employeeCode; });
 
   return (
     <div>
@@ -154,7 +154,7 @@ export default function Tasks() {
                         )}
                         {t.engineer && (
                           <Tag icon={<UserOutlined />} style={{ fontSize: 10, margin: 0 }}>
-                            {t.engineer.name}
+                            {t.engineer.user?.fullName ?? t.engineer.employeeCode}
                           </Tag>
                         )}
                         {t.dueDate && (
@@ -222,7 +222,7 @@ export default function Tasks() {
                     optionFilterProp="label"
                     options={(engineers as any[]).map((e: any) => ({
                       value: e.id,
-                      label: e.name,
+                      label: e.user?.fullName ?? e.employeeCode,
                     }))}
                   />
                 </Form.Item>
