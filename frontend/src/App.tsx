@@ -34,6 +34,8 @@ import Quotations from './pages/Quotations';
 import Invoices from './pages/Invoices';
 import PurchaseOrders from './pages/PurchaseOrders';
 import DeliveryChallans from './pages/DeliveryChallans';
+import Leads from './pages/Leads';
+import CrmActivities from './pages/CrmActivities';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
@@ -103,6 +105,8 @@ export default function App() {
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/delivery-challans" element={<DeliveryChallans />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/crm-activities" element={<CrmActivities />} />
           <Route path="/instruments" element={<Instruments />} />
           <Route path="/reference-standards" element={<ReferenceStandards />} />
           <Route path="/calibration-masters" element={<CalibrationMasters />} />

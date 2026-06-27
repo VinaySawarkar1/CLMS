@@ -7,6 +7,7 @@ import {
   StarOutlined, BarChartOutlined, FileSyncOutlined, BellOutlined, UsergroupAddOutlined,
   KeyOutlined, RightOutlined, LogoutOutlined, BankOutlined, ExperimentFilled,
   ShoppingCartOutlined, CarOutlined, DollarOutlined, FileDoneOutlined, ArrowRightOutlined,
+  FunnelPlotOutlined, CalendarOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import { getUser, hasPermission, logout } from '../api';
@@ -32,6 +33,8 @@ const SECTIONS: Section[] = [
     description: 'Customers, quotations, purchase orders, delivery & invoices.',
     icon: <TeamOutlined />, color: '#13c2c2', bgColor: '#e6fffb',
     tools: [
+      { to: '/leads', label: 'Sales Pipeline', icon: <FunnelPlotOutlined />, perm: 'customers' },
+      { to: '/crm-activities', label: 'Activities', icon: <CalendarOutlined />, perm: 'customers' },
       { to: '/customers', label: 'Customers', icon: <TeamOutlined />, perm: 'customers' },
       { to: '/quotations', label: 'Quotations', icon: <FileDoneOutlined />, perm: 'billing' },
       { to: '/purchase-orders', label: 'Purchase Orders', icon: <ShoppingCartOutlined />, perm: 'billing' },

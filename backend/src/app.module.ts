@@ -37,6 +37,8 @@ import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { DeliveryChallansModule } from './modules/delivery-challans/delivery-challans.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { CrmActivitiesModule } from './modules/crm-activities/crm-activities.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -82,6 +84,8 @@ import { HealthController } from './health.controller';
     SeedModule,
     PurchaseOrdersModule,
     DeliveryChallansModule,
+    LeadsModule,
+    CrmActivitiesModule,
   ],
   providers: [
     // Module 14 — global audit trail for every mutating request.

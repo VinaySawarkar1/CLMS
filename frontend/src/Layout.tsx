@@ -10,7 +10,7 @@ import {
   GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
   ApartmentOutlined, StarOutlined,
   ShoppingCartOutlined, CarOutlined, DollarOutlined, FileDoneOutlined,
-  HomeOutlined,
+  HomeOutlined, FunnelPlotOutlined, CalendarOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -24,6 +24,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'crm', label: 'CRM & Sales',
     children: [
+      { key: '/leads', label: 'Sales Pipeline', icon: <FunnelPlotOutlined />, perm: 'customers' },
+      { key: '/crm-activities', label: 'Activities', icon: <CalendarOutlined />, perm: 'customers' },
       { key: '/customers', label: 'Customers', icon: <TeamOutlined />, perm: 'customers' },
       { key: '/quotations', label: 'Quotations', icon: <FileDoneOutlined />, perm: 'billing' },
       { key: '/purchase-orders', label: 'Purchase Orders', icon: <ShoppingCartOutlined />, perm: 'billing' },

@@ -158,3 +158,59 @@ ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankName" TEXT;
 ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankAccountNumber" TEXT;
 ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankIfsc" TEXT;
 ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "bankBranch" TEXT;
+
+-- CRM Enterprise: Lead, CrmActivity enums and tables
+
+CREATE TYPE IF NOT EXISTS "LeadStage" AS ENUM ('NEW','CONTACTED','QUALIFIED','PROPOSAL','NEGOTIATION','WON','LOST');
+CREATE TYPE IF NOT EXISTS "LeadSource" AS ENUM ('WEBSITE','REFERRAL','COLD_CALL','EXHIBITION','SOCIAL_MEDIA','EMAIL_CAMPAIGN','WALK_IN','OTHER');
+CREATE TYPE IF NOT EXISTS "ActivityType" AS ENUM ('CALL','EMAIL','MEETING','TASK','NOTE','WHATSAPP');
+
+CREATE TABLE IF NOT EXISTS "Lead" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "labId" TEXT NOT NULL,
+  "title" TEXT NOT NULL,
+  "companyName" TEXT,
+  "contactName" TEXT,
+  "contactEmail" TEXT,
+  "contactPhone" TEXT,
+  "stage" "LeadStage" NOT NULL DEFAULT 'NEW',
+  "source" "LeadSource" NOT NULL DEFAULT 'OTHER',
+  "value" DOUBLE PRECISION,
+  "probability" INTEGER NOT NULL DEFAULT 20,
+  "expectedCloseDate" TIMESTAMP(3),
+  "assignedTo" TEXT,
+  "industry" TEXT,
+  "description" TEXT,
+  "lostReason" TEXT,
+  "convertedCustomerId" TEXT,
+  "convertedAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "Lead_labId_fkey" FOREIGN KEY ("labId") REFERENCES "Lab"("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "CrmActivity" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "labId" TEXT NOT NULL,
+  "type" "ActivityType" NOT NULL,
+  "title" TEXT NOT NULL,
+  "description" TEXT,
+  "outcome" TEXT,
+  "dueDate" TIMESTAMP(3),
+  "completedAt" TIMESTAMP(3),
+  "isDone" BOOLEAN NOT NULL DEFAULT false,
+  "customerId" TEXT,
+  "leadId" TEXT,
+  "createdBy" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "CrmActivity_labId_fkey" FOREIGN KEY ("labId") REFERENCES "Lab"("id") ON DELETE CASCADE,
+  CONSTRAINT "CrmActivity_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL,
+  CONSTRAINT "CrmActivity_leadId_fkey" FOREIGN KEY ("leadId") REFERENCES "Lead"("id") ON DELETE SET NULL
+);
+
+-- Enhance Contact table
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "isPrimary" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "department" TEXT;
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

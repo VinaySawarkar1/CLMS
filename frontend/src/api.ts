@@ -369,3 +369,24 @@ export const recordPayment = (id: string, b: any) => post(`/billing/invoices/${i
 export const cancelInvoice = (id: string) => patch(`/billing/invoices/${id}/cancel`, {});
 export const deleteInvoice = (id: string) => del(`/billing/invoices/${id}`);
 export const getInvoiceStats = () => get('/billing/invoices/stats');
+
+// Leads / Pipeline
+export const getLeads = (params?: { stage?: string; search?: string }) => get('/leads', params);
+export const getLead = (id: string) => get(`/leads/${id}`);
+export const createLead = (b: any) => post('/leads', b);
+export const updateLead = (id: string, b: any) => patch(`/leads/${id}`, b);
+export const setLeadStage = (id: string, stage: string, lostReason?: string) =>
+  patch(`/leads/${id}/stage`, { stage, lostReason });
+export const convertLead = (id: string) => post(`/leads/${id}/convert`, {});
+export const deleteLead = (id: string) => del(`/leads/${id}`);
+export const getLeadStats = () => get('/leads/stats');
+
+// CRM Activities
+export const getCrmActivities = (params?: { type?: string; customerId?: string; leadId?: string; isDone?: string }) =>
+  get('/crm-activities', params);
+export const createCrmActivity = (b: any) => post('/crm-activities', b);
+export const updateCrmActivity = (id: string, b: any) => patch(`/crm-activities/${id}`, b);
+export const completeCrmActivity = (id: string, outcome?: string) =>
+  patch(`/crm-activities/${id}/complete`, { outcome });
+export const deleteCrmActivity = (id: string) => del(`/crm-activities/${id}`);
+export const getCrmActivityStats = () => get('/crm-activities/stats');

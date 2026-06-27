@@ -81,6 +81,36 @@ enum CustomerStatus {
   BLACKLISTED
 }
 
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_CALL
+  EXHIBITION
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  WALK_IN
+  OTHER
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+  NOTE
+  WHATSAPP
+}
+
 enum PurchaseOrderStatus {
   DRAFT
   PENDING_APPROVAL
@@ -138,6 +168,8 @@ model Lab {
   internalAudits      InternalAudit[]
   purchaseOrders      PurchaseOrder[]
   deliveryChallans    DeliveryChallan[]
+  leads               Lead[]
+  crmActivities       CrmActivity[]
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 }
@@ -225,6 +257,7 @@ model Customer {
   quotations       Quotation[]
   purchaseOrders   PurchaseOrder[]
   deliveryChallans DeliveryChallan[]
+  crmActivities    CrmActivity[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -256,6 +289,64 @@ model Contact {
   email       String?
   phone       String?
   designation String?
+  isPrimary   Boolean  @default(false)
+  department  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model Lead {
+  id                String      @id @default(uuid())
+  labId             String
+  lab               Lab         @relation(fields: [labId], references: [id])
+  title             String
+  companyName       String?
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
+  stage             LeadStage   @default(NEW)
+  source            LeadSource  @default(OTHER)
+  value             Float?
+  probability       Int         @default(20)
+  expectedCloseDate DateTime?
+  assignedTo        String?
+  industry          String?
+  description       String?
+  lostReason        String?
+  convertedCustomerId String?
+  convertedAt       DateTime?
+  activities        CrmActivity[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([labId])
+  @@index([labId, stage])
+}
+
+model CrmActivity {
+  id          String       @id @default(uuid())
+  labId       String
+  lab         Lab          @relation(fields: [labId], references: [id])
+  type        ActivityType
+  title       String
+  description String?
+  outcome     String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  isDone      Boolean      @default(false)
+  customerId  String?
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  leadId      String?
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdBy   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([labId])
+  @@index([customerId])
+  @@index([leadId])
 }
 
 // ─────────────────────── Disciplines & Instruments ───────────────
