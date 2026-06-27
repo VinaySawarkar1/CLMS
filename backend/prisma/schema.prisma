@@ -249,6 +249,7 @@ model Customer {
   salesExecutive   String?
   tags             String[]
   notes            String?
+  portalPassword   String?
   customerStatus   CustomerStatus   @default(ACTIVE)
   shippingAddresses CustomerAddress[]
   contacts         Contact[]

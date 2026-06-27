@@ -395,3 +395,7 @@ export const getCrmActivityStats = () => get('/crm-activities/stats');
 export const updateTask = (id: string, b: any) => patch(`/tasks/${id}`, b);
 export const deleteTask = (id: string) => del(`/tasks/${id}`);
 export const getMyTasks = () => get('/tasks/mine');
+
+// Customer Portal Admin
+export const setCustomerPortalPassword = (customerId: string, password: string) =>
+  post(`/portal/customers/${customerId}/set-password`, { password });
