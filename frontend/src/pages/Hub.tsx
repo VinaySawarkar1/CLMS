@@ -6,6 +6,7 @@ import {
   CheckSquareOutlined, UserOutlined, DatabaseOutlined, CloudOutlined, AlertOutlined,
   StarOutlined, BarChartOutlined, FileSyncOutlined, BellOutlined, UsergroupAddOutlined,
   KeyOutlined, RightOutlined, LogoutOutlined, BankOutlined, ExperimentFilled,
+  ShoppingCartOutlined, CarOutlined, DollarOutlined, FileDoneOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import { getUser, hasPermission, logout } from '../api';
@@ -22,10 +23,20 @@ const SECTIONS: Section[] = [
     tools: [{ to: '/dashboard', label: 'Open Dashboard', icon: <DashboardOutlined /> }],
   },
   {
-    key: 'calibration', title: 'Calibration', description: 'Customers, instruments, standards, jobs & certificates.',
-    icon: <ExperimentOutlined />, color: '#52c41a',
+    key: 'crm', title: 'CRM & Sales', description: 'Customers, quotations, purchase orders, delivery & invoices.',
+    icon: <TeamOutlined />, color: '#13c2c2',
     tools: [
       { to: '/customers', label: 'Customers', icon: <TeamOutlined />, perm: 'customers' },
+      { to: '/quotations', label: 'Quotations', icon: <FileDoneOutlined />, perm: 'billing' },
+      { to: '/purchase-orders', label: 'Purchase Orders', icon: <ShoppingCartOutlined />, perm: 'billing' },
+      { to: '/delivery-challans', label: 'Delivery Challans', icon: <CarOutlined />, perm: 'billing' },
+      { to: '/invoices', label: 'Invoices', icon: <DollarOutlined />, perm: 'billing' },
+    ],
+  },
+  {
+    key: 'calibration', title: 'Calibration', description: 'Instruments, standards, jobs & certificates.',
+    icon: <ExperimentOutlined />, color: '#52c41a',
+    tools: [
       { to: '/instruments', label: 'Instrument Entry', icon: <ToolOutlined />, perm: 'instruments' },
       { to: '/reference-standards', label: 'Reference Standards', icon: <GoldOutlined />, perm: 'instruments' },
       { to: '/calibration-masters', label: 'Calibration Masters', icon: <ApartmentOutlined />, perm: 'instruments' },
@@ -69,6 +80,7 @@ const SECTIONS: Section[] = [
 
 const SECTION_COLORS: Record<string, string> = {
   dashboard: '#e6f0ff',
+  crm: '#e6fffb',
   calibration: '#f0fff4',
   operations: '#fff7e6',
   quality: '#fff0f6',
