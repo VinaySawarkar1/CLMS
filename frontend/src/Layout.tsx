@@ -30,6 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
     ],
   },
+  // Note: '/' navigates back to the Hub launcher (full-screen, no sidebar)
   {
     key: 'calibration', label: 'Calibration',
     children: [
