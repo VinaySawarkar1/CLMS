@@ -4,11 +4,10 @@ import {
   Button, Card, Col, Progress, Row, Statistic, Table, Tag, Space, Typography, Tabs, Select, Empty,
 } from 'antd';
 import {
-  BarChartOutlined, BellOutlined, FileTextOutlined, ExportOutlined, DatabaseOutlined, TeamOutlined,
+  BarChartOutlined, BellOutlined, FileTextOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { getRecallDue, getJobs, getEnvironmental, getCustomers } from '../api';
-import { exportToCsv } from '../utils/export';
+import { getRecallDue, getJobs } from '../api';
 
 const { Title, Text } = Typography;
 
@@ -80,109 +79,6 @@ function JobRegister() {
   return <Table rowKey="id" loading={isLoading} dataSource={jobs as any[]} columns={columns} pagination={{ pageSize: 15 }} />;
 }
 
-function LabDataExport() {
-  const [period, setPeriod] = useState<1 | 2>(1);
-
-  const cutoff = () => Date.now() - period * 365 * 24 * 60 * 60 * 1000;
-
-  const { data: allJobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: () => getJobs() });
-  const { data: allEnv = [] } = useQuery({ queryKey: ['environmental'], queryFn: getEnvironmental });
-  const { data: allCustomers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
-
-  const filterByPeriod = (items: any[]) =>
-    items.filter((i) => i.createdAt && new Date(i.createdAt).getTime() >= cutoff());
-
-  const handleExportJobs = () => {
-    exportToCsv(`jobs-${period}yr.csv`, filterByPeriod(allJobs as any[]), [
-      { key: 'jobNumber', label: 'Job No' },
-      { key: 'customer.name', label: 'Customer' },
-      { key: 'instrument.name', label: 'Instrument' },
-      { key: 'status', label: 'Status' },
-      { key: 'createdAt', label: 'Created At' },
-    ]);
-  };
-
-  const handleExportCertificates = () => {
-    exportToCsv(`certificates-${period}yr.csv`, filterByPeriod(allJobs as any[]).filter((j: any) => j.certificate), [
-      { key: 'jobNumber', label: 'Job No' },
-      { key: 'certificate.certificateNumber', label: 'Cert Number' },
-      { key: 'customer.name', label: 'Customer' },
-      { key: 'instrument.name', label: 'Instrument' },
-      { key: 'status', label: 'Status' },
-    ]);
-  };
-
-  const handleExportEnv = () => {
-    exportToCsv(`environmental-${period}yr.csv`, filterByPeriod(allEnv as any[]), [
-      { key: 'temperature', label: 'Temperature (°C)' },
-      { key: 'humidity', label: 'Humidity (%RH)' },
-      { key: 'pressure', label: 'Pressure (kPa)' },
-      { key: 'recordedAt', label: 'Recorded At' },
-      { key: 'notes', label: 'Notes' },
-    ]);
-  };
-
-  const handleExportFull = () => {
-    const jobs = filterByPeriod(allJobs as any[]);
-    const customers = allCustomers as any[];
-    const makeSection = (title: string, rows: any[], cols: { key: string; label: string }[]) => {
-      const header = cols.map(c => c.label).join(',');
-      const lines = rows.map(row =>
-        cols.map(c => {
-          const val = c.key.split('.').reduce((o: any, k: string) => o?.[k], row) ?? '';
-          return `"${String(val).replace(/"/g, '""')}"`;
-        }).join(',')
-      );
-      return [`=== ${title} ===`, header, ...lines].join('\n');
-    };
-    const csv = [
-      makeSection('JOBS', jobs, [
-        { key: 'jobNumber', label: 'Job No' },
-        { key: 'customer.name', label: 'Customer' },
-        { key: 'instrument.name', label: 'Instrument' },
-        { key: 'status', label: 'Status' },
-        { key: 'createdAt', label: 'Created At' },
-      ]),
-      '',
-      makeSection('CUSTOMERS', customers, [
-        { key: 'name', label: 'Name' },
-        { key: 'code', label: 'Code' },
-        { key: 'email', label: 'Email' },
-        { key: 'phone', label: 'Phone' },
-        { key: 'address', label: 'Address' },
-      ]),
-    ].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `full-lab-report-${period}yr.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Space>
-        <Text>Export period:</Text>
-        <Select
-          value={period}
-          onChange={(v) => setPeriod(v)}
-          options={[
-            { value: 1, label: 'Last 1 Year' },
-            { value: 2, label: 'Last 2 Years' },
-          ]}
-        />
-      </Space>
-      <Space wrap>
-        <Button icon={<ExportOutlined />} onClick={handleExportJobs}>Export Jobs</Button>
-        <Button icon={<ExportOutlined />} onClick={handleExportCertificates}>Export Certificates</Button>
-        <Button icon={<ExportOutlined />} onClick={handleExportEnv}>Export Environmental Records</Button>
-        <Button icon={<ExportOutlined />} type="primary" onClick={handleExportFull}>Export Full Lab Report</Button>
-      </Space>
-    </Space>
-  );
-}
 
 function EngineerPerformance() {
   const { data: jobs = [], isLoading } = useQuery({ queryKey: ['jobs'], queryFn: () => getJobs() });
@@ -266,14 +162,13 @@ export default function Reports() {
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <div>
         <Title level={3} style={{ margin: 0 }}><BarChartOutlined /> Reports</Title>
-        <Text type="secondary">Calibration recall, job register and lab data export</Text>
+        <Text type="secondary">Calibration recall, job register and engineer performance</Text>
       </div>
       <Card>
         <Tabs
           items={[
             { key: 'recall', label: <Space><BellOutlined />Calibration Recall</Space>, children: <RecallReport /> },
             { key: 'register', label: <Space><FileTextOutlined />Job Register</Space>, children: <JobRegister /> },
-            { key: 'export', label: <Space><DatabaseOutlined />Lab Data Export</Space>, children: <LabDataExport /> },
             { key: 'engineers', label: <Space><TeamOutlined />Engineer Performance</Space>, children: <EngineerPerformance /> },
           ]}
         />

@@ -7,10 +7,14 @@ import {
   SettingOutlined, CheckCircleFilled, SafetyCertificateOutlined,
   FileTextOutlined, CompressOutlined, ApartmentOutlined, UserOutlined,
   DatabaseOutlined, UploadOutlined, PlusOutlined, DeleteOutlined, SaveOutlined,
-  BankOutlined, CalculatorOutlined,
+  BankOutlined, CalculatorOutlined, ExportOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getLabSettings, updateLabSettings, loadSampleData, getUser, getLab, updateLabDetails, downloadBackup } from '../api';
+import { getLabSettings, updateLabSettings, loadSampleData, getUser, getLab, updateLabDetails, downloadBackup,
+  getJobs, getCustomers, getInstruments, getEngineers, getEnvironmental,
+  getInvoices, getQuotations, getPurchaseOrders, getDeliveryChallans, getLeads, getCrmActivities,
+} from '../api';
+import { exportToCsv } from '../utils/export';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -375,6 +379,216 @@ function UncertaintyTypesSection() {
 
 // ── Main Settings Page ──────────────────────────────────────────────────────
 
+function DataExportSection() {
+  const [period, setPeriod] = useState<0 | 1 | 2>(1);
+  const cutoff = () => period === 0 ? 0 : Date.now() - period * 365 * 24 * 60 * 60 * 1000;
+  const filter = (items: any[]) =>
+    period === 0 ? items : items.filter((i) => i.createdAt && new Date(i.createdAt).getTime() >= cutoff());
+
+  const { data: jobs = [] } = useQuery({ queryKey: ['jobs'], queryFn: () => getJobs() });
+  const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
+  const { data: instruments = [] } = useQuery({ queryKey: ['instruments'], queryFn: () => getInstruments() });
+  const { data: engineers = [] } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
+  const { data: environmental = [] } = useQuery({ queryKey: ['environmental'], queryFn: getEnvironmental });
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: () => getInvoices() });
+  const { data: quotations = [] } = useQuery({ queryKey: ['quotations'], queryFn: () => getQuotations() });
+  const { data: purchaseOrders = [] } = useQuery({ queryKey: ['purchaseOrders'], queryFn: () => getPurchaseOrders() });
+  const { data: challans = [] } = useQuery({ queryKey: ['deliveryChallans'], queryFn: () => getDeliveryChallans() });
+  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => getLeads() });
+  const { data: activities = [] } = useQuery({ queryKey: ['crm-activities'], queryFn: () => getCrmActivities() });
+
+  const modules = [
+    {
+      group: 'Calibration',
+      items: [
+        {
+          label: 'Jobs', filename: 'jobs', data: () => filter(jobs as any[]),
+          cols: [
+            { key: 'jobNumber', label: 'Job No' }, { key: 'customer.name', label: 'Customer' },
+            { key: 'instrument.name', label: 'Instrument' }, { key: 'status', label: 'Status' },
+            { key: 'certificateType', label: 'Cert Type' }, { key: 'createdAt', label: 'Created At' },
+          ],
+        },
+        {
+          label: 'Certificates', filename: 'certificates', data: () => filter(jobs as any[]).filter((j: any) => j.certificate),
+          cols: [
+            { key: 'jobNumber', label: 'Job No' }, { key: 'certificate.certificateNumber', label: 'Cert Number' },
+            { key: 'customer.name', label: 'Customer' }, { key: 'instrument.name', label: 'Instrument' },
+            { key: 'certificate.type', label: 'Type' }, { key: 'certificate.isLocked', label: 'Finalised' },
+          ],
+        },
+        {
+          label: 'Instruments', filename: 'instruments', data: () => filter(instruments as any[]),
+          cols: [
+            { key: 'serialNumber', label: 'Serial No' }, { key: 'name', label: 'Name' },
+            { key: 'make', label: 'Make' }, { key: 'model', label: 'Model' },
+            { key: 'customer.name', label: 'Customer' }, { key: 'nextCalibrationDue', label: 'Next Cal Due' },
+          ],
+        },
+        {
+          label: 'Environmental Records', filename: 'environmental', data: () => filter(environmental as any[]),
+          cols: [
+            { key: 'temperature', label: 'Temperature (°C)' }, { key: 'humidity', label: 'Humidity (%RH)' },
+            { key: 'pressure', label: 'Pressure (kPa)' }, { key: 'recordedAt', label: 'Recorded At' },
+            { key: 'notes', label: 'Notes' },
+          ],
+        },
+        {
+          label: 'Engineers', filename: 'engineers', data: () => engineers as any[],
+          cols: [
+            { key: 'employeeCode', label: 'Employee Code' }, { key: 'user.fullName', label: 'Name' },
+            { key: 'user.email', label: 'Email' }, { key: 'skills', label: 'Skills' },
+          ],
+        },
+      ],
+    },
+    {
+      group: 'CRM & Sales',
+      items: [
+        {
+          label: 'Customers', filename: 'customers', data: () => filter(customers as any[]),
+          cols: [
+            { key: 'code', label: 'Code' }, { key: 'name', label: 'Name' },
+            { key: 'email', label: 'Email' }, { key: 'phone', label: 'Phone' },
+            { key: 'address', label: 'Address' }, { key: 'customerStatus', label: 'Status' },
+          ],
+        },
+        {
+          label: 'Quotations', filename: 'quotations', data: () => filter(quotations as any[]),
+          cols: [
+            { key: 'quoteNumber', label: 'Quote No' }, { key: 'customer.name', label: 'Customer' },
+            { key: 'subject', label: 'Subject' }, { key: 'totalAmount', label: 'Total (₹)' },
+            { key: 'status', label: 'Status' }, { key: 'createdAt', label: 'Created At' },
+          ],
+        },
+        {
+          label: 'Invoices', filename: 'invoices', data: () => filter(invoices as any[]),
+          cols: [
+            { key: 'invoiceNumber', label: 'Invoice No' }, { key: 'customer.name', label: 'Customer' },
+            { key: 'totalAmount', label: 'Total (₹)' }, { key: 'paidAmount', label: 'Paid (₹)' },
+            { key: 'status', label: 'Status' }, { key: 'createdAt', label: 'Created At' },
+          ],
+        },
+        {
+          label: 'Purchase Orders', filename: 'purchase-orders', data: () => filter(purchaseOrders as any[]),
+          cols: [
+            { key: 'poNumber', label: 'PO No' }, { key: 'supplier.name', label: 'Supplier' },
+            { key: 'totalAmount', label: 'Total (₹)' }, { key: 'status', label: 'Status' },
+            { key: 'createdAt', label: 'Created At' },
+          ],
+        },
+        {
+          label: 'Delivery Challans', filename: 'delivery-challans', data: () => filter(challans as any[]),
+          cols: [
+            { key: 'challanNumber', label: 'Challan No' }, { key: 'customer.name', label: 'Customer' },
+            { key: 'challanType', label: 'Type' }, { key: 'status', label: 'Status' },
+            { key: 'vehicleNumber', label: 'Vehicle' }, { key: 'createdAt', label: 'Created At' },
+          ],
+        },
+        {
+          label: 'Leads / Pipeline', filename: 'leads', data: () => filter(leads as any[]),
+          cols: [
+            { key: 'title', label: 'Title' }, { key: 'companyName', label: 'Company' },
+            { key: 'contactName', label: 'Contact' }, { key: 'stage', label: 'Stage' },
+            { key: 'value', label: 'Value (₹)' }, { key: 'source', label: 'Source' },
+            { key: 'createdAt', label: 'Created At' },
+          ],
+        },
+        {
+          label: 'CRM Activities', filename: 'crm-activities', data: () => filter(activities as any[]),
+          cols: [
+            { key: 'type', label: 'Type' }, { key: 'title', label: 'Title' },
+            { key: 'customer.name', label: 'Customer' }, { key: 'lead.title', label: 'Lead' },
+            { key: 'isDone', label: 'Done' }, { key: 'dueDate', label: 'Due Date' },
+            { key: 'createdBy', label: 'Created By' },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const doExport = (filename: string, data: any[], cols: { key: string; label: string }[]) => {
+    exportToCsv(`${filename}-${period === 0 ? 'all' : period + 'yr'}.csv`, data, cols);
+  };
+
+  const exportAll = () => {
+    const getVal = (row: any, key: string) =>
+      key.split('.').reduce((o: any, k: string) => o?.[k], row) ?? '';
+    const makeSection = (title: string, rows: any[], cols: { key: string; label: string }[]) => {
+      const header = cols.map(c => c.label).join(',');
+      const lines = rows.map(row =>
+        cols.map(c => `"${String(getVal(row, c.key)).replace(/"/g, '""')}"`).join(',')
+      );
+      return [`=== ${title} ===`, header, ...lines, ''].join('\n');
+    };
+    const csv = modules.flatMap(g => g.items.map(m => makeSection(m.label, m.data(), m.cols))).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `full-export-${period === 0 ? 'all' : period + 'yr'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <Space>
+          <Select
+            value={period}
+            onChange={(v) => setPeriod(v)}
+            style={{ width: 160 }}
+            options={[
+              { value: 0, label: 'All Time' },
+              { value: 1, label: 'Last 1 Year' },
+              { value: 2, label: 'Last 2 Years' },
+            ]}
+          />
+        </Space>
+        <Button type="primary" icon={<DownloadOutlined />} onClick={exportAll}>
+          Export All Modules
+        </Button>
+      </div>
+
+      {modules.map((group) => (
+        <div key={group.group}>
+          <Divider orientation="left" style={{ fontWeight: 600, color: '#1677ff' }}>{group.group}</Divider>
+          <Row gutter={[12, 12]}>
+            {group.items.map((m) => {
+              const count = m.data().length;
+              return (
+                <Col xs={24} sm={12} md={8} key={m.filename}>
+                  <Card
+                    size="small"
+                    style={{ borderRadius: 10, border: '1px solid #e8e8e8' }}
+                    styles={{ body: { padding: '14px 16px' } }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{m.label}</div>
+                        <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{count} records</div>
+                      </div>
+                      <Button
+                        icon={<ExportOutlined />}
+                        size="small"
+                        onClick={() => doExport(m.filename, m.data(), m.cols)}
+                        disabled={count === 0}
+                      >
+                        CSV
+                      </Button>
+                    </div>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        </div>
+      ))}
+    </Space>
+  );
+}
+
 export default function Settings() {
   const user = getUser();
   const labId = user?.labId ?? '';
@@ -483,6 +697,11 @@ export default function Settings() {
           </Button>
         </div>
       ),
+    },
+    {
+      key: 'dataexport',
+      label: <Space><ExportOutlined />Data Export</Space>,
+      children: <DataExportSection />,
     },
   ];
 
