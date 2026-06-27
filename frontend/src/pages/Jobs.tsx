@@ -97,7 +97,7 @@ export default function Jobs() {
     if (r) form.setFieldValue('unitOfMeasurement', r.unit);
   };
 
-  const { data = [], isLoading } = useQuery({
+  const { data: jobs = [], isLoading } = useQuery({
     queryKey: ['jobs', statusFilter],
     queryFn: () => getJobs(statusFilter),
   });
@@ -344,7 +344,7 @@ export default function Jobs() {
           </Space>
           <Button
             icon={<ExportOutlined />}
-            onClick={() => exportToCsv('jobs.csv', data as any[], [
+            onClick={() => exportToCsv('jobs.csv', jobs as any[], [
               { key: 'jobNumber', label: 'Job No' },
               { key: 'customer.name', label: 'Customer' },
               { key: 'instrument.name', label: 'Instrument' },
@@ -358,7 +358,7 @@ export default function Jobs() {
         </div>
         <Table
           columns={columns}
-          dataSource={(data as any[]).filter((j: any) => {
+          dataSource={(jobs as any[]).filter((j: any) => {
             if (!searchText) return true;
             const q = searchText.toLowerCase();
             return (
