@@ -160,7 +160,7 @@ export default function Jobs() {
 
   const certMut = useMutation({
     mutationFn: (jobId: string) => {
-      const job = (data as any[]).find((j: any) => j.id === jobId);
+      const job = (jobs as any[]).find((j: any) => j.id === jobId);
       return generateCertificate({ jobId, type: job?.certificateType ?? 'NABL' });
     },
     onSuccess: () => {
