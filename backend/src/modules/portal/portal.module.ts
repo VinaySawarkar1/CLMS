@@ -168,7 +168,7 @@ class PortalService {
           include: {
             instrument: true,
             customer: true,
-            datasheets: { include: { observations: true, uncertaintyBudgets: true } },
+            datasheets: { include: { observations: true, uncertainty: true } },
           },
         },
       },
