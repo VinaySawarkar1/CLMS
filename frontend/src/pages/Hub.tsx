@@ -97,6 +97,11 @@ export default function Hub({ onLogout }: { onLogout: () => void }) {
     .map((s) => ({ ...s, tools: s.tools.filter((t) => !t.perm || hasPermission(t.perm)) }))
     .filter((s) => s.tools.length > 0);
 
+  const goTo = (sectionKey: string, path: string) => {
+    localStorage.setItem('activeSection', sectionKey);
+    nav(path);
+  };
+
   const userMenu = {
     items: [
       { key: 'settings', label: 'Settings', icon: <SettingOutlined /> },
@@ -170,7 +175,7 @@ export default function Hub({ onLogout }: { onLogout: () => void }) {
             {sections.map((s) => (
               <Col xs={24} sm={12} lg={8} xl={6} key={s.key}>
                 <div
-                  onClick={() => nav(s.tools[0].to)}
+                  onClick={() => goTo(s.key, s.tools[0].to)}
                   style={{
                     background: '#fff',
                     borderRadius: 16,
@@ -217,7 +222,7 @@ export default function Hub({ onLogout }: { onLogout: () => void }) {
                     {s.tools.map((t) => (
                       <div
                         key={t.to}
-                        onClick={(e) => { e.stopPropagation(); nav(t.to); }}
+                        onClick={(e) => { e.stopPropagation(); goTo(s.key, t.to); }}
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                           padding: '7px 8px', borderRadius: 8, cursor: 'pointer',

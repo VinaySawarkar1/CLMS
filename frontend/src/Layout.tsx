@@ -7,12 +7,13 @@ import {
   DashboardOutlined, TeamOutlined, ToolOutlined, FileTextOutlined,
   SafetyCertificateOutlined, CheckSquareOutlined, UserOutlined,
   DatabaseOutlined, CloudOutlined, AlertOutlined,
-  HistoryOutlined, BellOutlined, LogoutOutlined, ExperimentOutlined,
+  BellOutlined, LogoutOutlined, ExperimentOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined,
   BankOutlined, UsergroupAddOutlined, KeyOutlined,
   GoldOutlined, BarChartOutlined, FileSyncOutlined, SafetyOutlined,
   ApartmentOutlined, StarOutlined, AppstoreOutlined,
   ShoppingCartOutlined, CarOutlined, DollarOutlined, FileDoneOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 import { logout, getUser, hasPermission } from './api';
 
@@ -76,7 +77,16 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function buildMenu(role: string): MenuProps['items'] {
+const ADMIN_NAV_GROUP = {
+  key: 'admin', label: 'Administration',
+  children: [
+    { key: '/users', label: 'Users', icon: <UsergroupAddOutlined /> },
+    { key: '/permissions', label: 'Role Permissions', icon: <KeyOutlined /> },
+    { key: '/settings', label: 'Lab Settings', icon: <SettingOutlined /> },
+  ],
+};
+
+function buildMenu(role: string, activeSection: string | null): MenuProps['items'] {
   const items: MenuProps['items'] = [];
 
   // SUPER_ADMIN: platform administration only
@@ -91,24 +101,21 @@ function buildMenu(role: string): MenuProps['items'] {
     return items;
   }
 
-  // LAB_ADMIN and lab roles: permission-filtered modules
-  for (const group of NAV_GROUPS) {
+  // Determine which groups to show
+  const groupsToShow = activeSection
+    ? NAV_GROUPS.filter((g) => g.key === activeSection)
+    : NAV_GROUPS;
+
+  for (const group of groupsToShow) {
     const children = group.children.filter((c) => !c.perm || hasPermission(c.perm));
     if (children.length) {
       items.push({ key: group.key, label: group.label, type: 'group', children });
     }
   }
 
-  // LAB_ADMIN gets administration tools for their own lab
-  if (role === 'LAB_ADMIN') {
-    items.push({
-      key: 'admin', label: 'Administration', type: 'group',
-      children: [
-        { key: '/users', label: 'Users', icon: <UsergroupAddOutlined /> },
-        { key: '/permissions', label: 'Role Permissions', icon: <KeyOutlined /> },
-        { key: '/settings', label: 'Lab Settings', icon: <SettingOutlined /> },
-      ],
-    });
+  // LAB_ADMIN admin section — show when in admin section or no active section
+  if (role === 'LAB_ADMIN' && (!activeSection || activeSection === 'admin')) {
+    items.push({ ...ADMIN_NAV_GROUP, type: 'group' });
   }
 
   return items;
@@ -130,8 +137,15 @@ export default function Layout({ children, onLogout }: { children: ReactNode; on
   const user = getUser();
   const role = user?.role ?? '';
 
+  const activeSection = localStorage.getItem('activeSection');
+
+  const goToHub = () => {
+    localStorage.removeItem('activeSection');
+    nav('/');
+  };
+
   const selectedKey = pathname === '/' ? '/' : ('/' + pathname.split('/')[1]);
-  const menuItems = buildMenu(role);
+  const menuItems = buildMenu(role, activeSection);
 
   const userMenuItems = [
     { key: 'settings', label: 'Settings', icon: <SettingOutlined /> },
@@ -144,6 +158,7 @@ export default function Layout({ children, onLogout }: { children: ReactNode; on
       logout();
       onLogout();
     } else if (key === 'settings') {
+      localStorage.setItem('activeSection', 'admin');
       nav('/settings');
     }
   };
@@ -175,6 +190,23 @@ export default function Layout({ children, onLogout }: { children: ReactNode; on
               </div>
             </div>
           )}
+        </div>
+
+        {/* Back to Hub button */}
+        <div
+          onClick={goToHub}
+          style={{
+            display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10,
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            padding: collapsed ? '10px 0' : '10px 20px',
+            cursor: 'pointer', borderBottom: '1px solid #0d3a6e',
+            color: '#8c9db5', fontSize: 12, transition: 'color 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '#8c9db5')}
+        >
+          <HomeOutlined style={{ fontSize: 14, flexShrink: 0 }} />
+          {!collapsed && <span>Back to Hub</span>}
         </div>
         <Menu
           theme="dark"
