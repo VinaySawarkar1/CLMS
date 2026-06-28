@@ -13,14 +13,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// If the token is rejected (expired/invalid), clear it and return to login
-// instead of leaving the app stuck firing 401s.
+// If the token is rejected (expired/invalid), clear it and return to login.
+// If SESSION_DISPLACED, show a message so the user knows why they were kicked out.
 api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error?.response?.status === 401 && localStorage.getItem('clms_access_token')) {
+      const isDisplaced = error?.response?.data?.message === 'SESSION_DISPLACED';
       localStorage.removeItem('clms_access_token');
       localStorage.removeItem('clms_refresh_token');
+      localStorage.removeItem('clms_user');
+      if (isDisplaced) {
+        sessionStorage.setItem('clms_logout_reason', 'displaced');
+      }
       window.location.reload();
     }
     return Promise.reject(error);
@@ -65,7 +70,12 @@ export function hasPermission(key: string): boolean {
   return user.permissions?.includes(key) ?? false;
 }
 
-export function logout() {
+export async function logout() {
+  try {
+    await api.post('/auth/logout');
+  } catch {
+    // best-effort; clear local state regardless
+  }
   localStorage.removeItem('clms_access_token');
   localStorage.removeItem('clms_refresh_token');
   localStorage.removeItem('clms_user');

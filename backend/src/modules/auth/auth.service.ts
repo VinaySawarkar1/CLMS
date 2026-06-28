@@ -7,7 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LoginDto, RegisterDto } from './dto';
 
@@ -63,11 +63,30 @@ export class AuthService {
     }
 
     await this.audit(user.id, user.labId, 'LOGIN', 'User', user.id);
+    // Revoke all existing refresh tokens so old devices can't re-authenticate
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     return this.issueTokens(user.id, user.email, user.role, user.labId);
   }
 
+  async logout(userId: string) {
+    // Clear session token → invalidates all outstanding access tokens immediately
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { currentSessionToken: null },
+    });
+    // Revoke all refresh tokens
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit(userId, null, 'LOGOUT', 'User', userId);
+  }
+
   async refresh(refreshToken: string) {
-    let payload: { sub: string; email: string; role: any; labId: string | null };
+    let payload: { sub: string; email: string; role: any; labId: string | null; sid?: string };
     try {
       payload = await this.jwt.verifyAsync(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET || 'change-me-refresh-secret',
@@ -83,11 +102,32 @@ export class AuthService {
     if (!stored || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired or revoked');
     }
+
+    // Verify the session token in the refresh token still matches DB
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { currentSessionToken: true },
+    });
+    if (!user || user.currentSessionToken !== (payload.sid ?? null)) {
+      throw new UnauthorizedException('SESSION_DISPLACED');
+    }
+
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
       data: { revokedAt: new Date() },
     });
     return this.issueTokens(payload.sub, payload.email, payload.role, payload.labId);
+  }
+
+  /** Validate that the session token in a JWT still matches the DB record.
+   *  Called by JwtStrategy on every request — O(1) DB lookup by primary key. */
+  async validateSession(userId: string, sessionToken: string | undefined): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { currentSessionToken: true, isActive: true },
+    });
+    if (!user || !user.isActive) return false;
+    return user.currentSessionToken === (sessionToken ?? null);
   }
 
   /** Get full user profile with lab permissions */
@@ -123,7 +163,14 @@ export class AuthService {
   }
 
   private async issueTokens(sub: string, email: string, role: any, labId: string | null) {
-    const payload = { sub, email, role, labId };
+    // Generate a fresh session token — this invalidates any previously issued JWTs
+    const sid = randomUUID();
+    await this.prisma.user.update({
+      where: { id: sub },
+      data: { currentSessionToken: sid },
+    });
+
+    const payload = { sub, email, role, labId, sid };
     const accessToken = await this.jwt.signAsync(payload, {
       secret: process.env.JWT_ACCESS_SECRET || 'change-me-access-secret',
       expiresIn: process.env.JWT_ACCESS_TTL || '8h',

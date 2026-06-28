@@ -195,19 +195,20 @@ model LabRolePermission {
 // ──────────────────────── Identity & Access ──────────────────────
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  fullName      String
-  role          Role     @default(DATA_ENTRY_OPERATOR)
-  isActive      Boolean  @default(true)
-  labId         String?  // null only for SUPER_ADMIN
-  lab           Lab?     @relation(fields: [labId], references: [id])
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]
-  engineer      Engineer?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  email                String   @unique
+  passwordHash         String
+  fullName             String
+  role                 Role     @default(DATA_ENTRY_OPERATOR)
+  isActive             Boolean  @default(true)
+  labId                String?  // null only for SUPER_ADMIN
+  lab                  Lab?     @relation(fields: [labId], references: [id])
+  currentSessionToken  String?  // changes on every login; old JWTs instantly invalid
+  refreshTokens        RefreshToken[]
+  auditLogs            AuditLog[]
+  engineer             Engineer?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([labId])
 }

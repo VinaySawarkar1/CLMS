@@ -11,6 +11,9 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = useState('');
   const [form] = Form.useForm();
 
+  const displacedReason = sessionStorage.getItem('clms_logout_reason') === 'displaced';
+  if (displacedReason) sessionStorage.removeItem('clms_logout_reason');
+
   const submit = async (values: { email: string; password: string }) => {
     setError('');
     setLoading(true);
@@ -62,6 +65,15 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
           <Paragraph style={{ color: '#666', marginBottom: 28, fontSize: 13 }}>
             Sign in to access your calibration laboratory dashboard
           </Paragraph>
+
+          {displacedReason && (
+            <Alert
+              type="warning"
+              message="Logged out — another device signed in with your account."
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
 
           {error && (
             <Alert type="error" message={error} showIcon style={{ marginBottom: 20 }} />
