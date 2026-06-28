@@ -1,10 +1,18 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LabStatus, Role } from '@prisma/client';
+import { LabStatus, PlanTier, Role } from '@prisma/client';
+
+const PLAN_USER_LIMITS: Record<PlanTier, number> = {
+  STARTER: 25,
+  GROWTH: 50,
+  BUSINESS: 100,
+  ENTERPRISE: 999999,
+};
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
@@ -92,6 +100,35 @@ export class LabsService {
     });
   }
 
+  /** SUPER_ADMIN: platform-level statistics */
+  async getPlatformStats() {
+    const [totalLabs, totalUsers, labsByStatus, labsByPlan, recentLabs] = await Promise.all([
+      this.prisma.lab.count(),
+      this.prisma.user.count({ where: { role: { not: Role.SUPER_ADMIN } } }),
+      this.prisma.lab.groupBy({ by: ['status'], _count: { id: true } }),
+      this.prisma.lab.groupBy({ by: ['plan'], _count: { id: true } }),
+      this.prisma.lab.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, name: true, status: true, plan: true, createdAt: true, _count: { select: { users: true } } },
+      }),
+    ]);
+    return { totalLabs, totalUsers, labsByStatus, labsByPlan, recentLabs };
+  }
+
+  /** SUPER_ADMIN: update lab plan */
+  async updatePlan(labId: string, plan: PlanTier, planExpiresAt: Date | null, actorId: string) {
+    const maxUsers = PLAN_USER_LIMITS[plan];
+    const lab = await this.prisma.lab.update({
+      where: { id: labId },
+      data: { plan, maxUsers, planExpiresAt },
+    });
+    await this.prisma.auditLog.create({
+      data: { labId, userId: actorId, action: `PLAN_CHANGED_TO_${plan}`, entity: 'Lab', entityId: labId },
+    });
+    return lab;
+  }
+
   async findOne(id: string, actorLabId?: string | null) {
     const lab = await this.prisma.lab.findUnique({
       where: { id },
@@ -155,6 +192,17 @@ export class LabsService {
     email: string; fullName: string; password: string; role: Role;
     employeeCode?: string; skills?: string[];
   }) {
+    // Enforce plan user limit
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { maxUsers: true, plan: true } });
+    if (lab) {
+      const currentCount = await this.prisma.user.count({ where: { labId } });
+      if (currentCount >= lab.maxUsers) {
+        throw new BadRequestException(
+          `User limit reached for your plan (${lab.plan}: max ${lab.maxUsers} users). Upgrade your plan to add more users.`
+        );
+      }
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
     if (existing) throw new ConflictException('Email already registered');
 

@@ -19,12 +19,14 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error?.response?.status === 401 && localStorage.getItem('clms_access_token')) {
-      const isDisplaced = error?.response?.data?.message === 'SESSION_DISPLACED';
+      const msg = error?.response?.data?.message;
       localStorage.removeItem('clms_access_token');
       localStorage.removeItem('clms_refresh_token');
       localStorage.removeItem('clms_user');
-      if (isDisplaced) {
+      if (msg === 'SESSION_DISPLACED') {
         sessionStorage.setItem('clms_logout_reason', 'displaced');
+      } else if (msg === 'TOKEN_REUSE_DETECTED') {
+        sessionStorage.setItem('clms_logout_reason', 'reuse');
       }
       window.location.reload();
     }
@@ -99,6 +101,9 @@ export const getLabs = (status?: string) => get('/labs', { status });
 export const getLab = (id: string) => get(`/labs/${id}`);
 export const updateLabStatus = (id: string, status: string) => patch(`/labs/${id}/status`, { status });
 export const updateLabDetails = (id: string, b: any) => patch(`/labs/${id}/details`, b);
+export const updateLabPlan = (id: string, plan: string, planExpiresAt?: string | null) =>
+  patch(`/labs/${id}/plan`, { plan, planExpiresAt: planExpiresAt ?? null });
+export const getPlatformStats = () => get('/labs/platform/stats');
 
 // Lab users (LAB_ADMIN or SUPER_ADMIN)
 export const getLabUsers = (labId: string) => get(`/labs/${labId}/users`);

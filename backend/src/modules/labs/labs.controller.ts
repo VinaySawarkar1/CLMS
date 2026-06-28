@@ -1,7 +1,7 @@
 import {
   Body, Controller, Get, Param, Patch, Post, Put, Query, Request, UseGuards,
 } from '@nestjs/common';
-import { LabStatus, Role } from '@prisma/client';
+import { LabStatus, PlanTier, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 import { RolesGuard } from '../../common/rbac/roles.guard';
@@ -13,6 +13,12 @@ export class LabsController {
   constructor(private readonly labs: LabsService) {}
 
   // ── SUPER_ADMIN ────────────────────────────────────────────────────────────
+
+  @Roles(Role.SUPER_ADMIN)
+  @Get('platform/stats')
+  getPlatformStats() {
+    return this.labs.getPlatformStats();
+  }
 
   @Roles(Role.SUPER_ADMIN)
   @Get()
@@ -35,6 +41,17 @@ export class LabsController {
     @Request() req: any,
   ) {
     return this.labs.updateStatus(id, status, req.user.id);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Patch(':id/plan')
+  updatePlan(
+    @Param('id') id: string,
+    @Body('plan') plan: PlanTier,
+    @Body('planExpiresAt') planExpiresAt: string | null,
+    @Request() req: any,
+  ) {
+    return this.labs.updatePlan(id, plan, planExpiresAt ? new Date(planExpiresAt) : null, req.user.id);
   }
 
   // ── LAB_ADMIN (own lab) ────────────────────────────────────────────────────

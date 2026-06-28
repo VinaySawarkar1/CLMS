@@ -76,7 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 const SUPER_ADMIN_TABS: NavLeaf[] = [
   { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
-  { key: '/labs', label: 'Labs', icon: <BankOutlined /> },
+  { key: '/labs', label: 'Labs & Plans', icon: <BankOutlined /> },
 ];
 
 const SECTION_COLORS: Record<string, string> = {

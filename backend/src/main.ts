@@ -42,8 +42,23 @@ async function bootstrap() {
   // Increase body size limit to support base64-encoded file uploads in documents.
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Security headers (helmet-equivalent, no extra package needed)
+  app.use((_req: any, res: any, next: any) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';"
+    );
+    next();
+  });
+
   app.setGlobalPrefix('api');
-  app.enableCors();
+  app.enableCors({ origin: process.env.CORS_ORIGIN || true, credentials: true });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );

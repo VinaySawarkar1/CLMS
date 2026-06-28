@@ -11,8 +11,8 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = useState('');
   const [form] = Form.useForm();
 
-  const displacedReason = sessionStorage.getItem('clms_logout_reason') === 'displaced';
-  if (displacedReason) sessionStorage.removeItem('clms_logout_reason');
+  const logoutReason = sessionStorage.getItem('clms_logout_reason');
+  if (logoutReason) sessionStorage.removeItem('clms_logout_reason');
 
   const submit = async (values: { email: string; password: string }) => {
     setError('');
@@ -66,10 +66,18 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             Sign in to access your calibration laboratory dashboard
           </Paragraph>
 
-          {displacedReason && (
+          {logoutReason === 'displaced' && (
             <Alert
               type="warning"
-              message="Logged out — another device signed in with your account."
+              message="You were logged out because another device signed in to your account."
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+          {logoutReason === 'reuse' && (
+            <Alert
+              type="error"
+              message="Security alert: suspicious token reuse detected. All your sessions have been terminated for safety."
               showIcon
               style={{ marginBottom: 16 }}
             />

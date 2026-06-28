@@ -30,6 +30,13 @@ enum LabStatus {
   SUSPENDED
 }
 
+enum PlanTier {
+  STARTER    // up to 25 users
+  GROWTH     // up to 50 users
+  BUSINESS   // up to 100 users
+  ENTERPRISE // custom
+}
+
 enum JobStatus {
   RECEIVED
   WAITING
@@ -154,6 +161,9 @@ model Lab {
   bankIfsc            String?
   bankBranch          String?
   status              LabStatus  @default(PENDING)
+  plan                PlanTier   @default(STARTER)
+  planExpiresAt       DateTime?  // null = no expiry / lifetime
+  maxUsers            Int        @default(25)
   users               User[]
   customers           Customer[]
   instruments         Instrument[]
@@ -204,6 +214,8 @@ model User {
   labId                String?  // null only for SUPER_ADMIN
   lab                  Lab?     @relation(fields: [labId], references: [id])
   currentSessionToken  String?  // changes on every login; old JWTs instantly invalid
+  failedLoginAttempts  Int      @default(0)
+  lockedUntil          DateTime?
   refreshTokens        RefreshToken[]
   auditLogs            AuditLog[]
   engineer             Engineer?
