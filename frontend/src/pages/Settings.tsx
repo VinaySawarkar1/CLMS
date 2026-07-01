@@ -8,11 +8,13 @@ import {
   FileTextOutlined, CompressOutlined, ApartmentOutlined, UserOutlined,
   DatabaseOutlined, UploadOutlined, PlusOutlined, DeleteOutlined, SaveOutlined,
   BankOutlined, CalculatorOutlined, ExportOutlined, DownloadOutlined, EyeOutlined,
+  MailOutlined, CheckCircleFilled as CheckFilled, CloseCircleFilled,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLabSettings, updateLabSettings, loadSampleData, getUser, getLab, updateLabDetails, downloadBackup,
   getJobs, getCustomers, getInstruments, getEngineers, getEnvironmental,
   getInvoices, getQuotations, getPurchaseOrders, getDeliveryChallans, getLeads, getCrmActivities,
+  getLabSmtp, saveLabSmtp, testLabSmtp,
 } from '../api';
 import { exportToCsv } from '../utils/export';
 
@@ -910,6 +912,218 @@ export default function Settings() {
     } finally { setSeedLoading(false); }
   };
 
+  // ── SMTP Settings Section ─────────────────────────────────────────────────
+
+  function SmtpSettingsSection() {
+    const user = getUser();
+    const labId = user?.labId ?? '';
+    const qc = useQueryClient();
+    const [smtpForm] = Form.useForm();
+    const [testEmail, setTestEmail] = useState('');
+    const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
+    const [testing, setTesting] = useState(false);
+    const [showPass, setShowPass] = useState(false);
+
+    const { data: smtpCfg, isLoading: smtpLoading } = useQuery({
+      queryKey: ['lab-smtp', labId],
+      queryFn: () => getLabSmtp(labId),
+      enabled: !!labId,
+    });
+
+    useEffect(() => {
+      if (!smtpCfg) return;
+      const d = smtpCfg as any;
+      smtpForm.setFieldsValue({
+        host: d.host, port: d.port, secure: d.secure ? 'true' : 'false',
+        user: d.user, fromName: d.fromName, fromEmail: d.fromEmail,
+        pass: '', // never pre-fill password
+      });
+    }, [smtpCfg]);
+
+    const saveMut = useMutation({
+      mutationFn: (vals: any) => saveLabSmtp(labId, {
+        ...vals,
+        port: Number(vals.port),
+        secure: vals.secure === 'true',
+      }),
+      onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-smtp', labId] }); message.success('SMTP settings saved'); },
+      onError: () => message.error('Failed to save SMTP settings'),
+    });
+
+    const handleTest = async () => {
+      if (!testEmail) { message.warning('Enter a test email address'); return; }
+      setTesting(true); setTestResult(null);
+      try {
+        const res: any = await testLabSmtp(labId, testEmail);
+        setTestResult(res);
+      } catch (e: any) {
+        setTestResult({ ok: false, error: e?.response?.data?.message ?? 'Connection failed' });
+      } finally { setTesting(false); }
+    };
+
+    const cfg = smtpCfg as any;
+
+    return (
+      <div style={{ maxWidth: 640 }}>
+        <Space direction="vertical" size="small" style={{ marginBottom: 20, width: '100%' }}>
+          <Title level={5} style={{ margin: 0 }}>Email / SMTP Configuration</Title>
+          <Text type="secondary">
+            Configure your outgoing mail server. All system emails — certificate delivery, calibration due
+            alerts, job assignment notifications, and plan expiry warnings — will be sent through this account.
+          </Text>
+        </Space>
+
+        {cfg?.configured && (
+          <Alert
+            type="success"
+            icon={<CheckFilled />}
+            message={`SMTP configured — using ${cfg.user}`}
+            style={{ marginBottom: 20 }}
+            showIcon
+          />
+        )}
+        {!cfg?.configured && !smtpLoading && (
+          <Alert
+            type="warning"
+            message="No SMTP configured. System emails are currently disabled for this lab."
+            style={{ marginBottom: 20 }}
+            showIcon
+          />
+        )}
+
+        <Card title="Outgoing Mail Server" style={{ marginBottom: 16 }} size="small">
+          <Form
+            form={smtpForm}
+            layout="vertical"
+            onFinish={(vals) => saveMut.mutate(vals)}
+            initialValues={{ port: 587, secure: 'false' }}
+          >
+            <Row gutter={16}>
+              <Col span={16}>
+                <Form.Item name="host" label="SMTP Host" rules={[{ required: true, message: 'Required' }]}>
+                  <Input placeholder="smtp.gmail.com  /  smtp.zoho.com  /  mail.yourdomain.com" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="port" label="Port" rules={[{ required: true }]}>
+                  <Select>
+                    <Select.Option value={587}>587 (TLS / STARTTLS)</Select.Option>
+                    <Select.Option value={465}>465 (SSL)</Select.Option>
+                    <Select.Option value={25}>25 (Plain)</Select.Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="secure" label="Encryption">
+                  <Select>
+                    <Select.Option value="false">STARTTLS (port 587)</Select.Option>
+                    <Select.Option value="true">SSL/TLS (port 465)</Select.Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="user" label="Username / Email" rules={[{ required: true }]}>
+                  <Input placeholder="you@example.com" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item
+              name="pass"
+              label={
+                <Space>
+                  <span>Password / App Password</span>
+                  {cfg?.hasPassword && <Tag color="green" style={{ fontSize: 11 }}>Saved</Tag>}
+                </Space>
+              }
+              extra="For Gmail/Google Workspace use an App Password, not your account password."
+            >
+              <Input.Password
+                placeholder={cfg?.hasPassword ? '••••••• (leave blank to keep existing)' : 'Enter password or app password'}
+                visibilityToggle={{ visible: showPass, onVisibleChange: setShowPass }}
+              />
+            </Form.Item>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="fromName" label="From Name" extra='e.g. "ACME Calibration Lab"'>
+                  <Input placeholder="Your Lab Name" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="fromEmail" label="From Email" extra="Defaults to Username if blank.">
+                  <Input placeholder="noreply@yourdomain.com" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item>
+              <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saveMut.isPending}>
+                Save SMTP Settings
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        <Card title="Send Test Email" size="small">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Text type="secondary">Send a test email to verify your SMTP configuration is working.</Text>
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                placeholder="test@example.com"
+                value={testEmail}
+                onChange={(e) => { setTestEmail(e.target.value); setTestResult(null); }}
+                onPressEnter={handleTest}
+                prefix={<MailOutlined style={{ color: '#bbb' }} />}
+                style={{ flex: 1 }}
+              />
+              <Button
+                type="primary"
+                loading={testing}
+                onClick={handleTest}
+                disabled={!cfg?.configured && !smtpForm.getFieldValue('host')}
+              >
+                Send Test
+              </Button>
+            </Space.Compact>
+
+            {testResult && (
+              <Alert
+                type={testResult.ok ? 'success' : 'error'}
+                icon={testResult.ok ? <CheckFilled /> : <CloseCircleFilled />}
+                message={testResult.ok ? 'Test email sent successfully!' : `Failed: ${testResult.error}`}
+                showIcon
+              />
+            )}
+          </Space>
+        </Card>
+
+        <Card title="Email Functions" size="small" style={{ marginTop: 16 }}>
+          <Table
+            size="small"
+            pagination={false}
+            dataSource={[
+              { key: '1', fn: 'Certificate Delivery', trigger: 'When last signature is applied (auto)', via: 'Customer email' },
+              { key: '2', fn: 'Calibration Due Alerts (30/15/7 days)', trigger: 'Daily at 08:15 (auto)', via: 'Lab contact email' },
+              { key: '3', fn: 'Job Assignment Notification', trigger: 'When engineer is auto-assigned', via: 'Engineer email' },
+              { key: '4', fn: 'Plan Expiry Warning (7d / 1d)', trigger: 'Daily at 08:15 (auto)', via: 'Lab Admin email' },
+              { key: '5', fn: 'Instrument Recall Reminder', trigger: 'Daily at 08:00 (auto)', via: 'Customer email' },
+              { key: '6', fn: 'Instrument Delivered Notification', trigger: 'When job status → DELIVERED', via: 'Customer email' },
+            ]}
+            columns={[
+              { title: 'Function', dataIndex: 'fn', key: 'fn' },
+              { title: 'Trigger', dataIndex: 'trigger', key: 'trigger', render: (v: string) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text> },
+              { title: 'Sent To', dataIndex: 'via', key: 'via', render: (v: string) => <Tag>{v}</Tag> },
+            ]}
+          />
+        </Card>
+      </div>
+    );
+  }
+
   const tabItems = [
     {
       key: 'lab',
@@ -950,6 +1164,11 @@ export default function Settings() {
       key: 'dataexport',
       label: <Space><ExportOutlined />Data Export</Space>,
       children: <DataExportSection />,
+    },
+    {
+      key: 'smtp',
+      label: <Space><MailOutlined />Email / SMTP</Space>,
+      children: <SmtpSettingsSection />,
     },
   ];
 

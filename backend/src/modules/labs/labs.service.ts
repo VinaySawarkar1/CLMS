@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LabStatus, PlanTier, Role } from '@prisma/client';
+import { MailService } from '../../common/mail/mail.service';
 
 const PLAN_USER_LIMITS: Record<PlanTier, number> = {
   STARTER: 25,
@@ -37,6 +38,7 @@ export class LabsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly mail: MailService,
   ) {}
 
   /** Public: register a new lab + LAB_ADMIN user. Lab starts PENDING until SUPER_ADMIN approves. */
@@ -333,6 +335,21 @@ export class LabsService {
       update: { value: merged },
     });
     return merged;
+  }
+
+  /** LAB_ADMIN / SUPER_ADMIN: get SMTP config (password redacted) */
+  getSmtpConfig(labId: string) {
+    return this.mail.getSmtpConfig(labId);
+  }
+
+  /** LAB_ADMIN / SUPER_ADMIN: save SMTP config */
+  saveSmtpConfig(labId: string, cfg: any) {
+    return this.mail.saveSmtpConfig(labId, cfg);
+  }
+
+  /** LAB_ADMIN / SUPER_ADMIN: send a test email using the lab's SMTP */
+  testSmtpConfig(labId: string, toEmail: string) {
+    return this.mail.testSmtpConfig(labId, toEmail);
   }
 
   private hash(value: string) {

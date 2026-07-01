@@ -105,6 +105,11 @@ export const updateLabPlan = (id: string, plan: string, planExpiresAt?: string |
   patch(`/labs/${id}/plan`, { plan, planExpiresAt: planExpiresAt ?? null });
 export const getPlatformStats = () => get('/labs/platform/stats');
 
+// SMTP configuration (LAB_ADMIN or SUPER_ADMIN)
+export const getLabSmtp = (labId: string) => get(`/labs/${labId}/smtp`);
+export const saveLabSmtp = (labId: string, cfg: any) => post(`/labs/${labId}/smtp`, cfg);
+export const testLabSmtp = (labId: string, email: string) => post(`/labs/${labId}/smtp/test`, { email });
+
 // Lab users (LAB_ADMIN or SUPER_ADMIN)
 export const getLabUsers = (labId: string) => get(`/labs/${labId}/users`);
 export const resetLabUserPassword = (labId: string, userId: string, newPassword: string) =>

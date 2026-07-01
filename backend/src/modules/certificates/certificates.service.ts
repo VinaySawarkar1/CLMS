@@ -136,6 +136,7 @@ export class CertificatesService {
             cert.certificateNumber,
             (cert.job as any)?.jobNumber ?? id,
             htmlContent,
+            jobWithCustomer.labId,
           );
         } catch (err) {
           // Email failure must never block certificate finalisation

@@ -136,4 +136,24 @@ export class LabsController {
     return this.labs.resetUserPassword(id, userId, newPassword);
   }
 
+  // ── SMTP configuration (LAB_ADMIN or SUPER_ADMIN) ──────────────────────────
+
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
+  @Get(':id/smtp')
+  getSmtp(@Param('id') id: string) {
+    return this.labs.getSmtpConfig(id);
+  }
+
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
+  @Post(':id/smtp')
+  saveSmtp(@Param('id') id: string, @Body() body: any) {
+    return this.labs.saveSmtpConfig(id, body);
+  }
+
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
+  @Post(':id/smtp/test')
+  testSmtp(@Param('id') id: string, @Body('email') email: string) {
+    return this.labs.testSmtpConfig(id, email);
+  }
+
 }
