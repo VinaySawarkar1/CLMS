@@ -52,16 +52,88 @@ export class JobsService {
     };
 
     // Retry on unique-constraint collision of jobNumber (concurrent creates).
+    let job: any;
     for (let attempt = 0; attempt < 5; attempt++) {
       const jobNumber = await this.nextJobNumber(labId);
       try {
-        return await this.prisma.job.create({ data: { ...data, jobNumber } });
+        job = await this.prisma.job.create({ data: { ...data, jobNumber } });
+        break;
       } catch (e: any) {
         if (e?.code === 'P2002' && attempt < 4) continue;
         throw e;
       }
     }
-    throw new Error('Could not allocate a unique job number');
+    if (!job) throw new Error('Could not allocate a unique job number');
+
+    // #3 Auto-assign engineer based on instrument discipline ↔ engineer skills
+    await this.tryAutoAssignEngineer(job, labId);
+
+    return job;
+  }
+
+  /**
+   * Auto-assign the least-busy engineer whose skills[] include the instrument's
+   * discipline name. Falls back silently — job stays RECEIVED if no match.
+   */
+  private async tryAutoAssignEngineer(job: { id: string; jobNumber: string; instrumentId: string }, labId: string) {
+    try {
+      const instrument = await this.prisma.instrument.findUnique({
+        where: { id: job.instrumentId },
+        include: { discipline: { select: { name: true, code: true } } },
+      });
+      if (!instrument?.discipline) return;
+
+      const disciplineName = instrument.discipline.name.toLowerCase();
+      const disciplineCode = instrument.discipline.code.toLowerCase();
+
+      const engineers = await this.prisma.engineer.findMany({
+        where: { user: { labId, isActive: true, role: { in: ['CALIBRATION_ENGINEER', 'SERVICE_ENGINEER'] } } },
+        include: {
+          user: { select: { id: true, email: true } },
+          _count: {
+            select: {
+              jobs: { where: { status: { in: ['ASSIGNED', 'IN_CALIBRATION', 'PENDING_REVIEW'] } } },
+            },
+          },
+        },
+      });
+
+      // Keep only engineers whose skills match this discipline
+      const matched = engineers.filter((eng) =>
+        eng.skills.some((s) => {
+          const sl = s.toLowerCase();
+          return sl.includes(disciplineName) || sl.includes(disciplineCode);
+        }),
+      );
+      if (!matched.length) return;
+
+      // Pick least-busy
+      matched.sort((a, b) => (a._count.jobs ?? 0) - (b._count.jobs ?? 0));
+      const best = matched[0];
+
+      await this.prisma.job.update({
+        where: { id: job.id },
+        data: { engineerId: best.id, status: 'ASSIGNED' },
+      });
+
+      if (best.user?.id) {
+        await this.notifications.notify({
+          labId,
+          userId: best.user.id,
+          channel: 'EMAIL',
+          event: 'JOB_ASSIGNED',
+          payload: {
+            jobId: job.id,
+            jobNumber: job.jobNumber,
+            email: best.user.email,
+            message: `Job ${job.jobNumber} has been auto-assigned to you (discipline: ${instrument.discipline.name}).`,
+          },
+        });
+      }
+    } catch (err: any) {
+      // Auto-assign failure must never block job creation
+      console.warn(`[auto-assign] Failed for job ${job.id}: ${err?.message}`);
+    }
   }
 
   /**
@@ -92,7 +164,7 @@ export class JobsService {
 
     const visitDate = dto.visitDate ? new Date(dto.visitDate) : null;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Allocate a batch number (retry on rare collision).
       let batch;
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -162,6 +234,13 @@ export class JobsService {
 
       return { ...batch, jobs };
     });
+
+    // Auto-assign engineers for each job in the batch (outside transaction)
+    for (const j of result.jobs) {
+      await this.tryAutoAssignEngineer(j, labId);
+    }
+
+    return result;
   }
 
   /** List batches for the lab (optionally filtered by customer) with rollup. */

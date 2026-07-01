@@ -18,6 +18,7 @@ import { Roles } from '../../common/rbac/roles.decorator';
 import { MailModule } from '../../common/mail/mail.module';
 import { MailService } from '../../common/mail/mail.service';
 import { RecallScheduler } from './recall.scheduler';
+import { AutomationScheduler } from './automation.scheduler';
 
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH';
 export type NotificationEvent =
@@ -158,6 +159,7 @@ class NotificationsController {
   constructor(
     private readonly notifications: NotificationsService,
     private readonly recall: RecallScheduler,
+    private readonly automation: AutomationScheduler,
   ) {}
 
   @Get()
@@ -176,12 +178,23 @@ class NotificationsController {
     const result = await this.recall.runRecallCheck();
     return { ...result, triggeredAt: new Date().toISOString() };
   }
+
+  @Post('trigger-automations')
+  @Roles(Role.SUPER_ADMIN)
+  async triggerAutomations() {
+    const [closed, certAlerts] = await Promise.all([
+      this.automation.autoCloseDeliveredJobs(),
+      this.automation.certExpiryAlerts(),
+    ]);
+    await this.automation.planExpiryCheck();
+    return { autoClosedJobs: closed, certAlertsSent: certAlerts, triggeredAt: new Date().toISOString() };
+  }
 }
 
 @Module({
   imports: [MailModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService, RecallScheduler],
-  exports: [NotificationsService],
+  providers: [NotificationsService, RecallScheduler, AutomationScheduler],
+  exports: [NotificationsService, AutomationScheduler],
 })
 export class NotificationsModule {}
