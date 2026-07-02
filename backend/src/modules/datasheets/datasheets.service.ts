@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { evaluate, FormulaContext } from '../../common/formula/formula-engine';
@@ -74,7 +74,11 @@ export class DatasheetsService {
       };
       const updates: Record<string, number> = {};
       for (const [field, formula] of Object.entries(dto.formulas)) {
-        updates[field] = evaluate(formula, ctx);
+        try {
+          updates[field] = evaluate(formula, ctx);
+        } catch (err: any) {
+          throw new BadRequestException(`Formula error in '${field}': ${err?.message}`);
+        }
       }
       await this.prisma.observation.update({
         where: { id: obs.id },
