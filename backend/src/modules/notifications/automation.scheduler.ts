@@ -276,7 +276,7 @@ export class AutomationScheduler {
             <p>Dear ${admin.fullName},</p>
             <p>Your <strong>${lab.plan}</strong> plan for lab <strong>${lab.name}</strong> will expire on <strong>${expiryStr}</strong>.</p>
             <p>Please renew your subscription before the expiry date to avoid service interruption.</p>
-            <p>Contact us at <a href="mailto:cortexaitechnologies@zohomail.in">cortexaitechnologies@zohomail.in</a> or call +91 8329925318 to upgrade or renew.</p>
+            <p>Contact us at <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@example.com'}">${process.env.SUPPORT_EMAIL || 'support@example.com'}</a>${process.env.SUPPORT_PHONE ? ` or call ${process.env.SUPPORT_PHONE}` : ''} to upgrade or renew.</p>
             `,
           );
 

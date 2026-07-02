@@ -58,7 +58,7 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: process.env.CORS_ORIGIN || true, credentials: true });
+  app.enableCors({ origin: process.env.CORS_ORIGIN || false, credentials: true });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );

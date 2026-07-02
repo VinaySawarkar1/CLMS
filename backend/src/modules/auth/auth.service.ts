@@ -17,6 +17,14 @@ const LOCKOUT_MINUTES = 15;
 // Simple in-memory rate limiter: tracks login attempts per IP
 const ipLoginMap = new Map<string, { count: number; resetAt: number }>();
 
+// Periodic cleanup every 10 minutes to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of ipLoginMap.entries()) {
+    if (now > entry.resetAt) ipLoginMap.delete(ip);
+  }
+}, 10 * 60 * 1000);
+
 @Injectable()
 export class AuthService {
   constructor(
