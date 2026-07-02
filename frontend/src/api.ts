@@ -13,21 +13,61 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// If the token is rejected (expired/invalid), clear it and return to login.
+// Token refresh state — prevent multiple concurrent refresh attempts
+let refreshPromise: Promise<string | null> | null = null;
+
+async function tryRefreshToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem('clms_refresh_token');
+    if (!refreshToken) return null;
+    try {
+      const { data } = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
+      localStorage.setItem('clms_access_token', data.accessToken);
+      if (data.refreshToken) localStorage.setItem('clms_refresh_token', data.refreshToken);
+      return data.accessToken as string;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
+// If the token is rejected (expired/invalid), try to refresh it first.
 // If SESSION_DISPLACED, show a message so the user knows why they were kicked out.
 api.interceptors.response.use(
   (res) => res,
-  (error) => {
-    if (error?.response?.status === 401 && localStorage.getItem('clms_access_token')) {
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error?.response?.status === 401 &&
+      localStorage.getItem('clms_access_token') &&
+      !originalRequest._retried
+    ) {
       const msg = error?.response?.data?.message;
+      if (msg === 'SESSION_DISPLACED' || msg === 'TOKEN_REUSE_DETECTED') {
+        localStorage.removeItem('clms_access_token');
+        localStorage.removeItem('clms_refresh_token');
+        localStorage.removeItem('clms_user');
+        sessionStorage.setItem('clms_logout_reason', msg === 'SESSION_DISPLACED' ? 'displaced' : 'reuse');
+        window.location.reload();
+        return Promise.reject(error);
+      }
+
+      originalRequest._retried = true;
+      const newToken = await tryRefreshToken();
+      if (newToken) {
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+        return api(originalRequest);
+      }
+
+      // Refresh failed — clear storage and redirect to login
       localStorage.removeItem('clms_access_token');
       localStorage.removeItem('clms_refresh_token');
       localStorage.removeItem('clms_user');
-      if (msg === 'SESSION_DISPLACED') {
-        sessionStorage.setItem('clms_logout_reason', 'displaced');
-      } else if (msg === 'TOKEN_REUSE_DETECTED') {
-        sessionStorage.setItem('clms_logout_reason', 'reuse');
-      }
       window.location.reload();
     }
     return Promise.reject(error);

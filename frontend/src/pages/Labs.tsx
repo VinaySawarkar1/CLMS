@@ -365,7 +365,7 @@ export default function Labs() {
 
         <div style={{ marginTop: 8, padding: 12, background: '#fffbe6', borderRadius: 8, border: '1px solid #ffe58f' }}>
           <Text style={{ fontSize: 12 }}>
-            <strong>Pricing reference:</strong> Starter ₹X/mo · Growth ₹XX/mo · Business ₹XXX/mo · Enterprise — contact sales
+            <strong>Pricing reference:</strong> Contact sales for pricing information
           </Text>
         </div>
       </Modal>
