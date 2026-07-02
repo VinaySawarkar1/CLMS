@@ -1,8 +1,9 @@
 import {
   Body, Controller, ForbiddenException, Get, Injectable, Module, Param, Post, Request,
-  UnauthorizedException, UseGuards, Res,
+  UnauthorizedException, UseGuards, Res, HttpCode, HttpStatus, HttpException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule, PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -10,6 +11,30 @@ import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+// ── Portal login rate limiter (5 attempts per IP per 15 minutes) ─────────────
+const PORTAL_MAX_ATTEMPTS = 5;
+const PORTAL_WINDOW_MS = 15 * 60 * 1000;
+const portalIpMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkPortalRateLimit(ip: string): boolean {
+  const now = Date.now();
+  let entry = portalIpMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + PORTAL_WINDOW_MS };
+    portalIpMap.set(ip, entry);
+  }
+  entry.count++;
+  return entry.count > PORTAL_MAX_ATTEMPTS;
+}
+
+// Periodic cleanup every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of portalIpMap.entries()) {
+    if (now > entry.resetAt) portalIpMap.delete(ip);
+  }
+}, 10 * 60 * 1000);
 
 // ────────────────────────── Portal JWT strategy ──────────────────────────────
 
@@ -60,7 +85,8 @@ class PortalAuthService {
 
     // If customer has a portal password set, validate it
     if (customer.portalPassword) {
-      if (!password || password !== customer.portalPassword) {
+      const passwordValid = password ? await bcrypt.compare(password, customer.portalPassword) : false;
+      if (!passwordValid) {
         throw new UnauthorizedException('Invalid password');
       }
     } else {
@@ -256,9 +282,10 @@ class PortalService {
   async setPortalPassword(customerId: string, labId: string, password: string) {
     const customer = await this.prisma.customer.findFirst({ where: { id: customerId, labId } });
     if (!customer) throw new ForbiddenException('Customer not found');
+    const hashed = await bcrypt.hash(password, 10);
     await this.prisma.customer.update({
       where: { id: customerId },
-      data: { portalPassword: password },
+      data: { portalPassword: hashed },
     });
     return { success: true };
   }
@@ -271,7 +298,11 @@ class PortalAuthController {
   constructor(private readonly auth: PortalAuthService) {}
 
   @Post('login')
-  login(@Body() body: { email: string; password?: string; labAccreditationCode?: string }) {
+  login(@Body() body: { email: string; password?: string; labAccreditationCode?: string }, @Request() req: any) {
+    const ip = req.ip ?? req.connection?.remoteAddress ?? 'unknown';
+    if (checkPortalRateLimit(ip)) {
+      throw new HttpException('Too many login attempts. Please try again later.', 429);
+    }
     return this.auth.login(body.email, body.password ?? '', body.labAccreditationCode);
   }
 }
