@@ -303,7 +303,7 @@ export class JobsService {
       // If the user isn't linked to an engineer record, they see nothing.
       engineerFilter = { engineerId: engineer?.id ?? '__none__' };
     }
-    const where = { labId, ...(status ? { status } : {}), ...engineerFilter };
+    const where = { labId, deletedAt: null, ...(status ? { status } : {}), ...engineerFilter };
     const [data, total] = await Promise.all([
       this.prisma.job.findMany({
         where,
@@ -391,7 +391,7 @@ export class JobsService {
 
   async deleteJob(id: string, labId: string) {
     await this.findOne(id, labId);
-    return this.prisma.job.delete({ where: { id } });
+    return this.prisma.job.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   async updateJob(id: string, labId: string, data: Record<string, any>) {
