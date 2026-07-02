@@ -85,7 +85,7 @@ class QuotationsService {
   async findOne(id: string, labId: string) {
     const q = await this.prisma.quotation.findFirst({
       where: { id, labId },
-      include: { customer: { select: { name: true, code: true, email: true, phone: true, billingAddress: true, billingCity: true, billingState: true, gstin: true } } },
+      include: { customer: { select: { name: true, code: true, email: true, phone: true, billingAddress: true, billingCity: true, billingState: true, billingPinCode: true, gstin: true } } },
     });
     if (!q) throw new NotFoundException('Quotation not found');
     return q;

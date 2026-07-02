@@ -4,9 +4,9 @@ import dayjs from 'dayjs';
 
 // ── colour palette ────────────────────────────────────────────────────────────
 const C = {
-  primary:   [15, 52, 96]  as [number,number,number],  // deep navy
-  accent:    [0, 120, 212] as [number,number,number],  // blue
-  light:     [230, 240, 252] as [number,number,number], // pale blue bg
+  primary:   [15, 52, 96]  as [number,number,number],
+  accent:    [0, 120, 212] as [number,number,number],
+  light:     [230, 240, 252] as [number,number,number],
   dark:      [30, 30, 30]  as [number,number,number],
   muted:     [100, 100, 100] as [number,number,number],
   border:    [180, 200, 220] as [number,number,number],
@@ -48,11 +48,9 @@ function amountInWords(amount: number): string {
 function drawPageHeader(doc: jsPDF, company: any, docTitle: string, docMeta: { label: string; value: string }[]) {
   const W = doc.internal.pageSize.getWidth();
 
-  // Full-width header background band
   doc.setFillColor(...C.primary);
   doc.rect(0, 0, W, 38, 'F');
 
-  // Logo (top-right inside header)
   let logoEndX = W - 10;
   if (company.logoUrl && company.logoUrl.startsWith('data:image')) {
     try {
@@ -61,7 +59,6 @@ function drawPageHeader(doc: jsPDF, company: any, docTitle: string, docMeta: { l
     } catch { /* ignore */ }
   }
 
-  // Lab name + address (top-left inside header)
   doc.setTextColor(...C.white);
   doc.setFontSize(14).setFont('helvetica', 'bold');
   doc.text(company.name ?? 'Laboratory Name', 10, 13);
@@ -74,13 +71,13 @@ function drawPageHeader(doc: jsPDF, company: any, docTitle: string, docMeta: { l
   const gst = [company.gstin && `GSTIN: ${company.gstin}`, company.pan && `PAN: ${company.pan}`].filter(Boolean).join('   ');
   if (gst) doc.text(gst, 10, 30);
 
-  // Document title band (accent stripe)
+  void logoEndX; // used for logo placement
+
   doc.setFillColor(...C.accent);
   doc.rect(0, 38, W, 9, 'F');
   doc.setTextColor(...C.white).setFontSize(11).setFont('helvetica', 'bold');
   doc.text(docTitle, W / 2, 44.5, { align: 'center' });
 
-  // Meta info row (doc number, date, etc.) — right-aligned below title stripe
   doc.setFillColor(...C.light);
   doc.rect(0, 47, W, 12, 'F');
   doc.setTextColor(...C.dark).setFontSize(8).setFont('helvetica', 'normal');
@@ -88,23 +85,30 @@ function drawPageHeader(doc: jsPDF, company: any, docTitle: string, docMeta: { l
   docMeta.forEach((m, i) => {
     const x = 10 + i * colW;
     doc.setFont('helvetica', 'bold').text(m.label + ':', x, 52);
-    doc.setFont('helvetica', 'normal').text(m.value, x + 22, 52);
+    doc.setFont('helvetica', 'normal').text(m.value, x + 24, 52);
   });
 
   doc.setTextColor(...C.dark);
-  return 62; // y where content starts
+  return 62;
 }
 
 // ── customer / party details box ──────────────────────────────────────────────
+// right.lines: array of strings rendered as extra info rows below name
 
 function drawPartyBox(
   doc: jsPDF,
   startY: number,
-  left: { heading: string; name: string; gstin?: string; address?: string; city?: string; state?: string; pinCode?: string; phone?: string; email?: string },
-  right?: { heading: string; name?: string; address?: string; city?: string; state?: string; pinCode?: string } | null,
+  left: {
+    heading: string; name: string; gstin?: string; address?: string;
+    city?: string; state?: string; pinCode?: string; phone?: string; email?: string;
+  },
+  right?: {
+    heading: string; name?: string; lines?: string[];
+    address?: string; city?: string; state?: string; pinCode?: string;
+  } | null,
 ) {
   const W = doc.internal.pageSize.getWidth();
-  const boxH = 34;
+  const boxH = 36;
   const midX = W / 2;
 
   // Left box
@@ -115,7 +119,7 @@ function drawPartyBox(
 
   doc.setFillColor(...C.primary);
   doc.roundedRect(10, startY, midX - 14, 7, 2, 2, 'F');
-  doc.rect(10, startY + 3.5, midX - 14, 3.5, 'F'); // flatten bottom corners of header
+  doc.rect(10, startY + 3.5, midX - 14, 3.5, 'F');
   doc.setTextColor(...C.white).setFontSize(7.5).setFont('helvetica', 'bold');
   doc.text(left.heading, 14, startY + 5.2);
 
@@ -133,7 +137,7 @@ function drawPartyBox(
   if (left.phone) { doc.text(`Mob: ${left.phone}`, 14, ly); ly += 4.5; }
   if (left.email) { doc.text(`Email: ${left.email}`, 14, ly); }
 
-  // Right box (optional — ship-to / delivery address)
+  // Right box (optional)
   if (right) {
     doc.setFillColor(...C.light);
     doc.roundedRect(midX + 4, startY, midX - 14, boxH, 2, 2, 'F');
@@ -148,15 +152,45 @@ function drawPartyBox(
 
     doc.setTextColor(...C.dark);
     let ry = startY + 12;
-    doc.setFont('helvetica', 'bold').setFontSize(8.5);
-    doc.text(right.name ?? '—', midX + 8, ry); ry += 5;
+    if (right.name) {
+      doc.setFont('helvetica', 'bold').setFontSize(8.5);
+      doc.text(right.name, midX + 8, ry); ry += 5;
+    }
     doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(...C.muted);
+    // Extra info lines (label: value format)
+    if (right.lines) {
+      for (const line of right.lines) {
+        const wrapped = doc.splitTextToSize(line, midX - 24);
+        doc.text(wrapped, midX + 8, ry);
+        ry += wrapped.length * 4.2;
+      }
+    }
     const rAddr = [right.address, right.city, right.state, right.pinCode].filter(Boolean).join(', ');
     if (rAddr) { const w = doc.splitTextToSize(rAddr, midX - 24); doc.text(w, midX + 8, ry); }
   }
 
   doc.setTextColor(...C.dark);
   return startY + boxH + 5;
+}
+
+// ── info band (key-value row below party boxes) ───────────────────────────────
+
+function drawInfoBand(doc: jsPDF, y: number, fields: { label: string; value: string }[]): number {
+  if (!fields.length) return y;
+  const W = doc.internal.pageSize.getWidth();
+  const colW = (W - 20) / fields.length;
+  doc.setFillColor(245, 249, 255);
+  doc.rect(10, y, W - 20, 8, 'F');
+  doc.setDrawColor(...C.border);
+  doc.rect(10, y, W - 20, 8, 'S');
+  fields.forEach((f, i) => {
+    const x = 10 + i * colW + 3;
+    doc.setFontSize(7.5).setFont('helvetica', 'bold').setTextColor(...C.muted);
+    doc.text(f.label + ':', x, y + 5.2);
+    doc.setFont('helvetica', 'normal').setTextColor(...C.dark);
+    doc.text(f.value, x + doc.getTextWidth(f.label + ': ') + 1, y + 5.2);
+  });
+  return y + 12;
 }
 
 // ── GST items table ───────────────────────────────────────────────────────────
@@ -206,26 +240,27 @@ function drawItemsTable(doc: jsPDF, items: any[], startY: number) {
 }
 
 // ── totals block ──────────────────────────────────────────────────────────────
+// Handles both `subTotal` (PurchaseOrder) and `amount` (Invoice / Quotation) naming
 
 function drawTotals(doc: jsPDF, data: any, startY: number): number {
   const W = doc.internal.pageSize.getWidth();
   const col1X = 10;
   const col2X = W / 2 + 4;
   const rightEdge = W - 10;
-  const labelW  = 50;
 
-  const rows: [string, number | null][] = [
-    ['Sub Total', data.subTotal],
+  // normalise the pre-tax subtotal regardless of field name used by each backend module
+  const subTotal = data.subTotal ?? data.amount ?? 0;
+
+  const rows: [string, number][] = [
+    ['Sub Total', subTotal],
     ...(data.discountTotal ? [['Discount (-)', -Math.abs(data.discountTotal)] as [string, number]] : []),
-    ...(data.cgst ? [['CGST', data.cgst] as [string, number]] : []),
-    ...(data.sgst ? [['SGST', data.sgst] as [string, number]] : []),
-    ...(data.igst ? [['IGST', data.igst] as [string, number]] : []),
+    ...(data.cgst  ? [['CGST',  data.cgst]  as [string, number]] : []),
+    ...(data.sgst  ? [['SGST',  data.sgst]  as [string, number]] : []),
+    ...(data.igst  ? [['IGST',  data.igst]  as [string, number]] : []),
   ];
 
-  // Amount-in-words on the left, totals on the right
   const totalAmt = data.totalAmount ?? 0;
 
-  // Totals box
   const boxX = col2X - 5;
   const boxW = rightEdge - boxX;
   const rowH = 6;
@@ -243,14 +278,12 @@ function drawTotals(doc: jsPDF, data: any, startY: number): number {
     ty += rowH;
   });
 
-  // Grand total stripe
   doc.setFillColor(...C.primary);
   doc.rect(boxX, ty - 1, boxW, 8, 'F');
   doc.setTextColor(...C.white).setFontSize(9).setFont('helvetica', 'bold');
   doc.text('Grand Total', boxX + 4, ty + 4.5);
   doc.text(rupee(totalAmt), rightEdge - 2, ty + 4.5, { align: 'right' });
 
-  // Amount in words on the left side
   doc.setTextColor(...C.dark).setFontSize(7.5).setFont('helvetica', 'italic');
   const words = amountInWords(totalAmt);
   const maxW = col2X - col1X - 10;
@@ -294,20 +327,20 @@ function drawBankDetails(doc: jsPDF, company: any, y: number): number {
   return y + 32;
 }
 
-// ── terms & conditions ────────────────────────────────────────────────────────
+// ── terms / notes block ───────────────────────────────────────────────────────
 
-function drawTerms(doc: jsPDF, text: string | undefined, y: number, x2col = false): number {
+function drawTerms(doc: jsPDF, title: string, text: string | undefined | null, y: number, x2col = false): number {
   if (!text) return y;
   const W = doc.internal.pageSize.getWidth();
   const startX = x2col ? W / 2 + 4 : 10;
   const colW = x2col ? W / 2 - 14 : W - 20;
 
   doc.setFontSize(8).setFont('helvetica', 'bold').setTextColor(...C.dark);
-  doc.text('Terms & Conditions:', startX, y);
+  doc.text(title, startX, y);
   doc.setFont('helvetica', 'normal').setTextColor(...C.muted).setFontSize(7);
   const lines = doc.splitTextToSize(text, colW);
   doc.text(lines, startX, y + 5);
-  return y + 5 + lines.length * 3.8;
+  return y + 5 + lines.length * 3.8 + 3;
 }
 
 // ── signature block ───────────────────────────────────────────────────────────
@@ -341,34 +374,48 @@ function drawFooter(doc: jsPDF) {
 export function downloadQuotationPdf(q: any, company: any) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
+  // quoteDate field does not exist on schema — fall back to createdAt
+  const dateVal = q.createdAt ? dayjs(q.createdAt).format('DD/MM/YYYY') : '—';
+
   const meta = [
-    { label: 'Quotation No', value: q.quoteNumber ?? '—' },
-    { label: 'Date', value: q.quoteDate ? dayjs(q.quoteDate).format('DD/MM/YYYY') : '—' },
-    { label: 'Valid Until', value: q.validUntil ? dayjs(q.validUntil).format('DD/MM/YYYY') : '—' },
+    { label: 'Quotation No',    value: q.quoteNumber ?? '—' },
+    { label: 'Date',            value: dateVal },
+    { label: 'Valid Until',     value: q.validUntil ? dayjs(q.validUntil).format('DD/MM/YYYY') : '—' },
     { label: 'Place of Supply', value: q.placeOfSupply ?? '—' },
   ];
 
   let y = drawPageHeader(doc, company, 'QUOTATION', meta);
 
+  // Build right-box lines: subject + reference + delivery terms
+  const rightLines: string[] = [];
+  if (q.subject)       rightLines.push(`Subject: ${q.subject}`);
+  if (q.reference)     rightLines.push(`Ref: ${q.reference}`);
+  if (q.deliveryTerms) rightLines.push(`Delivery: ${q.deliveryTerms}`);
+  if (q.deliveryPeriod) rightLines.push(`Period: ${q.deliveryPeriod}`);
+
   y = drawPartyBox(doc, y,
     {
-      heading: 'Bill To',
-      name: q.customer?.name,
-      gstin: q.customer?.gstin,
-      address: q.customer?.billingAddress ?? q.customer?.address,
-      city: q.customer?.billingCity,
-      state: q.customer?.billingState,
-      pinCode: q.customer?.billingPinCode,
-      phone: q.customer?.phone,
-      email: q.customer?.email,
+      heading:  'Bill To',
+      name:     q.customer?.name,
+      gstin:    q.customer?.gstin,
+      address:  q.customer?.billingAddress ?? q.customer?.address,
+      city:     q.customer?.billingCity,
+      state:    q.customer?.billingState,
+      pinCode:  q.customer?.billingPinCode,
+      phone:    q.customer?.phone,
+      email:    q.customer?.email,
     },
-    q.subject ? { heading: 'Subject / Reference', name: q.subject } : null,
+    rightLines.length > 0 ? { heading: 'Details', lines: rightLines } : null,
   );
 
-  y = drawItemsTable(doc, q.lineItems ?? [], y);
+  // items field name is 'items' in Quotation, 'lineItems' in Invoice/PO
+  const lineItems = q.items ?? q.lineItems ?? [];
+  y = drawItemsTable(doc, lineItems, y);
   y = drawTotals(doc, q, y + 5);
   y = drawBankDetails(doc, company, y);
-  drawTerms(doc, q.termsConditions, y + 5, true);
+
+  // Terms & Conditions on right, notes on left (notes are internal so not shown)
+  y = drawTerms(doc, 'Terms & Conditions:', q.termsConditions, y + 5);
   drawSignature(doc, company, y + 5);
   drawFooter(doc);
 
@@ -381,35 +428,44 @@ export function downloadInvoicePdf(inv: any, company: any) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const meta = [
-    { label: 'Invoice No', value: inv.invoiceNumber ?? '—' },
-    { label: 'Invoice Date', value: inv.issueDate ? dayjs(inv.issueDate).format('DD/MM/YYYY') : dayjs(inv.createdAt).format('DD/MM/YYYY') },
-    { label: 'Due Date', value: inv.dueDate ? dayjs(inv.dueDate).format('DD/MM/YYYY') : '—' },
+    { label: 'Invoice No',      value: inv.invoiceNumber ?? '—' },
+    { label: 'Invoice Date',    value: inv.issueDate ? dayjs(inv.issueDate).format('DD/MM/YYYY') : dayjs(inv.createdAt).format('DD/MM/YYYY') },
+    { label: 'Due Date',        value: inv.dueDate ? dayjs(inv.dueDate).format('DD/MM/YYYY') : '—' },
+    { label: 'Payment Terms',   value: inv.paymentTerms ?? '—' },
     { label: 'Place of Supply', value: inv.placeOfSupply ?? '—' },
   ];
 
   let y = drawPageHeader(doc, company, 'TAX INVOICE', meta);
 
+  // Customer PO reference as additional right-box line
+  const rightLines: string[] = [];
+  if (inv.customerPoNumber) rightLines.push(`PO Ref: ${inv.customerPoNumber}`);
+
   y = drawPartyBox(doc, y,
     {
       heading: 'Bill To',
-      name: inv.customer?.name,
-      gstin: inv.customer?.gstin,
+      name:    inv.customer?.name,
+      gstin:   inv.customer?.gstin,
       address: inv.customer?.billingAddress ?? inv.customer?.address,
-      city: inv.customer?.billingCity,
-      state: inv.customer?.billingState,
+      city:    inv.customer?.billingCity,
+      state:   inv.customer?.billingState,
       pinCode: inv.customer?.billingPinCode,
-      phone: inv.customer?.phone,
-      email: inv.customer?.email,
+      phone:   inv.customer?.phone,
+      email:   inv.customer?.email,
     },
-    inv.customerPoNumber
-      ? { heading: 'Customer PO Reference', name: inv.customerPoNumber }
+    rightLines.length > 0
+      ? { heading: 'Customer PO Reference', lines: rightLines }
       : null,
   );
 
   y = drawItemsTable(doc, inv.lineItems ?? [], y);
   y = drawTotals(doc, inv, y + 5);
   y = drawBankDetails(doc, company, y);
-  if (inv.notes) drawTerms(doc, inv.notes, y + 5, true);
+
+  // Render both Terms & Conditions and Notes to Customer
+  y = drawTerms(doc, 'Terms & Conditions:', inv.termsConditions, y + 5);
+  y = drawTerms(doc, 'Notes to Customer:', inv.notes, y + 3);
+
   drawSignature(doc, company, y + 5);
   drawFooter(doc);
 
@@ -422,10 +478,11 @@ export function downloadPurchaseOrderPdf(po: any, company: any) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const meta = [
-    { label: 'PO Number', value: po.poNumber ?? '—' },
-    { label: 'PO Date', value: po.poDate ? dayjs(po.poDate).format('DD/MM/YYYY') : '—' },
-    { label: 'Expected By', value: po.expectedDate ? dayjs(po.expectedDate).format('DD/MM/YYYY') : '—' },
+    { label: 'PO Number',     value: po.poNumber ?? '—' },
+    { label: 'PO Date',       value: po.poDate ? dayjs(po.poDate).format('DD/MM/YYYY') : '—' },
+    { label: 'Expected By',   value: po.expectedDate ? dayjs(po.expectedDate).format('DD/MM/YYYY') : '—' },
     { label: 'Payment Terms', value: po.paymentTerms ?? '—' },
+    { label: 'Supplier Ref',  value: po.supplierRef ?? '—' },
   ];
 
   let y = drawPageHeader(doc, company, 'PURCHASE ORDER', meta);
@@ -433,14 +490,14 @@ export function downloadPurchaseOrderPdf(po: any, company: any) {
   y = drawPartyBox(doc, y,
     {
       heading: 'Supplier / Vendor',
-      name: po.supplier?.name,
-      gstin: po.supplier?.gstin,
-      address: po.supplier?.address,
-      city: po.supplier?.city,
-      state: po.supplier?.state,
-      pinCode: po.supplier?.pinCode,
-      phone: po.supplier?.phone,
-      email: po.supplier?.email,
+      name:    po.supplier?.name,
+      gstin:   po.supplier?.gstin,
+      address: po.supplier?.billingAddress ?? po.supplier?.address,
+      city:    po.supplier?.billingCity ?? po.supplier?.city,
+      state:   po.supplier?.billingState ?? po.supplier?.state,
+      pinCode: po.supplier?.billingPinCode ?? po.supplier?.pinCode,
+      phone:   po.supplier?.phone,
+      email:   po.supplier?.email,
     },
     po.deliveryAddress
       ? { heading: 'Delivery Address', name: company.name, address: po.deliveryAddress }
@@ -450,15 +507,9 @@ export function downloadPurchaseOrderPdf(po: any, company: any) {
   y = drawItemsTable(doc, po.lineItems ?? [], y);
   y = drawTotals(doc, po, y + 5);
 
-  if (po.notes) {
-    doc.setFontSize(8).setFont('helvetica', 'bold').setTextColor(...C.dark);
-    doc.text('Special Instructions / Notes:', 10, y + 4);
-    doc.setFont('helvetica', 'normal').setTextColor(...C.muted).setFontSize(7.5);
-    const W = doc.internal.pageSize.getWidth();
-    const lines = doc.splitTextToSize(po.notes, W - 20);
-    doc.text(lines, 10, y + 9);
-    y += 9 + lines.length * 4;
-  }
+  // Notes / special instructions
+  y = drawTerms(doc, 'Terms & Conditions:', po.termsConditions, y + 4);
+  y = drawTerms(doc, 'Special Instructions / Notes:', po.notes, y + 3);
 
   drawSignature(doc, company, y + 5);
   drawFooter(doc);
@@ -472,24 +523,31 @@ export function downloadChallanPdf(dc: any, company: any) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const meta = [
-    { label: 'Challan No', value: dc.challanNumber ?? '—' },
-    { label: 'Date', value: dc.challanDate ? dayjs(dc.challanDate).format('DD/MM/YYYY') : '—' },
-    { label: 'Type', value: dc.challanType ?? '—' },
-    { label: 'E-Way Bill', value: dc.eWayBillNumber ?? '—' },
+    { label: 'Challan No',       value: dc.challanNumber ?? '—' },
+    { label: 'Date',             value: dc.challanDate ? dayjs(dc.challanDate).format('DD/MM/YYYY') : '—' },
+    { label: 'Type',             value: dc.challanType ?? '—' },
+    { label: 'Expected Delivery', value: dc.expectedDelivery ? dayjs(dc.expectedDelivery).format('DD/MM/YYYY') : '—' },
+    { label: 'E-Way Bill',       value: dc.eWayBillNumber ?? '—' },
   ];
 
   let y = drawPageHeader(doc, company, 'DELIVERY CHALLAN', meta);
 
+  // Show contact person on right if present
+  const rightLines: string[] = [];
+  if (dc.contactPerson) rightLines.push(`Contact: ${dc.contactPerson}`);
+
   y = drawPartyBox(doc, y,
     {
       heading: 'Deliver To',
-      name: dc.customer?.name,
-      gstin: dc.customer?.gstin,
-      address: dc.deliveryAddress ?? dc.customer?.address,
-      phone: dc.customer?.phone,
-      email: dc.customer?.email,
+      name:    dc.customer?.name,
+      gstin:   dc.customer?.gstin,
+      address: dc.deliveryAddress ?? dc.customer?.billingAddress ?? dc.customer?.address,
+      city:    dc.customer?.billingCity,
+      state:   dc.customer?.billingState,
+      phone:   dc.customer?.phone,
+      email:   dc.customer?.email,
     },
-    null,
+    rightLines.length > 0 ? { heading: 'Dispatch Info', lines: rightLines } : null,
   );
 
   const rows = (dc.lineItems ?? []).map((item: any, i: number) => [
@@ -513,19 +571,48 @@ export function downloadChallanPdf(dc: any, company: any) {
 
   let finalY = (doc as any).lastAutoTable.finalY + 6;
 
-  if (dc.transportMode || dc.vehicleNumber || dc.lrNumber) {
+  // Logistics table — include all transport fields
+  const hasTransport = dc.transportMode || dc.vehicleNumber || dc.lrNumber || dc.transporterName;
+  if (hasTransport) {
+    // Two rows: headers + values, split into two for readability
     autoTable(doc, {
       startY: finalY,
-      head: [['Transport Mode', 'Transporter', 'Vehicle No.', 'LR Number', 'Driver', 'Packages']],
+      head: [['Transport Mode', 'Transporter', 'Vehicle No.', 'LR Number', 'LR Date', 'Driver', 'Driver Mobile', 'Packages', 'Weight (kg)']],
       body: [[
-        dc.transportMode ?? '—', dc.transporterName ?? '—', dc.vehicleNumber ?? '—',
-        dc.lrNumber ?? '—', dc.driverName ?? '—', dc.numberOfPackages ?? '—',
+        dc.transportMode ?? '—',
+        dc.transporterName ?? '—',
+        dc.vehicleNumber ?? '—',
+        dc.lrNumber ?? '—',
+        dc.lrDate ? dayjs(dc.lrDate).format('DD/MM/YYYY') : '—',
+        dc.driverName ?? '—',
+        dc.driverMobile ?? '—',
+        dc.numberOfPackages ?? '—',
+        dc.weightKg != null ? `${dc.weightKg} kg` : '—',
       ]],
-      styles: { fontSize: 7.5 },
-      headStyles: { fillColor: C.muted, textColor: 255 },
+      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      headStyles: { fillColor: C.muted, textColor: 255, fontSize: 6.5 },
       margin: { left: 10, right: 10 },
     });
     finalY = (doc as any).lastAutoTable.finalY + 6;
+  }
+
+  // Remarks section
+  if (dc.remarks) {
+    doc.setFontSize(8).setFont('helvetica', 'bold').setTextColor(...C.dark);
+    doc.text('Remarks:', 10, finalY);
+    doc.setFont('helvetica', 'normal').setTextColor(...C.muted).setFontSize(7.5);
+    const W = doc.internal.pageSize.getWidth();
+    const lines = doc.splitTextToSize(dc.remarks, W - 20);
+    doc.text(lines, 10, finalY + 5);
+    finalY += 5 + lines.length * 4 + 4;
+  }
+
+  // Info band: dispatch date + status
+  if (dc.dispatchDate || dc.status) {
+    finalY = drawInfoBand(doc, finalY, [
+      ...(dc.dispatchDate ? [{ label: 'Dispatch Date', value: dayjs(dc.dispatchDate).format('DD/MM/YYYY') }] : []),
+      ...(dc.status ? [{ label: 'Status', value: dc.status }] : []),
+    ]);
   }
 
   const W = doc.internal.pageSize.getWidth();
