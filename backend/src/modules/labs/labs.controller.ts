@@ -1,7 +1,7 @@
 import {
   Body, Controller, Get, Param, Patch, Post, Put, Query, Request, UseGuards,
 } from '@nestjs/common';
-import { LabStatus, Role } from '@prisma/client';
+import { LabStatus, PlanTier, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../../common/rbac/roles.decorator';
 import { RolesGuard } from '../../common/rbac/roles.guard';
@@ -13,6 +13,12 @@ export class LabsController {
   constructor(private readonly labs: LabsService) {}
 
   // ── SUPER_ADMIN ────────────────────────────────────────────────────────────
+
+  @Roles(Role.SUPER_ADMIN)
+  @Get('platform/stats')
+  getPlatformStats() {
+    return this.labs.getPlatformStats();
+  }
 
   @Roles(Role.SUPER_ADMIN)
   @Get()
@@ -35,6 +41,17 @@ export class LabsController {
     @Request() req: any,
   ) {
     return this.labs.updateStatus(id, status, req.user.id);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Patch(':id/plan')
+  updatePlan(
+    @Param('id') id: string,
+    @Body('plan') plan: PlanTier,
+    @Body('planExpiresAt') planExpiresAt: string | null,
+    @Request() req: any,
+  ) {
+    return this.labs.updatePlan(id, plan, planExpiresAt ? new Date(planExpiresAt) : null, req.user.id);
   }
 
   // ── LAB_ADMIN (own lab) ────────────────────────────────────────────────────
@@ -117,6 +134,26 @@ export class LabsController {
     @Body('newPassword') newPassword: string,
   ) {
     return this.labs.resetUserPassword(id, userId, newPassword);
+  }
+
+  // ── SMTP configuration (LAB_ADMIN or SUPER_ADMIN) ──────────────────────────
+
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
+  @Get(':id/smtp')
+  getSmtp(@Param('id') id: string) {
+    return this.labs.getSmtpConfig(id);
+  }
+
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
+  @Post(':id/smtp')
+  saveSmtp(@Param('id') id: string, @Body() body: any) {
+    return this.labs.saveSmtpConfig(id, body);
+  }
+
+  @Roles(Role.LAB_ADMIN, Role.SUPER_ADMIN)
+  @Post(':id/smtp/test')
+  testSmtp(@Param('id') id: string, @Body('email') email: string) {
+    return this.labs.testSmtpConfig(id, email);
   }
 
 }

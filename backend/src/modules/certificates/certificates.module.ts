@@ -3,9 +3,10 @@ import { CertificatesService } from './certificates.service';
 import { CertificatesController } from './certificates.controller';
 import { MailService } from '../../common/mail/mail.service';
 import { ReportsModule } from '../reports/reports.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [ReportsModule],
+  imports: [ReportsModule, NotificationsModule],
   controllers: [CertificatesController],
   providers: [CertificatesService, MailService],
 })

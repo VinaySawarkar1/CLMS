@@ -39,10 +39,30 @@ export default function Audit() {
       },
     },
     {
-      title: 'Entity',
+      title: 'Module',
       dataIndex: 'entity',
       key: 'entity',
       render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'IP',
+      key: 'ip',
+      render: (_: any, row: any) => <Text style={{ fontSize: 12 }}>{row.metadata?.ip ?? '—'}</Text>,
+    },
+    {
+      title: 'Details',
+      key: 'details',
+      render: (_: any, row: any) => {
+        const nv = row.metadata?.newValue;
+        if (!nv || (typeof nv === 'object' && Object.keys(nv).length === 0)) {
+          return <Text type="secondary" style={{ fontSize: 12 }}>{row.metadata?.path ?? '—'}</Text>;
+        }
+        return (
+          <Text style={{ fontSize: 11, fontFamily: 'monospace' }} ellipsis={{ tooltip: JSON.stringify(nv, null, 2) }}>
+            {JSON.stringify(nv)}
+          </Text>
+        );
+      },
     },
   ];
 

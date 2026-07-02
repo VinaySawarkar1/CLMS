@@ -32,6 +32,8 @@ export interface CertificateReportData {
   certificateNumber: string;
   ulrNumber?: string | null;         // Unique Lab Reference (NABL ULR No.)
   type: string;
+  revision?: number;                 // 0 = original issue, 1+ = Revision-n
+  isDraft?: boolean;                 // true until all signatures collected → DRAFT watermark
   issueDate: Date;
   pageNumber?: number;
   totalPages?: number;
@@ -42,6 +44,10 @@ export interface CertificateReportData {
   labPhone?: string | null;
   labEmail?: string | null;
   labAccreditation?: string | null;  // NABL CC No.
+  labWebsite?: string | null;
+  labLogoUrl?: string | null;
+  labSignatoryName?: string | null;
+  labSignatoryDesignation?: string | null;
 
   // Customer
   customerName: string;
@@ -143,13 +149,13 @@ function renderObservations(rows: ReportObservation[]): string {
   </tr>`).join('');
 }
 
-function renderReferenceStandards(refs: ReferenceStandardInfo[]): string {
+function renderReferenceStandards(refs: ReferenceStandardInfo[], isNabl = true): string {
   if (!refs.length) return '';
   return `
   <div class="section">
     <div class="section-title">Equipment &amp; Master Used for Calibration</div>
     <p style="font-size:11px;margin:0 0 6px;color:#333">
-      Used Standards are traceable to National / International Standards (Direct / through NABL Accredited Lab.)
+      Used Standards are traceable to National / International Standards${isNabl ? ' (Direct / through NABL Accredited Lab.)' : '.'}
     </p>
     <table class="data">
       <thead><tr>
@@ -204,17 +210,19 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   .page { max-width: 780px; margin: 0 auto; padding: 16px; }
 
   /* ── Top header ── */
-  .top-header { display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 3px double #1565c0; padding-bottom: 10px; margin-bottom: 4px; }
-  .lab-info { flex: 1; }
-  .cert-heading { text-align: center; flex: 2; }
-  .cert-heading h1 { font-size: 17px; font-weight: bold; color: #1a237e; margin: 0; letter-spacing: 1px; }
-  .cert-heading h2 { font-size: 13px; font-weight: normal; color: #333; margin: 3px 0 0; }
-  .cert-heading .issued-by { font-size: 10px; color: #555; margin: 0; }
-  .lab-name-big { font-size: 14px; font-weight: bold; color: #1a237e; }
-  .lab-addr { font-size: 10px; color: #444; margin-top: 2px; }
-  .nabl-badge { text-align: right; font-size: 10px; color: #555; }
-  .nabl-badge .cc { font-weight: bold; font-size: 12px; color: #1a237e; }
+  .top-header { display: flex; align-items: stretch;
+    border-bottom: 3px solid #1565c0; padding-bottom: 8px; margin-bottom: 4px; gap: 8px; }
+  .lab-info { flex: 0 0 auto; width: 220px; }
+  .lab-logo-img { max-height: 52px; max-width: 130px; object-fit: contain; display: block; margin-bottom: 4px; }
+  .lab-name-big { font-size: 12px; font-weight: bold; color: #1a237e; line-height: 1.3; }
+  .lab-addr { font-size: 9.5px; color: #333; margin-top: 1px; line-height: 1.4; }
+  .cert-heading { flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 0 8px; }
+  .cert-heading h1 { font-size: 16px; font-weight: bold; color: #1a237e; margin: 0 0 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .cert-heading .issued-by-label { font-size: 10px; color: #444; margin: 0; line-height: 1.4; }
+  .cert-heading .issued-by-name { font-size: 11px; font-weight: bold; color: #1a237e; margin: 2px 0 0; }
+  .cert-heading .iso-line { font-size: 10px; color: #555; margin-top: 4px; }
+  .nabl-logo-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 90px; flex-shrink: 0; }
 
   /* ── Meta row (certificate no., dates, page) ── */
   .meta-strip { background: #e8eaf6; border: 1px solid #9fa8da; margin-top: 6px; }
@@ -271,27 +279,70 @@ export function renderCertificateHtml(d: CertificateReportData): string {
   .page-footer-bar { display: flex; justify-content: space-between; font-size: 9px; color: #888;
     border-top: 1px dotted #ccc; margin-top: 4px; padding-top: 3px; }
 
+  /* ── Draft watermark (shown until certificate is fully signed/locked) ── */
+  .draft-watermark { position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg); z-index: 0; pointer-events: none;
+    font-size: 120px; font-weight: 900; letter-spacing: 12px;
+    color: rgba(220, 0, 0, 0.12); text-transform: uppercase; white-space: nowrap; }
+  .page { position: relative; z-index: 1; }
+  .rev-tag { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: bold;
+    color: #c62828; border: 1px solid #c62828; border-radius: 3px; padding: 0 3px; vertical-align: middle; }
+
   @media print { .page { padding: 0; } }
 </style>
 </head>
 <body>
+${d.isDraft ? '<div class="draft-watermark">DRAFT</div>' : ''}
 <div class="page">
 
 <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
 <div class="top-header">
+
+  <!-- LEFT: Lab logo + name + address -->
   <div class="lab-info">
+    ${d.labLogoUrl ? `<img class="lab-logo-img" src="${esc(d.labLogoUrl)}" alt="Lab Logo"/>` : ''}
     <div class="lab-name-big">${esc(d.labName || 'Calibration Laboratory')}</div>
-    <div class="lab-addr">${esc(d.labAddress || '')}</div>
-    ${d.labPhone ? `<div class="lab-addr">Tel: ${esc(d.labPhone)}${d.labEmail ? ' &nbsp;|&nbsp; E-Mail: ' + esc(d.labEmail) : ''}</div>` : ''}
+    ${d.labAddress ? `<div class="lab-addr">${esc(d.labAddress)}</div>` : ''}
+    ${(d.labPhone || d.labEmail) ? `<div class="lab-addr">${d.labPhone ? 'Tel: ' + esc(d.labPhone) : ''}${d.labPhone && d.labEmail ? ' &nbsp;|&nbsp; ' : ''}${d.labEmail ? 'E: ' + esc(d.labEmail) : ''}</div>` : ''}
+    ${d.labWebsite ? `<div class="lab-addr">Web: ${esc(d.labWebsite)}</div>` : ''}
   </div>
+
+  <!-- CENTER: Certificate title -->
   <div class="cert-heading">
     <h1>CERTIFICATE OF CALIBRATION</h1>
-    <h2>ISSUED BY &nbsp;${esc(d.labName || 'Calibration Laboratory')}</h2>
-    <div class="issued-by">ISO / IEC 17025 · ${esc(d.type)}</div>
+    <div class="issued-by-label">ISSUED BY</div>
+    <div class="issued-by-name">${esc(d.labName || 'Calibration Laboratory')}</div>
+    ${d.type === 'NABL' ? `<div class="iso-line">ISO / IEC 17025 · NABL</div>` : '<div class="iso-line">CERTIFICATE OF CALIBRATION</div>'}
   </div>
-  <div class="nabl-badge">
-    ${d.labAccreditation ? `<div>NABL Accredited</div><div class="cc">${esc(d.labAccreditation)}</div>` : ''}
+
+  <!-- RIGHT: NABL circular stamp (NABL certificates only) -->
+  ${d.type === 'NABL' ? `
+  <div class="nabl-logo-wrap">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="82" height="82" aria-label="NABL Logo">
+      <defs>
+        <path id="topArc"  d="M 14,100 A 86,86 0 0,1 186,100"/>
+        <path id="botArc"  d="M 22,116 A 80,80 0 0,0 178,116"/>
+      </defs>
+      <circle cx="100" cy="100" r="98" fill="#1a237e"/>
+      <circle cx="100" cy="100" r="88" fill="#fff"/>
+      <circle cx="100" cy="100" r="82" fill="none" stroke="#1a237e" stroke-width="1"/>
+      <circle cx="100" cy="100" r="64" fill="#1a237e"/>
+      <circle cx="100" cy="100" r="58" fill="#fff"/>
+      <polygon points="100,44 112,80 150,80 120,102 131,138 100,116 69,138 80,102 50,80 88,80"
+               fill="#1a237e"/>
+      <text font-family="Arial,sans-serif" font-size="9" fill="#fff" font-weight="bold" letter-spacing="0.3">
+        <textPath href="#topArc" startOffset="3%">NATIONAL ACCREDITATION BOARD FOR TESTING AND</textPath>
+      </text>
+      <text font-family="Arial,sans-serif" font-size="9" fill="#fff" font-weight="bold" letter-spacing="0.3">
+        <textPath href="#botArc" startOffset="12%">CALIBRATION LABORATORIES</textPath>
+      </text>
+      <text x="100" y="192" font-family="Arial Black,Arial,sans-serif" font-size="18" fill="#1a237e"
+            text-anchor="middle" font-weight="900" letter-spacing="2">NABL</text>
+    </svg>
+    ${d.labAccreditation ? `<div style="font-size:9px;color:#1a237e;font-weight:bold;text-align:center;margin-top:1px">${esc(d.labAccreditation)}</div>` : ''}
   </div>
+  ` : '<div style="min-width:90px;flex-shrink:0"></div>'}
+
 </div>
 
 <!-- ══ CERT META STRIP ════════════════════════════════════════════ -->
@@ -302,16 +353,16 @@ export function renderCertificateHtml(d: CertificateReportData): string {
       <td class="hdr">Date of Receipt</td>
       <td class="hdr">Date of Calibration</td>
       <td class="hdr">Next Date of Calibration</td>
-      ${ulr ? `<td class="hdr">ULR No.</td>` : ''}
+      ${(d.type === 'NABL' && ulr) ? `<td class="hdr">ULR No.</td>` : ''}
       <td class="hdr">Page</td>
       <td class="hdr">No. of Pages</td>
     </tr>
     <tr>
-      <td><b>${esc(d.certificateNumber)}</b></td>
+      <td><b>${esc(d.certificateNumber)}</b>${d.revision && d.revision > 0 ? `<span class="rev-tag">REV ${d.revision}</span>` : ''}</td>
       <td>${fmtDate(d.dateOfReceipt)}</td>
       <td><b>${fmtDate(d.calibrationDate || d.issueDate)}</b></td>
       <td>${fmtDate(d.nextCalibrationDate)}</td>
-      ${ulr ? `<td style="font-size:10px">${esc(ulr)}</td>` : ''}
+      ${(d.type === 'NABL' && ulr) ? `<td style="font-size:10px">${esc(ulr)}</td>` : ''}
       <td style="text-align:center">${pageNum}</td>
       <td style="text-align:center">${totalPages}</td>
     </tr>
@@ -372,7 +423,7 @@ export function renderCertificateHtml(d: CertificateReportData): string {
 </div>
 
 <!-- ══ REFERENCE STANDARDS ════════════════════════════════════════ -->
-${renderReferenceStandards(d.referenceStandards ?? [])}
+${renderReferenceStandards(d.referenceStandards ?? [], d.type === 'NABL')}
 
 <!-- ══ UNCERTAINTY ════════════════════════════════════════════════ -->
 <div class="unc-box">
@@ -388,7 +439,7 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 
 <!-- ══ CALIBRATION RESULTS ════════════════════════════════════════ -->
 <div class="section" style="margin-top:10px">
-  ${d.nablDiscipline ? `<div class="discipline-line">${esc(d.nablDiscipline)}</div>` : ''}
+  ${(d.type === 'NABL' && d.nablDiscipline) ? `<div class="discipline-line">${esc(d.nablDiscipline)}</div>` : ''}
   <div class="section-title">Calibration Results</div>
   <table class="data">
     <thead><tr>
@@ -411,25 +462,18 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 <!-- ══ END OF CERTIFICATE ═════════════════════════════════════════ -->
 <div class="end-cert">*&nbsp;*&nbsp;*&nbsp;&nbsp; End of Certificate &nbsp;&nbsp;*&nbsp;*&nbsp;*</div>
 
-<!-- ══ SIGNATURES ════════════════════════════════════════════════ -->
+<!-- ══ SIGNATURES — always 2 blocks ══════════════════════════════ -->
 <div class="sign-row">
-  ${(d.signatures ?? []).map((s) => `
   <div class="sign-block">
-    <div style="height:36px"></div>
-    <div class="sign-name">${esc(s.by)}</div>
-    <div class="sign-desig">${esc(s.designation || s.stage)}</div>
-  </div>`).join('')}
-  ${!(d.signatures ?? []).length ? `
-  <div class="sign-block">
-    <div style="height:36px"></div>
-    <div class="sign-name">Calibrated By</div>
-    <div class="sign-desig">Calibration Engineer</div>
+    <div style="height:40px"></div>
+    <div class="sign-name">${esc((d.signatures ?? []).find((s: any) => s.stage === 'ENGINEER')?.by || 'Calibration Engineer')}</div>
+    <div class="sign-desig">Calibrated By</div>
   </div>
   <div class="sign-block">
-    <div style="height:36px"></div>
-    <div class="sign-name">Authorized Signatory</div>
-    <div class="sign-desig">Technical Manager</div>
-  </div>` : ''}
+    <div style="height:40px"></div>
+    <div class="sign-name">${esc((d.signatures ?? []).find((s: any) => s.stage === 'TECHNICAL_MANAGER')?.by || d.labSignatoryName || 'Authorized Signatory')}</div>
+    <div class="sign-desig">${esc(d.labSignatoryDesignation || 'Technical Manager')}</div>
+  </div>
 </div>
 
 <!-- ══ FOOTER (LEGAL NOTES + QR) ════════════════════════════════ -->
@@ -449,7 +493,7 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 
 <div class="page-footer-bar">
   <span>Certificate No.: ${esc(d.certificateNumber)}</span>
-  <span>REV. NO.: 00 &nbsp;&nbsp; ISSUE DT.: ${fmtDate(d.issueDate)}</span>
+  <span>REV. NO.: ${d.revision != null ? String(d.revision).padStart(2, '0') : '00'} &nbsp;&nbsp; ISSUE DT.: ${fmtDate(d.issueDate)}</span>
   <span>Page ${pageNum} of ${totalPages}</span>
 </div>
 

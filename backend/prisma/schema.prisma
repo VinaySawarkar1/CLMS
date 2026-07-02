@@ -19,6 +19,7 @@ enum Role {
   TECHNICAL_MANAGER
   CALIBRATION_ENGINEER
   SERVICE_ENGINEER
+  QUALITY_MANAGER
   DATA_ENTRY_OPERATOR
 }
 
@@ -27,6 +28,13 @@ enum LabStatus {
   APPROVED
   REJECTED
   SUSPENDED
+}
+
+enum PlanTier {
+  STARTER    // up to 25 users
+  GROWTH     // up to 50 users
+  BUSINESS   // up to 100 users
+  ENTERPRISE // custom
 }
 
 enum JobStatus {
@@ -43,8 +51,8 @@ enum JobStatus {
 }
 
 enum SignatureStage {
+  ENGINEER
   TECHNICAL_MANAGER
-  QUALITY_MANAGER
 }
 
 enum CertificateType {
@@ -60,15 +68,74 @@ enum InvoiceStatus {
   ISSUED
   PARTIALLY_PAID
   PAID
+  OVERDUE
   CANCELLED
 }
 
 enum QuotationStatus {
   DRAFT
   SENT
+  VIEWED
   ACCEPTED
   REJECTED
+  EXPIRED
+  SUPERSEDED
   CONVERTED
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_CALL
+  EXHIBITION
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  WALK_IN
+  OTHER
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+  NOTE
+  WHATSAPP
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CANCELLED
+  CLOSED
+}
+
+enum DeliveryChallanStatus {
+  DRAFT
+  DISPATCHED
+  DELIVERED
+  CLOSED
+  CANCELLED
 }
 
 // ───────────────────────── Labs (Tenants) ────────────────────────
@@ -85,7 +152,18 @@ model Lab {
   state               String?
   pinCode             String?
   logoUrl             String?   // Base64 data-URL or object path for lab logo
+  nablLogoUrl         String?   // NABL logo (Base64 or path), shown on NABL certificates
+  isNabl              Boolean   @default(true)
+  gstin               String?
+  pan                 String?
+  bankName            String?
+  bankAccountNumber   String?
+  bankIfsc            String?
+  bankBranch          String?
   status              LabStatus  @default(PENDING)
+  plan                PlanTier   @default(STARTER)
+  planExpiresAt       DateTime?  // null = no expiry / lifetime
+  maxUsers            Int        @default(25)
   users               User[]
   customers           Customer[]
   instruments         Instrument[]
@@ -101,6 +179,10 @@ model Lab {
   rolePermissions     LabRolePermission[]
   labDocuments        LabDocument[]
   internalAudits      InternalAudit[]
+  purchaseOrders      PurchaseOrder[]
+  deliveryChallans    DeliveryChallan[]
+  leads               Lead[]
+  crmActivities       CrmActivity[]
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 }
@@ -123,19 +205,22 @@ model LabRolePermission {
 // ──────────────────────── Identity & Access ──────────────────────
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  fullName      String
-  role          Role     @default(DATA_ENTRY_OPERATOR)
-  isActive      Boolean  @default(true)
-  labId         String?  // null only for SUPER_ADMIN
-  lab           Lab?     @relation(fields: [labId], references: [id])
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]
-  engineer      Engineer?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  email                String   @unique
+  passwordHash         String
+  fullName             String
+  role                 Role     @default(DATA_ENTRY_OPERATOR)
+  isActive             Boolean  @default(true)
+  labId                String?  // null only for SUPER_ADMIN
+  lab                  Lab?     @relation(fields: [labId], references: [id])
+  currentSessionToken  String?  // changes on every login; old JWTs instantly invalid
+  failedLoginAttempts  Int      @default(0)
+  lockedUntil          DateTime?
+  refreshTokens        RefreshToken[]
+  auditLogs            AuditLog[]
+  engineer             Engineer?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([labId])
 }
@@ -153,25 +238,64 @@ model RefreshToken {
 // ─────────────────────────── CRM ─────────────────────────────────
 
 model Customer {
-  id          String     @id @default(uuid())
-  labId       String
-  lab         Lab        @relation(fields: [labId], references: [id])
-  code        String
-  name        String
-  gstin       String?
-  email       String?
-  phone       String?
-  address     String?
-  contacts    Contact[]
-  instruments Instrument[]
-  jobs        Job[]
-  invoices    Invoice[]
-  quotations  Quotation[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id               String           @id @default(uuid())
+  labId            String
+  lab              Lab              @relation(fields: [labId], references: [id])
+  code             String
+  name             String
+  customerType     String           @default("BUSINESS")
+  gstin            String?
+  pan              String?
+  email            String?
+  phone            String?
+  website          String?
+  address          String?
+  billingAddress   String?
+  billingCity      String?
+  billingState     String?
+  billingPinCode   String?
+  billingCountry   String?          @default("India")
+  paymentTerms     String?
+  creditLimit      Float            @default(0)
+  creditDays       Int              @default(30)
+  openingBalance   Float            @default(0)
+  category         String?
+  salesExecutive   String?
+  tags             String[]
+  notes            String?
+  portalPassword   String?
+  customerStatus   CustomerStatus   @default(ACTIVE)
+  shippingAddresses CustomerAddress[]
+  contacts         Contact[]
+  instruments      Instrument[]
+  jobs             Job[]
+  jobBatches       JobBatch[]
+  invoices         Invoice[]
+  quotations       Quotation[]
+  purchaseOrders   PurchaseOrder[]
+  deliveryChallans DeliveryChallan[]
+  crmActivities    CrmActivity[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@unique([labId, code])
   @@index([labId])
+}
+
+model CustomerAddress {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label      String   @default("Shipping Address")
+  address    String?
+  city       String?
+  state      String?
+  pinCode    String?
+  country    String?  @default("India")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
 }
 
 model Contact {
@@ -182,6 +306,64 @@ model Contact {
   email       String?
   phone       String?
   designation String?
+  isPrimary   Boolean  @default(false)
+  department  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model Lead {
+  id                String      @id @default(uuid())
+  labId             String
+  lab               Lab         @relation(fields: [labId], references: [id])
+  title             String
+  companyName       String?
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
+  stage             LeadStage   @default(NEW)
+  source            LeadSource  @default(OTHER)
+  value             Float?
+  probability       Int         @default(20)
+  expectedCloseDate DateTime?
+  assignedTo        String?
+  industry          String?
+  description       String?
+  lostReason        String?
+  convertedCustomerId String?
+  convertedAt       DateTime?
+  activities        CrmActivity[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([labId])
+  @@index([labId, stage])
+}
+
+model CrmActivity {
+  id          String       @id @default(uuid())
+  labId       String
+  lab         Lab          @relation(fields: [labId], references: [id])
+  type        ActivityType
+  title       String
+  description String?
+  outcome     String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  isDone      Boolean      @default(false)
+  customerId  String?
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  leadId      String?
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdBy   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([labId])
+  @@index([customerId])
+  @@index([leadId])
 }
 
 // ─────────────────────── Disciplines & Instruments ───────────────
@@ -252,13 +434,125 @@ model MasterInstrument {
   location          String?
   references        ReferenceStandardOnJob[]
   jobs              Job[]
+  certificates      ReferenceStandardCertificate[]
+  maintenance       ReferenceStandardMaintenance[]
   createdAt         DateTime                 @default(now())
 
   @@unique([labId, idNumber])
   @@index([labId])
 }
 
+// Versioned calibration-certificate uploads for a reference standard (3.1).
+// The newest version is the active certificate; older versions are retained.
+model ReferenceStandardCertificate {
+  id                String           @id @default(uuid())
+  masterId          String
+  master            MasterInstrument @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  version           Int
+  fileName          String
+  fileType          String?          // MIME type (application/pdf, image/png, …)
+  fileData          String           // data:<mime>;base64,<…> payload
+  certificateNumber String?
+  calibratedDate    DateTime?
+  calibrationDue    DateTime?
+  traceability      String?
+  uncertainty       String?
+  remarks           String?
+  uploadedById      String?
+  uploadedAt        DateTime         @default(now())
+
+  @@index([masterId])
+}
+
+// Maintenance / service history for a reference standard (3.2).
+model ReferenceStandardMaintenance {
+  id          String           @id @default(uuid())
+  masterId    String
+  master      MasterInstrument @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  date        DateTime
+  type        String           // Service, Repair, Verification, …
+  description String?
+  performedBy String?
+  createdAt   DateTime         @default(now())
+
+  @@index([masterId])
+}
+
+// ───────────── Calibration scope: CMC & MPE masters (config-driven) ──────────
+
+// NABL Scope / CMC master (Module 4.3 + 4.4). One row per
+// discipline+parameter+range with the best CMC, method and scope metadata.
+// Fetched automatically during calibration to validate against the lab's scope.
+model CmcScope {
+  id            String    @id @default(uuid())
+  labId         String
+  discipline    String
+  parameter     String
+  rangeMin      Float?
+  rangeMax      Float?
+  rangeText     String?   // Human-readable range, e.g. "0 to 25 mm"
+  unit          String?
+  cmc           String?   // Best CMC as printed, e.g. "±(0.5 + 0.3L) µm"
+  cmcValue      Float?    // Numeric best CMC for automatic validation
+  method        String?
+  scope         String?   // NABL scope document reference
+  revision      String?
+  effectiveDate DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([labId])
+}
+
+// Maximum-permissible-error rule master (Module 4.2). Resolves the MPE for a
+// point from discipline/parameter/range and optionally accuracy class and the
+// reference standard, so calibration can auto-load the applicable MPE.
+model MpeRule {
+  id             String   @id @default(uuid())
+  labId          String
+  discipline     String
+  parameter      String
+  instrumentType String?
+  accuracyClass  String?
+  standard       String?
+  rangeMin       Float?
+  rangeMax       Float?
+  unit           String?
+  mpeValue       Float
+  mpeIsPercent   Boolean  @default(false)
+  resolution     Float?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([labId])
+}
+
 // ─────────────────────────── Jobs ────────────────────────────────
+
+// A single customer intake grouping multiple instruments (Module 2.1).
+// Each instrument in the batch becomes its own Job → its own calibration
+// status, datasheets and certificate.
+model JobBatch {
+  id          String   @id @default(uuid())
+  labId       String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  batchNumber String
+  challanNo   String?
+  poNumber    String?
+  remarks     String?
+  isOnsite    Boolean  @default(false)
+  siteAddress String?
+  receivedAt  DateTime @default(now())
+  jobs        Job[]
+  createdAt   DateTime @default(now())
+
+  @@unique([labId, batchNumber])
+  @@index([labId])
+  @@index([customerId])
+}
 
 model Job {
   id           String     @id @default(uuid())
@@ -267,6 +561,10 @@ model Job {
   lab          Lab        @relation(fields: [labId], references: [id])
   customerId   String
   customer     Customer   @relation(fields: [customerId], references: [id])
+  // Optional grouping: a single customer intake of multiple instruments creates
+  // one JobBatch with one Job (and one certificate) per instrument.
+  batchId      String?
+  batch        JobBatch?  @relation(fields: [batchId], references: [id])
   instrumentId String
   instrument   Instrument @relation(fields: [instrumentId], references: [id])
   engineerId   String?
@@ -290,6 +588,7 @@ model Job {
   masterInstrumentId   String?
   masterInstrument     MasterInstrument? @relation(fields: [masterInstrumentId], references: [id])
   // Onsite calibration
+  certificateType String   @default("NABL")   // NABL | NON_NABL — set at job creation
   isOnsite     Boolean    @default(false)
   siteAddress  String?
   siteContact  String?
@@ -299,9 +598,11 @@ model Job {
   references   ReferenceStandardOnJob[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
 
   @@unique([labId, jobNumber])
   @@index([labId])
+  @@index([batchId])
 }
 
 model ReferenceStandardOnJob {
@@ -382,8 +683,34 @@ model Certificate {
   pdfPath           String?
   isLocked          Boolean            @default(false)
   decisionRule      String?
+  // Revision control: 0 = original issue, 1 = Revision-1, etc.
+  // The certificate row always holds the LATEST revision; superseded revisions
+  // are archived (read-only) in CertificateRevision.
+  revision          Int                @default(0)
+  revisionReason    String?
   signatures        DigitalSignature[]
+  revisions         CertificateRevision[]
   createdAt         DateTime           @default(now())
+}
+
+// Immutable archive of a superseded certificate revision. One row is written
+// for each revision step, preserving the full history of a certificate.
+model CertificateRevision {
+  id                String          @id @default(uuid())
+  certificateId     String
+  certificate       Certificate     @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  revision          Int
+  certificateNumber String
+  type              CertificateType
+  issueDate         DateTime
+  qrHash            String?
+  decisionRule      String?
+  revisionReason    String?
+  // Snapshot of the certificate state (signatures, lock flag) at archive time.
+  snapshot          Json?
+  archivedAt        DateTime        @default(now())
+
+  @@index([certificateId])
 }
 
 model DigitalSignature {
@@ -417,6 +744,7 @@ model Task {
   title       String
   description String?
   status      String    @default("PENDING")
+  priority    String?
   engineerId  String?
   engineer    Engineer? @relation(fields: [engineerId], references: [id])
   dueDate     DateTime?
@@ -428,42 +756,137 @@ model Task {
 // ─────────────────────────── Billing ─────────────────────────────
 
 model Invoice {
-  id            String        @id @default(uuid())
-  labId         String
-  lab           Lab           @relation(fields: [labId], references: [id])
-  invoiceNumber String        @unique
-  customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id])
-  status        InvoiceStatus @default(DRAFT)
-  amount        Float         @default(0)
-  taxAmount     Float         @default(0)
-  totalAmount   Float         @default(0)
-  payments      Payment[]
-  issueDate     DateTime?
-  createdAt     DateTime      @default(now())
+  id               String        @id @default(uuid())
+  labId            String
+  lab              Lab           @relation(fields: [labId], references: [id])
+  invoiceNumber    String        @unique
+  customerId       String
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  status           InvoiceStatus @default(DRAFT)
+  lineItems        Json          @default("[]")
+  amount           Float         @default(0)
+  discountTotal    Float         @default(0)
+  taxAmount        Float         @default(0)
+  cgst             Float         @default(0)
+  sgst             Float         @default(0)
+  igst             Float         @default(0)
+  totalAmount      Float         @default(0)
+  dueDate          DateTime?
+  placeOfSupply    String?
+  customerPoNumber String?
+  paymentTerms     String?
+  termsConditions  String?
+  notes            String?
+  linkedQuotationId String?
+  linkedChallanId  String?
+  payments         Payment[]
+  issueDate        DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([labId])
 }
 
 model Quotation {
-  id          String          @id @default(uuid())
-  labId       String
-  lab         Lab             @relation(fields: [labId], references: [id])
-  quoteNumber String
-  customerId  String
-  customer    Customer        @relation(fields: [customerId], references: [id])
-  status      QuotationStatus @default(DRAFT)
-  items       Json            @default("[]")
-  amount      Float           @default(0)
-  taxRate     Float           @default(18)
-  taxAmount   Float           @default(0)
-  totalAmount Float           @default(0)
-  validUntil  DateTime?
-  notes       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id               String          @id @default(uuid())
+  labId            String
+  lab              Lab             @relation(fields: [labId], references: [id])
+  quoteNumber      String
+  customerId       String
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  status           QuotationStatus @default(DRAFT)
+  subject          String?
+  reference        String?
+  contactPerson    String?
+  items            Json            @default("[]")
+  amount           Float           @default(0)
+  discountTotal    Float           @default(0)
+  taxRate          Float           @default(18)
+  taxAmount        Float           @default(0)
+  cgst             Float           @default(0)
+  sgst             Float           @default(0)
+  igst             Float           @default(0)
+  totalAmount      Float           @default(0)
+  validUntil       DateTime?
+  deliveryTerms    String?
+  deliveryPeriod   String?
+  termsConditions  String?
+  placeOfSupply    String?
+  notes            String?
+  linkedInvoiceId  String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@unique([labId, quoteNumber])
+  @@index([labId])
+}
+
+model PurchaseOrder {
+  id              String              @id @default(uuid())
+  labId           String
+  lab             Lab                 @relation(fields: [labId], references: [id])
+  poNumber        String
+  poDate          DateTime            @default(now())
+  supplierId      String
+  supplier        Customer            @relation(fields: [supplierId], references: [id])
+  supplierRef     String?
+  contactPerson   String?
+  expectedDate    DateTime?
+  deliveryAddress String?
+  paymentTerms    String?
+  status          PurchaseOrderStatus @default(DRAFT)
+  lineItems       Json                @default("[]")
+  subTotal        Float               @default(0)
+  discountTotal   Float               @default(0)
+  cgst            Float               @default(0)
+  sgst            Float               @default(0)
+  igst            Float               @default(0)
+  totalAmount     Float               @default(0)
+  termsConditions String?
+  notes           String?
+  internalNotes   String?
+  cancelReason    String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([labId, poNumber])
+  @@index([labId])
+}
+
+model DeliveryChallan {
+  id                String                @id @default(uuid())
+  labId             String
+  lab               Lab                   @relation(fields: [labId], references: [id])
+  challanNumber     String
+  challanDate       DateTime              @default(now())
+  challanType       String                @default("SALE")
+  customerId        String
+  customer          Customer              @relation(fields: [customerId], references: [id])
+  contactPerson     String?
+  deliveryAddress   String?
+  linkedQuotationId String?
+  linkedInvoiceId   String?
+  lineItems         Json                  @default("[]")
+  status            DeliveryChallanStatus @default(DRAFT)
+  dispatchDate      DateTime?
+  expectedDelivery  DateTime?
+  transportMode     String?
+  transporterName   String?
+  vehicleNumber     String?
+  driverName        String?
+  driverMobile      String?
+  lrNumber          String?
+  lrDate            DateTime?
+  eWayBillNumber    String?
+  numberOfPackages  Int?
+  weightKg          Float?
+  remarks           String?
+  podUploaded       Boolean               @default(false)
+  cancelReason      String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@unique([labId, challanNumber])
   @@index([labId])
 }
 
@@ -607,4 +1030,83 @@ model AuditFinding {
   status      String        @default("OPEN")
   dueDate     DateTime?
   closedAt    DateTime?
+}
+
+// ─────────────────── Module 8: Instrument images ─────────────────
+// Photographs captured around a calibration job (before/after/damage/
+// accessories). Stored as base64 data-URLs. Scalar job/instrument links keep
+// the model self-contained.
+model InstrumentImage {
+  id           String   @id @default(uuid())
+  labId        String
+  jobId        String?
+  instrumentId String?
+  category     String   // BEFORE, AFTER, DAMAGE, ACCESSORY
+  fileName     String
+  fileType     String?
+  fileData     String   // data:<mime>;base64,<…>
+  remarks      String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([labId])
+  @@index([jobId])
+  @@index([instrumentId])
+}
+
+// ─────────────────── Module 9: Complaint management ──────────────
+model Complaint {
+  id             String    @id @default(uuid())
+  labId          String
+  complaintNo    String
+  customerId     String?
+  certificateId  String?
+  subject        String?
+  description    String
+  rootCause      String?
+  investigation  String?
+  capa           String?
+  status         String    @default("OPEN") // OPEN, INVESTIGATING, CAPA_PENDING, CLOSED
+  closureRemarks String?
+  closedAt       DateTime?
+  raisedById     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([labId, complaintNo])
+  @@index([labId])
+}
+
+// ─────────────────── Module 11: Customer feedback ────────────────
+model CustomerFeedback {
+  id            String   @id @default(uuid())
+  labId         String
+  customerId    String?
+  jobId         String?
+  serviceRating Int
+  qualityRating Int
+  tatRating     Int
+  supportRating Int
+  comments      String?
+  createdAt     DateTime @default(now())
+
+  @@index([labId])
+  @@index([customerId])
+}
+
+// ─────────────── Module 13: Reusable formulas (config-driven) ─────
+model FormulaMaster {
+  id          String   @id @default(uuid())
+  labId       String
+  name        String
+  expression  String   // e.g. "ROUND(AVERAGE(r1,r2,r3) - std, 3)"
+  variables   String[] // declared variable names
+  constants   Json?    // { "k": 2, "g": 9.81 }
+  unit        String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([labId])
 }

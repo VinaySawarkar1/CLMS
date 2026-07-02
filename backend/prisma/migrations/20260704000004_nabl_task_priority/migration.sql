@@ -1,0 +1,6 @@
+-- Add NABL fields to Lab
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "nablLogoUrl" TEXT;
+ALTER TABLE "Lab" ADD COLUMN IF NOT EXISTS "isNabl" BOOLEAN NOT NULL DEFAULT true;
+
+-- Add priority to Task
+ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "priority" TEXT;

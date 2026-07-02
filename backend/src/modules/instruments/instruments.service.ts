@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateInstrumentDto, UpdateInstrumentDto } from './dto';
 
@@ -6,8 +6,32 @@ import { CreateInstrumentDto, UpdateInstrumentDto } from './dto';
 export class InstrumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(labId: string, dto: CreateInstrumentDto) {
+  /**
+   * Enforce that an instrument ID number is unique per customer, so one
+   * customer can register many instruments (different types, or the same type
+   * with distinct IDs) while different customers may reuse the same ID. Empty
+   * IDs are not constrained.
+   */
+  private async assertUniqueIdNumber(
+    labId: string,
+    customerId: string,
+    idNumber?: string | null,
+    excludeId?: string,
+  ) {
+    const id = (idNumber ?? '').trim();
+    if (!id) return;
+    const clash = await this.prisma.instrument.findFirst({
+      where: { labId, customerId, idNumber: id, ...(excludeId ? { id: { not: excludeId } } : {}) },
+      select: { id: true },
+    });
+    if (clash) {
+      throw new BadRequestException(`This customer already has an instrument with ID "${id}"`);
+    }
+  }
+
+  async create(labId: string, dto: CreateInstrumentDto) {
     const { lastCalibrationDate, calibrationIntervalMonths, ...rest } = dto;
+    await this.assertUniqueIdNumber(labId, dto.customerId, dto.idNumber);
     const last = lastCalibrationDate ? new Date(lastCalibrationDate) : null;
     const nextDueDate = this.computeNextDue(last, calibrationIntervalMonths);
     return this.prisma.instrument.create({
@@ -31,6 +55,7 @@ export class InstrumentsService {
   findAll(labId: string, customerId?: string) {
     return this.prisma.instrument.findMany({
       where: { labId, ...(customerId ? { customerId } : {}) },
+      include: { customer: { select: { id: true, name: true, code: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -56,7 +81,15 @@ export class InstrumentsService {
   }
 
   async update(id: string, labId: string, dto: UpdateInstrumentDto) {
-    await this.findOne(id, labId);
+    const existing = await this.findOne(id, labId);
+    if (dto.idNumber !== undefined || dto.customerId !== undefined) {
+      await this.assertUniqueIdNumber(
+        labId,
+        dto.customerId ?? existing.customerId,
+        dto.idNumber ?? existing.idNumber,
+        id,
+      );
+    }
     const { lastCalibrationDate, calibrationIntervalMonths, ...rest } = dto;
     const last = lastCalibrationDate ? new Date(lastCalibrationDate) : undefined;
     const nextDueDate = last !== undefined

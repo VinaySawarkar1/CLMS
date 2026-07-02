@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { AuditInterceptor } from './common/audit/audit.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -24,10 +26,19 @@ import { EnvironmentalModule } from './modules/environmental/environmental.modul
 import { PortalModule } from './modules/portal/portal.module';
 import { LabsModule } from './modules/labs/labs.module';
 import { MastersModule } from './modules/masters/masters.module';
+import { CalibrationMastersModule } from './modules/masters/calibration-masters.module';
+import { InstrumentImagesModule } from './modules/instruments/instrument-images.module';
+import { ComplaintsModule } from './modules/quality/complaints.module';
+import { FeedbackModule } from './modules/portal/feedback.module';
+import { BackupModule } from './modules/backup/backup.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditPlansModule } from './modules/audit-plans/audit-plans.module';
 import { SeedModule } from './modules/seed/seed.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
+import { DeliveryChallansModule } from './modules/delivery-challans/delivery-challans.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { CrmActivitiesModule } from './modules/crm-activities/crm-activities.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -62,10 +73,23 @@ import { HealthController } from './health.controller';
     PortalModule,
     LabsModule,
     MastersModule,
+    CalibrationMastersModule,
+    InstrumentImagesModule,
+    ComplaintsModule,
+    FeedbackModule,
+    BackupModule,
     QuotationsModule,
     DocumentsModule,
     AuditPlansModule,
     SeedModule,
+    PurchaseOrdersModule,
+    DeliveryChallansModule,
+    LeadsModule,
+    CrmActivitiesModule,
+  ],
+  providers: [
+    // Module 14 — global audit trail for every mutating request.
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}

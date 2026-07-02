@@ -6,10 +6,9 @@ import {
 } from 'antd';
 import {
   PlusOutlined, DatabaseOutlined, PlusCircleOutlined, MinusCircleOutlined,
-  EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined,
+  EditOutlined, DeleteOutlined, ImportOutlined,
 } from '@ant-design/icons';
 import { adjustStock, deleteInventoryItem, getInventory, importInventory, upsertInventory } from '../api';
-import { exportToCsv } from '../utils/export';
 import ImportModal from '../components/ImportModal';
 
 const { Title, Text } = Typography;
@@ -117,17 +116,6 @@ export default function Inventory() {
           </Col>
           <Col>
             <Space>
-              <Button
-                icon={<ExportOutlined />}
-                onClick={() => exportToCsv('inventory.csv', data as any[], [
-                  { key: 'name', label: 'Item Name' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'quantity', label: 'Quantity' },
-                  { key: 'location', label: 'Location' },
-                ])}
-              >
-                Export CSV
-              </Button>
               <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import CSV</Button>
               <Button type="primary" icon={<PlusOutlined />} onClick={openNew} size="large">
                 New Item

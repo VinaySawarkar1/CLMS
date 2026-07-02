@@ -1,15 +1,15 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AutoComplete, Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select,
   Space, Table, Tag, Typography, DatePicker, message,
 } from 'antd';
-import { PlusOutlined, ToolOutlined, EditOutlined, DeleteOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons';
+import { PlusOutlined, ToolOutlined, EditOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   createInstrument, getCustomers, getInstruments, updateInstrument, deleteInstrument, importInstruments,
 } from '../api';
-import { exportToCsv } from '../utils/export';
 import ImportModal from '../components/ImportModal';
 import { PROCEDURES } from '../procedures';
 
@@ -30,12 +30,17 @@ const IMPORT_COLS = [
 
 export default function Instruments() {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [form] = Form.useForm();
 
-  const { data = [], isLoading } = useQuery({ queryKey: ['instruments'], queryFn: () => getInstruments() });
+  const [customerFilter, setCustomerFilter] = useState<string | undefined>(undefined);
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['instruments', customerFilter ?? ''],
+    queryFn: () => getInstruments(customerFilter),
+  });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['instruments'] });
@@ -111,7 +116,9 @@ export default function Instruments() {
     },
     {
       title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer',
-      render: (v: string) => v ? <Tag color="purple">{v}</Tag> : <Text type="secondary">—</Text>,
+      render: (v: string, row: any) => v
+        ? <Tag color="purple" style={{ cursor: 'pointer' }} onClick={() => nav(`/customers?highlight=${row.customer?.id}`)}>{v}</Tag>
+        : <Text type="secondary">—</Text>,
     },
     {
       title: 'Actions', key: 'actions', width: 100,
@@ -138,22 +145,16 @@ export default function Instruments() {
           </Col>
           <Col>
             <Space>
-              <Button
-                icon={<ExportOutlined />}
-                onClick={() => exportToCsv('instruments.csv', data as any[], [
-                  { key: 'idNumber', label: 'Customer ID Number' },
-                  { key: 'name', label: 'Instrument Name' },
-                  { key: 'make', label: 'Make' },
-                  { key: 'model', label: 'Model' },
-                  { key: 'serialNumber', label: 'Serial Number' },
-                  { key: 'range', label: 'Range' },
-                  { key: 'unit', label: 'Unit' },
-                  { key: 'leastCount', label: 'Least Count' },
-                  { key: 'nextDueDate', label: 'Next Due Date' },
-                ])}
-              >
-                Export CSV
-              </Button>
+              <Select
+                allowClear
+                showSearch
+                placeholder="Filter by customer"
+                style={{ width: 220 }}
+                value={customerFilter}
+                onChange={(v) => setCustomerFilter(v)}
+                options={(customers as any[]).map((c: any) => ({ value: c.id, label: c.name }))}
+                filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              />
               <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import CSV</Button>
               <Button type="primary" icon={<PlusOutlined />} onClick={openNew} size="large">
                 Receive Instrument

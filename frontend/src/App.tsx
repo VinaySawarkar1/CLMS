@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { isAuthed, getUser } from './api';
 import Layout from './Layout';
 import Login from './pages/Login';
@@ -20,16 +20,35 @@ import Labs from './pages/Labs';
 import Users from './pages/Users';
 import Permissions from './pages/Permissions';
 import ReferenceStandards from './pages/ReferenceStandards';
+import CalibrationMasters from './pages/CalibrationMasters';
+import Hub from './pages/Hub';
+import Complaints from './pages/Complaints';
+import Feedback from './pages/Feedback';
 import Reports from './pages/Reports';
 import VerifyCertificate from './pages/VerifyCertificate';
 import Documents from './pages/Documents';
 import InternalAudit from './pages/InternalAudit';
 import CustomerPortal from './pages/CustomerPortal';
 import Settings from './pages/Settings';
+import Quotations from './pages/Quotations';
+import Invoices from './pages/Invoices';
+import PurchaseOrders from './pages/PurchaseOrders';
+import DeliveryChallans from './pages/DeliveryChallans';
+import Leads from './pages/Leads';
+import CrmActivities from './pages/CrmActivities';
+import Audit from './pages/Audit';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
   return <Login onSuccess={() => { onSuccess(); nav('/'); }} />;
+}
+
+function LayoutShell({ onLogout }: { onLogout: () => void }) {
+  return (
+    <Layout onLogout={onLogout}>
+      <Outlet />
+    </Layout>
+  );
 }
 
 export default function App() {
@@ -39,6 +58,7 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
+          <Route path="/verify" element={<VerifyCertificate />} />
           <Route path="/verify/:id" element={<VerifyCertificate />} />
           <Route path="/portal" element={<CustomerPortal />} />
           <Route path="/register-lab" element={<RegisterLab />} />
@@ -53,44 +73,65 @@ export default function App() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isLabAdmin = user?.role === 'LAB_ADMIN';
 
+  if (isSuperAdmin) {
+    return (
+      <BrowserRouter>
+        <Layout onLogout={() => setAuthed(false)}>
+          <Routes>
+            <Route path="/" element={<Labs />} />
+            <Route path="/labs" element={<Labs />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    );
+  }
+
   return (
     <BrowserRouter>
-      <Layout onLogout={() => setAuthed(false)}>
-        <Routes>
-          {isSuperAdmin ? (
-            <>
-              <Route path="/" element={<Labs />} />
-              <Route path="/labs" element={<Labs />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </>
-          ) : (
-            <>
-              <Route path="/verify/:id" element={<VerifyCertificate />} />
-              <Route path="/portal" element={<CustomerPortal />} />
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/customers" element={<Customers />} />
-              <Route path="/instruments" element={<Instruments />} />
-              <Route path="/reference-standards" element={<ReferenceStandards />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/jobs" element={<Jobs />} />
-              <Route path="/jobs/:id" element={<JobWorkspace />} />
-              <Route path="/certificates" element={<Certificates />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/engineers" element={<Engineers />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/environmental" element={<Environmental />} />
-              <Route path="/quality" element={<Quality />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/internal-audit" element={<InternalAudit />} />
-              <Route path="/notifications" element={<Notifications />} />
-              {isLabAdmin && <Route path="/users" element={<Users />} />}
-              {isLabAdmin && <Route path="/permissions" element={<Permissions />} />}
-              {isLabAdmin && <Route path="/settings" element={<Settings />} />}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </>
-          )}
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Hub launcher — full-screen, no sidebar */}
+        <Route path="/" element={<Hub onLogout={() => setAuthed(false)} />} />
+
+        {/* Public routes (accessible while logged in too) */}
+        <Route path="/verify" element={<VerifyCertificate />} />
+        <Route path="/verify/:id" element={<VerifyCertificate />} />
+        <Route path="/portal" element={<CustomerPortal />} />
+
+        {/* All other routes inside the sidebar Layout */}
+        <Route element={<LayoutShell onLogout={() => setAuthed(false)} />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/customers" element={<Customers />} />
+          <Route path="/quotations" element={<Quotations />} />
+          <Route path="/invoices" element={<Invoices />} />
+          <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/delivery-challans" element={<DeliveryChallans />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/crm-activities" element={<CrmActivities />} />
+          <Route path="/instruments" element={<Instruments />} />
+          <Route path="/reference-standards" element={<ReferenceStandards />} />
+          <Route path="/calibration-masters" element={<CalibrationMasters />} />
+          <Route path="/complaints" element={<Complaints />} />
+          <Route path="/feedback" element={<Feedback />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/jobs" element={<Jobs />} />
+          <Route path="/jobs/:id" element={<JobWorkspace />} />
+          <Route path="/certificates" element={<Certificates />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/engineers" element={<Engineers />} />
+          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/environmental" element={<Environmental />} />
+          <Route path="/quality" element={<Quality />} />
+          <Route path="/documents" element={<Documents />} />
+          <Route path="/internal-audit" element={<InternalAudit />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/audit" element={<Audit />} />
+          {isLabAdmin && <Route path="/users" element={<Users />} />}
+          {isLabAdmin && <Route path="/permissions" element={<Permissions />} />}
+          {isLabAdmin && <Route path="/settings" element={<Settings />} />}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }

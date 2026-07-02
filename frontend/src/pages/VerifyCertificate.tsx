@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { Card, Result, Spin, Descriptions, Tag, Typography, Space } from 'antd';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Card, Input, Result, Spin, Descriptions, Tag, Typography, Space, Alert } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { api } from '../api';
+import { api, lookupCertificate } from '../api';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -28,17 +28,72 @@ interface VerifyResult {
 
 export default function VerifyCertificate() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const hash = params.get('h') ?? '';
   const [result, setResult] = useState<VerifyResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!id);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   useEffect(() => {
+    if (!id) return;
+    setLoading(true);
     api.get(`/portal/verify/${id}`, { params: { h: hash } })
       .then((r) => setResult(r.data))
       .catch(() => setResult({ valid: false, reason: 'Could not reach verification server' }))
       .finally(() => setLoading(false));
   }, [id, hash]);
+
+  // Public search by certificate number or job number → resolves to the
+  // verification view via the certificate's verification URL.
+  const onSearch = async (q: string) => {
+    const term = q.trim();
+    if (!term) return;
+    setSearching(true);
+    setSearchError('');
+    try {
+      const res = await lookupCertificate(term);
+      const url: string = res?.qr?.verificationUrl ?? '';
+      const path = url.replace(/^https?:\/\/[^/]+/, '');
+      if (path) navigate(path.startsWith('/verify') ? path : `/verify/${res.qr.certificateId}`);
+      else setSearchError('Certificate found but no verification link is available.');
+    } catch (e: any) {
+      setSearchError(e?.response?.data?.message ?? 'No certificate found for that number.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // No id in the URL → render the public search page.
+  if (!id) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Card style={{ maxWidth: 560, width: '100%', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <SafetyCertificateOutlined style={{ fontSize: 40, color: '#1677ff' }} />
+            <Title level={3} style={{ margin: '8px 0 0' }}>Certificate Verification</Title>
+            <Text type="secondary">Verify the authenticity of a calibration certificate</Text>
+          </div>
+          <Text strong>Search by Certificate No. or Job No.</Text>
+          <Input.Search
+            placeholder="e.g. CC/2026/00007 or JOB/2026/0042"
+            enterButton="Verify"
+            size="large"
+            loading={searching}
+            onSearch={onSearch}
+            style={{ marginTop: 8 }}
+          />
+          {searchError && (
+            <Alert type="error" showIcon style={{ marginTop: 16 }} message={searchError} />
+          )}
+          <div style={{ textAlign: 'center', marginTop: 24, color: '#8c8c8c', fontSize: 12 }}>
+            You can also scan the QR code printed on the certificate. · Powered by CLMS · ISO/IEC 17025
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
