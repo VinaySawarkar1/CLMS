@@ -105,14 +105,15 @@ export class AutomationScheduler {
           day: '2-digit', month: 'long', year: 'numeric',
         });
 
-        // In-app notification for each LAB_ADMIN / TECHNICAL_MANAGER
-        for (const labUser of inst.lab?.users ?? []) {
+        // In-app notification for each LAB_ADMIN / TECHNICAL_MANAGER (batch insert)
+        const labUsers = inst.lab?.users ?? [];
+        if (labUsers.length > 0) {
           try {
-            await this.prisma.notification.create({
-              data: {
+            await this.prisma.notification.createMany({
+              data: labUsers.map((labUser) => ({
                 labId: inst.labId,
                 userId: labUser.id,
-                channel: 'EMAIL',
+                channel: 'EMAIL' as const,
                 event: 'CALIBRATION_DUE',
                 payload: {
                   instrumentId: inst.id,
@@ -123,7 +124,7 @@ export class AutomationScheduler {
                   dueDate: inst.nextDueDate!.toISOString(),
                   message: `${inst.name} (S/N: ${inst.serialNumber ?? 'N/A'}) calibration due in ${days} day(s) on ${dueStr}`,
                 } as any,
-              },
+              })),
             });
           } catch { /* non-fatal */ }
         }

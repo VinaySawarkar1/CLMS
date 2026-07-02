@@ -235,10 +235,8 @@ export class JobsService {
       return { ...batch, jobs };
     });
 
-    // Auto-assign engineers for each job in the batch (outside transaction)
-    for (const j of result.jobs) {
-      await this.tryAutoAssignEngineer(j, labId);
-    }
+    // Auto-assign engineers for each job in the batch (outside transaction, parallel)
+    await Promise.all(result.jobs.map((j) => this.tryAutoAssignEngineer(j, labId)));
 
     return result;
   }
@@ -294,7 +292,7 @@ export class JobsService {
     return { total, certified, closed, inProgress, overall };
   }
 
-  async findAll(labId: string, status?: JobStatus, user?: { id: string; role: string }) {
+  async findAll(labId: string, status?: JobStatus, user?: { id: string; role: string }, page = 1, limit = 50) {
     // Engineers only see jobs assigned to them; managers/admins see all.
     let engineerFilter = {};
     if (user && (user.role === 'CALIBRATION_ENGINEER' || user.role === 'SERVICE_ENGINEER')) {
@@ -305,14 +303,21 @@ export class JobsService {
       // If the user isn't linked to an engineer record, they see nothing.
       engineerFilter = { engineerId: engineer?.id ?? '__none__' };
     }
-    return this.prisma.job.findMany({
-      where: { labId, ...(status ? { status } : {}), ...engineerFilter },
-      include: {
-        customer: true, instrument: true, engineer: true, certificate: true, masterInstrument: true,
-        batch: { select: { id: true, batchNumber: true } },
-      },
-      orderBy: { receivedAt: 'desc' },
-    });
+    const where = { labId, ...(status ? { status } : {}), ...engineerFilter };
+    const [data, total] = await Promise.all([
+      this.prisma.job.findMany({
+        where,
+        include: {
+          customer: true, instrument: true, engineer: true, certificate: true, masterInstrument: true,
+          batch: { select: { id: true, batchNumber: true } },
+        },
+        orderBy: { receivedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.job.count({ where }),
+    ]);
+    return { data, total, page, limit };
   }
 
   async findOne(id: string, labId: string) {
@@ -400,17 +405,12 @@ export class JobsService {
     const db = client ?? this.prisma;
     const year = new Date().getFullYear();
     const prefix = `JOB-${year}-`;
-    // Derive the next sequence from the highest existing suffix (not the row
-    // count), so deletions or pre-seeded numbers never cause a collision.
-    const existing = await db.job.findMany({
+    const latest = await db.job.findFirst({
       where: { labId, jobNumber: { startsWith: prefix } },
+      orderBy: { jobNumber: 'desc' },
       select: { jobNumber: true },
     });
-    let max = 0;
-    for (const { jobNumber } of existing) {
-      const n = parseInt(jobNumber.slice(prefix.length), 10);
-      if (!Number.isNaN(n) && n > max) max = n;
-    }
+    const max = latest ? (parseInt(latest.jobNumber.slice(prefix.length), 10) || 0) : 0;
     return `${prefix}${String(max + 1).padStart(5, '0')}`;
   }
 
@@ -418,15 +418,12 @@ export class JobsService {
     const db = client ?? this.prisma;
     const year = new Date().getFullYear();
     const prefix = `BATCH-${year}-`;
-    const existing = await db.jobBatch.findMany({
+    const latest = await db.jobBatch.findFirst({
       where: { labId, batchNumber: { startsWith: prefix } },
+      orderBy: { batchNumber: 'desc' },
       select: { batchNumber: true },
     });
-    let max = 0;
-    for (const { batchNumber } of existing) {
-      const n = parseInt(batchNumber.slice(prefix.length), 10);
-      if (!Number.isNaN(n) && n > max) max = n;
-    }
+    const max = latest ? (parseInt(latest.batchNumber.slice(prefix.length), 10) || 0) : 0;
     return `${prefix}${String(max + 1).padStart(4, '0')}`;
   }
 }
