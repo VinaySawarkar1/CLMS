@@ -82,7 +82,11 @@ class PurchaseOrdersService {
   }
 
   async create(labId: string, dto: CreatePurchaseOrderDto) {
-    const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(dto.lineItems);
+    const [lab, supplier] = await Promise.all([
+      this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } }),
+      this.prisma.supplier.findUnique({ where: { id: dto.supplierId }, select: { billingState: true } }),
+    ]);
+    const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(dto.lineItems, supplier?.billingState ?? undefined, lab?.state ?? undefined);
     return this.prisma.purchaseOrder.create({
       data: {
         labId,
@@ -130,7 +134,11 @@ class PurchaseOrdersService {
     if (po.status !== 'DRAFT') throw new Error('Only DRAFT orders can be edited');
 
     const items = dto.lineItems ?? (po.lineItems as unknown as LineItemDto[]);
-    const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(items);
+    const [lab, supplier] = await Promise.all([
+      this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } }),
+      this.prisma.supplier.findUnique({ where: { id: po.supplierId }, select: { billingState: true } }),
+    ]);
+    const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(items, supplier?.billingState ?? undefined, lab?.state ?? undefined);
 
     return this.prisma.purchaseOrder.update({
       where: { id },

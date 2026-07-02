@@ -51,7 +51,8 @@ class BillingService {
 
   async createInvoice(labId: string, data: any) {
     const items: InvItem[] = data.lineItems ?? [];
-    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply);
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } });
+    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply, lab?.state ?? undefined);
     return this.prisma.invoice.create({
       data: {
         labId, customerId: data.customerId,
@@ -74,7 +75,8 @@ class BillingService {
 
   async createDraft(labId: string, data: any) {
     const items: InvItem[] = data.lineItems ?? [];
-    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply);
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } });
+    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply, lab?.state ?? undefined);
     return this.prisma.invoice.create({
       data: {
         labId, customerId: data.customerId,
@@ -133,7 +135,8 @@ class BillingService {
     if (!inv) throw new NotFoundException('Invoice not found');
     if (!['DRAFT'].includes(inv.status)) throw new Error('Only DRAFT invoices can be edited');
     const items: InvItem[] = data.lineItems ?? (inv.lineItems as InvItem[]);
-    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply ?? inv.placeOfSupply ?? undefined);
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } });
+    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply ?? inv.placeOfSupply ?? undefined, lab?.state ?? undefined);
     return this.prisma.invoice.update({
       where: { id },
       data: { ...data, lineItems: items as any, amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount,

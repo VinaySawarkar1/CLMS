@@ -15,6 +15,7 @@ import {
   setPurchaseOrderStatus, deletePurchaseOrder, getPurchaseOrderStats, getCustomers, getLab, getUser,
 } from '../api';
 import { downloadPurchaseOrderPdf } from '../utils/pdfExport';
+import { STATE_OPTIONS, calcGst } from '../utils/gst';
 
 const { Title, Text } = Typography;
 
@@ -26,8 +27,11 @@ const STATUS_COLOR: Record<string, string> = {
 
 const GST_RATES = [0, 5, 12, 18, 28];
 
-function LineItemsForm({ form }: { form: any }) {
+function LineItemsForm({ form, labState }: { form: any; labState?: string }) {
   const items = Form.useWatch('lineItems', form) ?? [{ description: '', quantity: 1, unitPrice: 0, gstRate: 18 }];
+  // PO uses supplier state as "place of supply" for CGST/SGST vs IGST determination
+  const supplierState = Form.useWatch('supplierState', form);
+  const gst = calcGst(items, supplierState, labState);
 
   const addRow = () => {
     form.setFieldsValue({ lineItems: [...items, { description: '', quantity: 1, unitPrice: 0, gstRate: 18 }] });
@@ -37,18 +41,6 @@ function LineItemsForm({ form }: { form: any }) {
     updated.splice(i, 1);
     form.setFieldsValue({ lineItems: updated });
   };
-
-  const taxable = items.reduce((sum: number, item: any) => {
-    const line = (item?.quantity || 0) * (item?.unitPrice || 0);
-    const disc = line * ((item?.discountPct || 0) / 100);
-    return sum + (line - disc);
-  }, 0);
-  const gstTotal = items.reduce((sum: number, item: any) => {
-    const line = (item?.quantity || 0) * (item?.unitPrice || 0);
-    const disc = line * ((item?.discountPct || 0) / 100);
-    const taxable = line - disc;
-    return sum + (taxable * ((item?.gstRate || 18) / 100));
-  }, 0);
 
   return (
     <div>
@@ -102,10 +94,23 @@ function LineItemsForm({ form }: { form: any }) {
       ))}
       <Button type="dashed" onClick={addRow} block icon={<PlusOutlined />} style={{ marginTop: 4 }}>Add Item</Button>
       <div style={{ background: '#e6f4ff', borderRadius: 6, padding: 12, marginTop: 12 }}>
-        <Row justify="end" gutter={24}>
-          <Col><Text>Taxable: <Text strong>₹{taxable.toFixed(2)}</Text></Text></Col>
-          <Col><Text>GST: <Text strong>₹{gstTotal.toFixed(2)}</Text></Text></Col>
-          <Col><Text type="success">Total: <Text strong style={{ fontSize: 16 }}>₹{(taxable + gstTotal).toFixed(2)}</Text></Text></Col>
+        <Row justify="end" gutter={16}>
+          <Col><Text>Taxable: <Text strong>₹{gst.taxable.toFixed(2)}</Text></Text></Col>
+          {gst.discountTotal > 0 && <Col><Text type="danger">Discount: <Text strong>−₹{gst.discountTotal.toFixed(2)}</Text></Text></Col>}
+          {gst.isInterstate ? (
+            <Col><Text style={{ color: '#722ed1' }}>IGST: <Text strong>₹{gst.igst.toFixed(2)}</Text></Text></Col>
+          ) : (
+            <>
+              <Col><Text style={{ color: '#1677ff' }}>CGST: <Text strong>₹{gst.cgst.toFixed(2)}</Text></Text></Col>
+              <Col><Text style={{ color: '#1677ff' }}>SGST: <Text strong>₹{gst.sgst.toFixed(2)}</Text></Text></Col>
+            </>
+          )}
+          <Col>
+            <Tag color={gst.isInterstate ? 'purple' : 'blue'} style={{ marginRight: 0 }}>
+              {gst.isInterstate ? 'Inter-state (IGST)' : 'Intra-state (CGST+SGST)'}
+            </Tag>
+          </Col>
+          <Col><Text type="success">Total: <Text strong style={{ fontSize: 16 }}>₹{gst.grandTotal.toFixed(2)}</Text></Text></Col>
         </Row>
       </div>
     </div>
@@ -285,6 +290,10 @@ export default function PurchaseOrders() {
                   placeholder="Select supplier"
                   optionFilterProp="label"
                   options={(customers as any[]).map((c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
+                  onChange={(val) => {
+                    const sup = (customers as any[]).find((c: any) => c.id === val);
+                    if (sup?.billingState) form.setFieldValue('supplierState', sup.billingState);
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -314,8 +323,10 @@ export default function PurchaseOrders() {
           <Form.Item name="deliveryAddress" label="Delivery Address">
             <Input.TextArea rows={2} placeholder="Delivery / receiving address" />
           </Form.Item>
+          {/* Hidden field — auto-filled from supplier's billingState for GST type determination */}
+          <Form.Item name="supplierState" hidden><Input /></Form.Item>
           <Divider>Line Items</Divider>
-          <LineItemsForm form={form} />
+          <LineItemsForm form={form} labState={company?.state} />
           <Divider />
           <Row gutter={16}>
             <Col span={12}>
