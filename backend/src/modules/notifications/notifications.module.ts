@@ -145,11 +145,15 @@ export class NotificationsService {
       console.log(`[notify:${channel}] gateway not configured — recorded only`, { phone, message });
       return;
     }
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ to: phone, message, channel }),
     });
+    if (!response.ok) {
+      // eslint-disable-next-line no-console
+      console.error(`[notify:${channel}] gateway error ${response.status}: ${await response.text().catch(() => '')}`);
+    }
   }
 }
 

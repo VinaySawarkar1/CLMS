@@ -493,7 +493,7 @@ ${d.decisionRule ? `<div class="decision-box"><b>Decision Rule (ILAC-G8):</b> ${
 
 <div class="page-footer-bar">
   <span>Certificate No.: ${esc(d.certificateNumber)}</span>
-  <span>REV. NO.: 00 &nbsp;&nbsp; ISSUE DT.: ${fmtDate(d.issueDate)}</span>
+  <span>REV. NO.: ${d.revision != null ? String(d.revision).padStart(2, '0') : '00'} &nbsp;&nbsp; ISSUE DT.: ${fmtDate(d.issueDate)}</span>
   <span>Page ${pageNum} of ${totalPages}</span>
 </div>
 

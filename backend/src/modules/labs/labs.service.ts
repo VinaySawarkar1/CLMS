@@ -28,6 +28,7 @@ const ALL_PERMISSION_KEYS = [
 /** Default granted permissions per role (applied when a new lab is registered) */
 const DEFAULT_GRANTS: Record<string, string[]> = {
   TECHNICAL_MANAGER: ALL_PERMISSION_KEYS,
+  QUALITY_MANAGER: ['customers', 'instruments', 'jobs', 'certificates', 'quality', 'audit', 'notifications', 'environmental'],
   CALIBRATION_ENGINEER: ['customers', 'instruments', 'jobs', 'certificates', 'tasks', 'environmental'],
   SERVICE_ENGINEER: ['customers', 'instruments', 'jobs', 'tasks'],
   DATA_ENTRY_OPERATOR: ['customers', 'instruments', 'jobs', 'notifications'],
@@ -208,7 +209,7 @@ export class LabsService {
     const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
     if (existing) throw new ConflictException('Email already registered');
 
-    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
+    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.QUALITY_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
     if (!allowedRoles.includes(data.role)) {
       throw new ForbiddenException('Cannot assign this role');
     }
@@ -255,7 +256,7 @@ export class LabsService {
     const user = await this.prisma.user.findFirst({ where: { id: userId, labId } });
     if (!user) throw new NotFoundException('User not found in this lab');
 
-    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
+    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.QUALITY_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
     if (!allowedRoles.includes(role)) throw new ForbiddenException('Cannot assign this role');
 
     const isEngineerRole = role === Role.CALIBRATION_ENGINEER || role === Role.SERVICE_ENGINEER;

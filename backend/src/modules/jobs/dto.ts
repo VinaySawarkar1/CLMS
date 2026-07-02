@@ -11,7 +11,6 @@ export class CreateJobDto {
   @IsUUID()
   instrumentId!: string;
 
-  @IsOptional() @IsUUID() branchId?: string;
   @IsOptional() @IsString() remarks?: string;
   @IsOptional() @IsString() challanNo?: string;
   @IsOptional() @IsString() poNumber?: string;
