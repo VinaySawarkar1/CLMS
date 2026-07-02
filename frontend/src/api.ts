@@ -312,7 +312,6 @@ export const lookupMpe = (p: { discipline: string; parameter: string; value?: nu
   get('/calibration-masters/mpe/lookup', p);
 
 // Reusable formulas + unit conversion (Module 13)
-export const getFormulas = () => get('/calibration-masters/formulas');
 export const createFormula = (b: any) => post('/calibration-masters/formulas', b);
 export const updateFormula = (id: string, b: any) => patch(`/calibration-masters/formulas/${id}`, b);
 export const deleteFormula = (id: string) => del(`/calibration-masters/formulas/${id}`);
