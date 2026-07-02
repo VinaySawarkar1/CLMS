@@ -36,6 +36,7 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import DeliveryChallans from './pages/DeliveryChallans';
 import Leads from './pages/Leads';
 import CrmActivities from './pages/CrmActivities';
+import Audit from './pages/Audit';
 
 function LoginRoute({ onSuccess }: { onSuccess: () => void }) {
   const nav = useNavigate();
@@ -124,6 +125,7 @@ export default function App() {
           <Route path="/documents" element={<Documents />} />
           <Route path="/internal-audit" element={<InternalAudit />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/audit" element={<Audit />} />
           {isLabAdmin && <Route path="/users" element={<Users />} />}
           {isLabAdmin && <Route path="/permissions" element={<Permissions />} />}
           {isLabAdmin && <Route path="/settings" element={<Settings />} />}
