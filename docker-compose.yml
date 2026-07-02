@@ -17,6 +17,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # Redis is provisioned for future queue/job-processing support (not actively used yet).
   redis:
     image: redis:7-alpine
     container_name: clms_redis
@@ -24,6 +25,8 @@ services:
     ports:
       - "6379:6379"
 
+  # MinIO is provisioned for future S3-compatible file/document storage (not actively used yet).
+  # Override MINIO_ROOT_USER and MINIO_ROOT_PASSWORD via an environment-specific .env file in production.
   minio:
     image: minio/minio:latest
     container_name: clms_minio
@@ -50,6 +53,7 @@ services:
     environment:
       DATABASE_URL: postgresql://clms:clms@postgres:5432/clms?schema=public
       REDIS_URL: redis://redis:6379
+      # IMPORTANT: Override these secrets via an environment-specific .env file in production.
       JWT_ACCESS_SECRET: change-me-access-secret
       JWT_REFRESH_SECRET: change-me-refresh-secret
       PORT: 3000
