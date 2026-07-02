@@ -15,6 +15,7 @@ import {
   deleteQuotation, duplicateQuotation, getQuotationStats, getCustomers, getLab, getUser,
 } from '../api';
 import { downloadQuotationPdf } from '../utils/pdfExport';
+import { STATE_OPTIONS, calcGst } from '../utils/gst';
 
 const { Title, Text } = Typography;
 
@@ -26,24 +27,16 @@ const STATUS_COLOR: Record<string, string> = {
 const STATUS_OPTIONS = ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED', 'EXPIRED'];
 const GST_RATES = [0, 5, 12, 18, 28];
 
-function LineItemsEditor({ form }: { form: any }) {
+function LineItemsEditor({ form, labState }: { form: any; labState?: string }) {
   const items = Form.useWatch('items', form) ?? [{ description: '', quantity: 1, unitPrice: 0, gstRate: 18 }];
+  const placeOfSupply = Form.useWatch('placeOfSupply', form);
+  const gst = calcGst(items, placeOfSupply, labState);
 
   const addRow = () => form.setFieldsValue({ items: [...items, { description: '', quantity: 1, unitPrice: 0, gstRate: 18 }] });
   const removeRow = (i: number) => {
     const updated = [...items]; updated.splice(i, 1);
     form.setFieldsValue({ items: updated });
   };
-
-  const taxable = items.reduce((s: number, item: any) => {
-    const lt = (item?.quantity || 0) * (item?.unitPrice || 0);
-    return s + lt - lt * ((item?.discountPct || 0) / 100);
-  }, 0);
-  const gst = items.reduce((s: number, item: any) => {
-    const lt = (item?.quantity || 0) * (item?.unitPrice || 0);
-    const tx = lt - lt * ((item?.discountPct || 0) / 100);
-    return s + tx * ((item?.gstRate || 18) / 100);
-  }, 0);
 
   return (
     <div>
@@ -71,10 +64,23 @@ function LineItemsEditor({ form }: { form: any }) {
       ))}
       <Button type="dashed" onClick={addRow} block icon={<PlusOutlined />} style={{ marginTop: 4 }}>Add Item</Button>
       <div style={{ background: '#e6f7ff', borderRadius: 6, padding: 12, marginTop: 10 }}>
-        <Row justify="end" gutter={24}>
-          <Col><Text>Taxable: <Text strong>₹{taxable.toFixed(2)}</Text></Text></Col>
-          <Col><Text>GST: <Text strong>₹{gst.toFixed(2)}</Text></Text></Col>
-          <Col><Text type="success">Total: <Text strong style={{ fontSize: 16 }}>₹{(taxable + gst).toFixed(2)}</Text></Text></Col>
+        <Row justify="end" gutter={16}>
+          <Col><Text>Taxable: <Text strong>₹{gst.taxable.toFixed(2)}</Text></Text></Col>
+          {gst.discountTotal > 0 && <Col><Text type="danger">Discount: <Text strong>−₹{gst.discountTotal.toFixed(2)}</Text></Text></Col>}
+          {gst.isInterstate ? (
+            <Col><Text style={{ color: '#722ed1' }}>IGST: <Text strong>₹{gst.igst.toFixed(2)}</Text></Text></Col>
+          ) : (
+            <>
+              <Col><Text style={{ color: '#1677ff' }}>CGST: <Text strong>₹{gst.cgst.toFixed(2)}</Text></Text></Col>
+              <Col><Text style={{ color: '#1677ff' }}>SGST: <Text strong>₹{gst.sgst.toFixed(2)}</Text></Text></Col>
+            </>
+          )}
+          <Col>
+            <Tag color={gst.isInterstate ? 'purple' : 'blue'} style={{ marginRight: 0 }}>
+              {gst.isInterstate ? 'Inter-state (IGST)' : 'Intra-state (CGST+SGST)'}
+            </Tag>
+          </Col>
+          <Col><Text type="success">Total: <Text strong style={{ fontSize: 16 }}>₹{gst.grandTotal.toFixed(2)}</Text></Text></Col>
         </Row>
       </div>
     </div>
@@ -237,7 +243,12 @@ export default function Quotations() {
             <Col span={12}>
               <Form.Item name="customerId" label="Customer" rules={[{ required: true }]}>
                 <Select showSearch placeholder="Select customer" optionFilterProp="label"
-                  options={(customers as any[]).map((c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }))} />
+                  options={(customers as any[]).map((c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
+                  onChange={(val) => {
+                    const cust = (customers as any[]).find((c: any) => c.id === val);
+                    if (cust?.billingState) form.setFieldValue('placeOfSupply', cust.billingState);
+                  }}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -265,14 +276,18 @@ export default function Quotations() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="placeOfSupply" label="Place of Supply">
-                <Input placeholder="Customer's state" />
+              <Form.Item
+                name="placeOfSupply"
+                label="Place of Supply"
+                tooltip={company?.state ? `Lab state: ${company.state}. Same state → CGST+SGST. Different state → IGST.` : 'Select state to determine GST type'}
+              >
+                <Select showSearch placeholder="Select state" optionFilterProp="label" options={STATE_OPTIONS} />
               </Form.Item>
             </Col>
           </Row>
 
           <Divider>Line Items</Divider>
-          <LineItemsEditor form={form} />
+          <LineItemsEditor form={form} labState={company?.state} />
           <Divider />
 
           <Row gutter={16}>

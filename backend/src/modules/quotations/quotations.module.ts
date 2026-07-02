@@ -51,7 +51,8 @@ class QuotationsService {
 
   async create(labId: string, data: any) {
     const items: QuoteItem[] = data.items ?? [];
-    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply);
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } });
+    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply, lab?.state ?? undefined);
     return this.prisma.quotation.create({
       data: {
         labId, customerId: data.customerId,
@@ -95,7 +96,8 @@ class QuotationsService {
     const q = await this.prisma.quotation.findFirst({ where: { id, labId } });
     if (!q) throw new NotFoundException('Quotation not found');
     const items: QuoteItem[] = data.items ?? (q.items as QuoteItem[]);
-    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply ?? q.placeOfSupply ?? undefined);
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } });
+    const { amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount } = calcTotals(items, data.placeOfSupply ?? q.placeOfSupply ?? undefined, lab?.state ?? undefined);
     return this.prisma.quotation.update({
       where: { id },
       data: { ...data, items: items as any, amount, discountTotal, taxAmount, cgst, sgst, igst, totalAmount,
