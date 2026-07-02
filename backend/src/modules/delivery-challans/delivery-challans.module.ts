@@ -122,7 +122,7 @@ class DeliveryChallansService {
   async findOne(id: string, labId: string) {
     const dc = await this.prisma.deliveryChallan.findFirst({
       where: { id, labId },
-      include: { customer: { select: { name: true, code: true, email: true, phone: true, billingAddress: true } } },
+      include: { customer: { select: { name: true, code: true, email: true, phone: true, gstin: true, billingAddress: true, billingCity: true, billingState: true, billingPinCode: true } } },
     });
     if (!dc) throw new NotFoundException('Delivery Challan not found');
     return dc;

@@ -28,6 +28,7 @@ export class CreatePurchaseOrderDto {
   @IsString() @IsOptional() deliveryAddress?: string;
   @IsString() @IsOptional() paymentTerms?: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => LineItemDto) lineItems: LineItemDto[];
+  @IsString() @IsOptional() termsConditions?: string;
   @IsString() @IsOptional() notes?: string;
   @IsString() @IsOptional() internalNotes?: string;
 }
@@ -39,6 +40,7 @@ export class UpdatePurchaseOrderDto {
   @IsString() @IsOptional() deliveryAddress?: string;
   @IsString() @IsOptional() paymentTerms?: string;
   @IsArray() @IsOptional() lineItems?: LineItemDto[];
+  @IsString() @IsOptional() termsConditions?: string;
   @IsString() @IsOptional() notes?: string;
   @IsString() @IsOptional() internalNotes?: string;
 }
@@ -93,6 +95,7 @@ class PurchaseOrdersService {
         paymentTerms: dto.paymentTerms,
         lineItems: dto.lineItems as any,
         subTotal, discountTotal, cgst, sgst, igst, totalAmount,
+        termsConditions: dto.termsConditions,
         notes: dto.notes,
         internalNotes: dto.internalNotes,
       },
@@ -115,7 +118,7 @@ class PurchaseOrdersService {
   async findOne(id: string, labId: string) {
     const po = await this.prisma.purchaseOrder.findFirst({
       where: { id, labId },
-      include: { supplier: { select: { name: true, code: true, phone: true, email: true, gstin: true, billingAddress: true } } },
+      include: { supplier: { select: { name: true, code: true, phone: true, email: true, gstin: true, billingAddress: true, billingCity: true, billingState: true, billingPinCode: true } } },
     });
     if (!po) throw new NotFoundException('Purchase Order not found');
     return po;
