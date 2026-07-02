@@ -2,18 +2,17 @@ import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Card, Col, Drawer, Form, Modal, Row, Select, Space, Table, Tag,
+  Button, Card, Col, Drawer, Form, Modal, Popconfirm, Row, Select, Space, Table, Tag, Tooltip,
   Typography, Input, Switch, DatePicker, message, Descriptions, Badge, Steps,
 } from 'antd';
 import {
   PlusOutlined, FileTextOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined, ExportOutlined,
+  ArrowRightOutlined, UserOutlined, EnvironmentOutlined, EditOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import {
-  assignJob, createJob, generateCertificate, getCustomers, getEngineers,
-  getInstruments, getJobs, setJobStatus, getUser, getMasters,
+  assignJob, createJob, createJobBatch, deleteJob, generateCertificate, getCustomers, getEngineers,
+  getInstruments, getJobs, setJobStatus, getUser,
 } from '../api';
-import { exportToCsv } from '../utils/export';
 import { findProcedure, groupedProcedures, Procedure } from '../procedures';
 
 const { Title, Text } = Typography;
@@ -30,7 +29,7 @@ const NEXT: Record<string, string[]> = {
   IN_CALIBRATION: ['PENDING_REVIEW'],
   PENDING_REVIEW: ['CORRECTION_REQUIRED', 'APPROVED'],
   CORRECTION_REQUIRED: ['IN_CALIBRATION'],
-  APPROVED: ['CERTIFICATE_GENERATED'],
+  APPROVED: [],
   CERTIFICATE_GENERATED: ['DELIVERED'],
   DELIVERED: ['CLOSED'],
   CLOSED: [],
@@ -56,6 +55,9 @@ export default function Jobs() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkCustomerId, setBulkCustomerId] = useState<string | undefined>();
+  const [bulkSelectedInstruments, setBulkSelectedInstruments] = useState<string[]>([]);
   const [assignTarget, setAssignTarget] = useState<any>(null);
   const [statusTarget, setStatusTarget] = useState<any>(null);
   const [detailJob, setDetailJob] = useState<any>(null);
@@ -94,17 +96,21 @@ export default function Jobs() {
     if (r) form.setFieldValue('unitOfMeasurement', r.unit);
   };
 
-  const { data = [], isLoading } = useQuery({
+  const { data: jobs = [], isLoading } = useQuery({
     queryKey: ['jobs', statusFilter],
     queryFn: () => getJobs(statusFilter),
   });
   const { data: customers = [] } = useQuery({ queryKey: ['customers', ''], queryFn: () => getCustomers() });
   const { data: engineers = [] } = useQuery({ queryKey: ['engineers'], queryFn: getEngineers });
-  const { data: masters = [] } = useQuery({ queryKey: ['masters'], queryFn: getMasters });
   const { data: instruments = [] } = useQuery({
     queryKey: ['instruments', customerId],
     queryFn: () => getInstruments(customerId),
     enabled: !!customerId,
+  });
+  const { data: bulkInstruments = [] } = useQuery({
+    queryKey: ['instruments', bulkCustomerId],
+    queryFn: () => getInstruments(bulkCustomerId),
+    enabled: !!bulkCustomerId,
   });
 
   const refresh = () => {
@@ -152,7 +158,10 @@ export default function Jobs() {
   });
 
   const certMut = useMutation({
-    mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }),
+    mutationFn: (jobId: string) => {
+      const job = (jobs as any[]).find((j: any) => j.id === jobId);
+      return generateCertificate({ jobId, type: job?.certificateType ?? 'NABL' });
+    },
     onSuccess: () => {
       refresh();
       setStatusTarget(null);
@@ -162,6 +171,31 @@ export default function Jobs() {
       const d = e?.response?.data;
       message.error(`Certificate generation failed: ${d?.message ?? e?.message ?? 'Unknown error'}`, 8);
     },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteJob(id),
+    onSuccess: () => { refresh(); message.success('Job deleted'); },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Delete failed'),
+  });
+
+  const bulkCreateMut = useMutation({
+    // Single transactional intake: one customer → one batch → a job per instrument,
+    // each with its own status, datasheets and certificate (Module 2.1).
+    mutationFn: (instrumentIds: string[]) =>
+      createJobBatch({
+        customerId: bulkCustomerId,
+        instruments: instrumentIds.map((instrumentId) => ({ instrumentId })),
+      }),
+    onSuccess: (batch: any) => {
+      refresh();
+      qc.invalidateQueries({ queryKey: ['job-batches'] });
+      setBulkOpen(false);
+      setBulkCustomerId(undefined);
+      setBulkSelectedInstruments([]);
+      message.success(`Batch ${batch?.batchNumber ?? ''} created with ${batch?.jobs?.length ?? 0} instrument job(s)`);
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Batch create failed'),
   });
 
   const engineerName = (job: any) => {
@@ -174,28 +208,32 @@ export default function Jobs() {
       title: 'Job No.',
       dataIndex: 'jobNumber',
       key: 'jobNumber',
-      width: 140,
+      width: 150,
       render: (v: string, row: any) => (
-        <RouterLink to={`/jobs/${row.id}`} style={{ fontWeight: 700, color: '#1677ff' }}>
-          {v}
-        </RouterLink>
+        <Space direction="vertical" size={0}>
+          <RouterLink to={`/jobs/${row.id}`} style={{ fontWeight: 700, color: '#1677ff' }}>
+            {v}
+          </RouterLink>
+          {row.batch?.batchNumber && (
+            <Tag color="purple" style={{ fontSize: 10, marginTop: 2 }}>{row.batch.batchNumber}</Tag>
+          )}
+        </Space>
       ),
     },
     {
-      title: 'Customer',
-      dataIndex: ['customer', 'name'],
-      key: 'customer',
-      render: (v: string) => <Text>{v}</Text>,
-    },
-    {
-      title: 'Instrument',
-      key: 'instrument',
+      title: 'Customer / Instrument',
+      key: 'customerInstrument',
       render: (_: any, row: any) => (
         <Space direction="vertical" size={0}>
-          <Text>{row.instrument?.name}</Text>
-          {row.isOnsite && (
-            <Tag color="geekblue" icon={<EnvironmentOutlined />} style={{ fontSize: 11 }}>Onsite</Tag>
-          )}
+          {row.customer?.name
+            ? <RouterLink to={`/customers?highlight=${row.customer?.id}`} style={{ fontWeight: 600 }}>{row.customer.name}</RouterLink>
+            : <Text type="secondary">—</Text>}
+          <Space size={4}>
+            <Text type="secondary" style={{ fontSize: 12 }}>{row.instrument?.name}</Text>
+            {row.isOnsite && (
+              <Tag color="geekblue" icon={<EnvironmentOutlined />} style={{ fontSize: 10, padding: '0 4px' }}>Onsite</Tag>
+            )}
+          </Space>
         </Space>
       ),
     },
@@ -224,31 +262,38 @@ export default function Jobs() {
     {
       title: 'Actions',
       key: 'actions',
-      width: 220,
+      width: 100,
       render: (_: any, row: any) => (
-        <Space size={6} wrap>
-          <RouterLink to={`/jobs/${row.id}`}>
-            <Button size="small" type="primary" icon={<ThunderboltOutlined />}>
-              Open
-            </Button>
-          </RouterLink>
+        <Space size={4}>
+          <Tooltip title="Open Job">
+            <RouterLink to={`/jobs/${row.id}`}>
+              <Button size="small" type="primary" icon={<ThunderboltOutlined />} />
+            </RouterLink>
+          </Tooltip>
           {isAdmin && (
-            <Button
-              size="small"
-              icon={<UserOutlined />}
-              onClick={() => { setAssignTarget(row); assignForm.setFieldValue('engineerId', row.engineerId || undefined); }}
-            >
-              Assign
-            </Button>
+            <Tooltip title="Assign Engineer">
+              <Button
+                size="small"
+                icon={<UserOutlined />}
+                onClick={() => { setAssignTarget(row); assignForm.setFieldValue('engineerId', row.engineerId || undefined); }}
+              />
+            </Tooltip>
           )}
           {row.status !== 'CLOSED' && (
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => setStatusTarget(row)}
-            >
-              Status
-            </Button>
+            <Tooltip title="Update Status">
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => setStatusTarget(row)}
+              />
+            </Tooltip>
+          )}
+          {isAdmin && (
+            <Popconfirm title="Delete this job?" onConfirm={() => deleteMut.mutate(row.id)}>
+              <Tooltip title="Delete Job">
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Tooltip>
+            </Popconfirm>
           )}
         </Space>
       ),
@@ -269,13 +314,17 @@ export default function Jobs() {
                 Calibration Jobs
               </Space>
             </Title>
-            <Text type="secondary">Track and manage all calibration jobs through their lifecycle</Text>
           </Col>
           <Col>
             {isAdmin && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} size="large">
-                New Job
-              </Button>
+              <Space>
+                <Button icon={<PlusOutlined />} onClick={() => setBulkOpen(true)} size="large">
+                  Multi-Instrument Intake
+                </Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} size="large">
+                  New Job
+                </Button>
+              </Space>
             )}
           </Col>
         </Row>
@@ -301,23 +350,10 @@ export default function Jobs() {
               options={STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
             />
           </Space>
-          <Button
-            icon={<ExportOutlined />}
-            onClick={() => exportToCsv('jobs.csv', data as any[], [
-              { key: 'jobNumber', label: 'Job No' },
-              { key: 'customer.name', label: 'Customer' },
-              { key: 'instrument.name', label: 'Instrument' },
-              { key: 'engineer.user.fullName', label: 'Engineer' },
-              { key: 'status', label: 'Status' },
-              { key: 'createdAt', label: 'Created At' },
-            ])}
-          >
-            Export CSV
-          </Button>
         </div>
         <Table
           columns={columns}
-          dataSource={(data as any[]).filter((j: any) => {
+          dataSource={(jobs as any[]).filter((j: any) => {
             if (!searchText) return true;
             const q = searchText.toLowerCase();
             return (
@@ -330,7 +366,7 @@ export default function Jobs() {
           rowKey="id"
           loading={isLoading}
           pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} jobs` }}
-          size="middle"
+          size="small"
           scroll={{ x: 900 }}
         />
       </Card>
@@ -365,9 +401,11 @@ export default function Jobs() {
                 <Select
                   placeholder={customerId ? 'Select instrument' : 'Select customer first'}
                   disabled={!customerId}
+                  showSearch
+                  filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
                   options={instruments.map((i: any) => ({
                     value: i.id,
-                    label: `${i.name}${i.serialNumber ? ` (${i.serialNumber})` : ''}`,
+                    label: [i.name, i.make, i.serialNumber ? `SN:${i.serialNumber}` : '', i.idNumber ? `ID:${i.idNumber}` : ''].filter(Boolean).join(' · '),
                   }))}
                 />
               </Form.Item>
@@ -416,17 +454,6 @@ export default function Jobs() {
               <Input placeholder="mm, bar, °C..." />
             </Form.Item>
           )}
-          <Form.Item name="masterInstrumentId" label="Master / Reference Instrument" rules={[{ required: true, message: 'Select the master instrument used for calibration' }]}>
-            <Select
-              placeholder="Select master/reference instrument..."
-              showSearch
-              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-              options={(masters as any[]).map((m: any) => ({
-                value: m.id,
-                label: `${m.name} (${m.idNumber})${m.make ? ` — ${m.make}` : ''}`,
-              }))}
-            />
-          </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="challanNo" label="Challan No.">
@@ -451,6 +478,12 @@ export default function Jobs() {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="certificateType" label="Certificate Type" initialValue="NABL">
+            <Select options={[
+              { value: 'NABL', label: 'NABL Certificate (with NABL logo)' },
+              { value: 'NON_NABL', label: 'Non-NABL Certificate (company letterhead)' },
+            ]} />
+          </Form.Item>
           <Form.Item name="isOnsite" label="Onsite Calibration?" valuePropName="checked" initialValue={false}>
             <Switch checkedChildren="Onsite" unCheckedChildren="In-lab" />
           </Form.Item>
@@ -582,6 +615,55 @@ export default function Jobs() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* ── Multi-Instrument Intake Modal ── */}
+      <Modal
+        title={<Space><PlusOutlined /><span>Multi-Instrument Intake</span></Space>}
+        open={bulkOpen}
+        onCancel={() => { setBulkOpen(false); setBulkCustomerId(undefined); setBulkSelectedInstruments([]); }}
+        onOk={() => bulkCreateMut.mutate(bulkSelectedInstruments)}
+        okText={`Create Batch (${bulkSelectedInstruments.length} instrument${bulkSelectedInstruments.length === 1 ? '' : 's'})`}
+        okButtonProps={{ disabled: !bulkSelectedInstruments.length || !bulkCustomerId }}
+        confirmLoading={bulkCreateMut.isPending}
+        width={540}
+      >
+        <Space direction="vertical" style={{ width: '100%', marginTop: 16 }} size="middle">
+          <Form.Item label="Customer" style={{ marginBottom: 0 }}>
+            <Select
+              placeholder="Select customer"
+              showSearch
+              value={bulkCustomerId}
+              onChange={(v) => { setBulkCustomerId(v); setBulkSelectedInstruments([]); }}
+              options={(customers as any[]).map((c: any) => ({ value: c.id, label: c.name }))}
+              filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          {bulkCustomerId && (
+            <Form.Item
+              label="Select Instruments"
+              extra="One job (and one certificate) is created per instrument, grouped under a single batch."
+              style={{ marginBottom: 0 }}
+            >
+              <Select
+                mode="multiple"
+                placeholder="Select one or more instruments"
+                value={bulkSelectedInstruments}
+                onChange={setBulkSelectedInstruments}
+                options={(bulkInstruments as any[]).map((i: any) => ({
+                  value: i.id,
+                  label: [i.name, i.make, i.serialNumber ? `SN:${i.serialNumber}` : '', i.idNumber ? `ID:${i.idNumber}` : ''].filter(Boolean).join(' · '),
+                }))}
+                style={{ width: '100%' }}
+                filterOption={(input, opt) => (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+              />
+            </Form.Item>
+          )}
+          {bulkSelectedInstruments.length > 0 && (
+            <Tag color="blue">A batch with {bulkSelectedInstruments.length} instrument job(s) will be created — each starts at RECEIVED with its own certificate.</Tag>
+          )}
+        </Space>
       </Modal>
     </div>
   );

@@ -30,6 +30,21 @@ export class CustomersController {
     return this.customers.findAll(req.user.labId, search);
   }
 
+  @Get(':id/timeline')
+  timeline(@Request() req: any, @Param('id') id: string) {
+    return this.customers.timeline(id, req.user.labId);
+  }
+
+  @Get(':id/stats')
+  stats(@Request() req: any, @Param('id') id: string) {
+    return this.customers.stats(id, req.user.labId);
+  }
+
+  @Get(':id/ledger')
+  ledger(@Request() req: any, @Param('id') id: string) {
+    return this.customers.ledger(id, req.user.labId);
+  }
+
   @Get(':id')
   findOne(@Request() req: any, @Param('id') id: string) {
     return this.customers.findOne(id, req.user.labId);

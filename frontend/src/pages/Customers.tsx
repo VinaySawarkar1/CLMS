@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography, Row, Col, message,
+  Drawer, Timeline, Empty, Spin,
 } from 'antd';
 import {
   PlusOutlined, TeamOutlined, SearchOutlined, ExportOutlined, EditOutlined, DeleteOutlined, ImportOutlined,
+  HistoryOutlined, LockOutlined,
 } from '@ant-design/icons';
-import { createCustomer, getCustomers, updateCustomer, deleteCustomer, importCustomers } from '../api';
+import dayjs from 'dayjs';
+import { createCustomer, getCustomers, updateCustomer, deleteCustomer, importCustomers, getCustomerTimeline, setCustomerPortalPassword } from '../api';
 import { exportToCsv } from '../utils/export';
 import ImportModal from '../components/ImportModal';
 
@@ -23,16 +27,37 @@ const IMPORT_COLS = [
 
 export default function Customers() {
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlight');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [timelineCustomer, setTimelineCustomer] = useState<any>(null);
+  const [pwdTarget, setPwdTarget] = useState<any>(null);
+  const [pwdValue, setPwdValue] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const { data: timeline = [], isLoading: timelineLoading } = useQuery({
+    queryKey: ['customer-timeline', timelineCustomer?.id],
+    queryFn: () => getCustomerTimeline(timelineCustomer.id),
+    enabled: !!timelineCustomer?.id,
+  });
   const [form] = Form.useForm();
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['customers', search],
     queryFn: () => getCustomers(search || undefined),
   });
+
+  useEffect(() => {
+    if (highlightId && (data as any[]).length > 0) {
+      const el = document.getElementById(`customer-row-${highlightId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Clear the param after a moment so browser back works cleanly
+      const t = setTimeout(() => setSearchParams({}, { replace: true }), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId, data]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['customers'] });
 
@@ -57,6 +82,18 @@ export default function Customers() {
   const openNew = () => { setEditing(null); form.resetFields(); setOpen(true); };
   const openEdit = (row: any) => { setEditing(row); form.setFieldsValue(row); setOpen(true); };
 
+  const handleSetPassword = async () => {
+    if (!pwdValue.trim()) { message.error('Password cannot be empty'); return; }
+    setPwdLoading(true);
+    try {
+      await setCustomerPortalPassword(pwdTarget.id, pwdValue.trim());
+      message.success(`Portal password set for ${pwdTarget.name}`);
+      setPwdTarget(null); setPwdValue('');
+    } catch (e: any) {
+      message.error(e?.response?.data?.message ?? 'Failed to set password');
+    } finally { setPwdLoading(false); }
+  };
+
   const columns = [
     {
       title: 'Code', dataIndex: 'code', key: 'code', width: 120,
@@ -71,9 +108,11 @@ export default function Customers() {
     { title: 'Phone', dataIndex: 'phone', key: 'phone', render: (v: string) => v || <Text type="secondary">—</Text> },
     { title: 'Address', dataIndex: 'address', key: 'address', ellipsis: true, render: (v: string) => v || <Text type="secondary">—</Text> },
     {
-      title: 'Actions', key: 'actions', width: 100,
+      title: 'Actions', key: 'actions', width: 220,
       render: (_: any, row: any) => (
         <Space>
+          <Button size="small" icon={<HistoryOutlined />} onClick={() => setTimelineCustomer(row)}>Timeline</Button>
+          <Button size="small" icon={<LockOutlined />} onClick={() => { setPwdTarget(row); setPwdValue(''); }} title="Set Portal Password" />
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
           <Popconfirm title="Delete this customer?" onConfirm={() => delMut.mutate(row.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
@@ -138,6 +177,12 @@ export default function Customers() {
           pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} customers` }}
           size="middle"
           scroll={{ x: 900 }}
+          onRow={(row: any) => ({
+            id: `customer-row-${row.id}`,
+            style: highlightId === row.id
+              ? { background: '#e6f4ff', transition: 'background 1s' }
+              : undefined,
+          })}
         />
       </Card>
 
@@ -198,6 +243,66 @@ export default function Customers() {
         onImport={(records) => importCustomers(records)}
         templateFilename="customers-import-template.csv"
       />
+
+      <Modal
+        open={!!pwdTarget}
+        title={<Space><LockOutlined />Set Customer Portal Password — {pwdTarget?.name}</Space>}
+        onCancel={() => { setPwdTarget(null); setPwdValue(''); }}
+        onOk={handleSetPassword}
+        okText="Set Password"
+        confirmLoading={pwdLoading}
+        width={420}
+      >
+        <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size="middle">
+          <div style={{ color: '#666', fontSize: 13 }}>
+            Set a portal login password for this customer. They will use their registered email and this password to access the Customer Portal.
+          </div>
+          <Form.Item label="New Password" style={{ marginBottom: 0 }}>
+            <Input.Password
+              value={pwdValue}
+              onChange={(e) => setPwdValue(e.target.value)}
+              placeholder="Enter portal password"
+              onPressEnter={handleSetPassword}
+            />
+          </Form.Item>
+          {pwdTarget?.email && (
+            <div style={{ fontSize: 12, color: '#888' }}>
+              Portal login email: <strong>{pwdTarget.email}</strong>
+            </div>
+          )}
+        </Space>
+      </Modal>
+
+      <Drawer
+        title={timelineCustomer ? <Space><HistoryOutlined />{timelineCustomer.name} — History</Space> : ''}
+        open={!!timelineCustomer}
+        onClose={() => setTimelineCustomer(null)}
+        width={560}
+      >
+        {timelineLoading ? <Spin /> : (timeline as any[]).length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No history yet for this customer" />
+        ) : (
+          <Timeline
+            items={(timeline as any[]).map((e: any) => ({
+              color: TIMELINE_COLORS[e.type] ?? 'gray',
+              children: (
+                <div>
+                  <Space size={6} wrap>
+                    <Tag color={TIMELINE_COLORS[e.type] ?? 'default'}>{e.type}</Tag>
+                    <Text strong style={{ fontSize: 13 }}>{e.title}</Text>
+                  </Space>
+                  <div><Text type="secondary" style={{ fontSize: 12 }}>{dayjs(e.date).format('DD MMM YYYY, HH:mm')}</Text></div>
+                </div>
+              ),
+            }))}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }
+
+const TIMELINE_COLORS: Record<string, string> = {
+  QUOTATION: 'purple', PO: 'geekblue', CALIBRATION: 'blue', CERTIFICATE: 'green',
+  INVOICE: 'orange', PAYMENT: 'gold', COMPLAINT: 'red', DELIVERY: 'cyan',
+};

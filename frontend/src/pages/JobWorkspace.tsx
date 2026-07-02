@@ -1,31 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Row, Select,
-  Space, Spin, Steps, Table, Tabs, Tag, Typography,
+  Alert, Button, Card, Col, Divider, Empty, Form, Input, Popconfirm, Row, Select,
+  Space, Spin, Steps, Table, Tabs, Tag, Timeline, Typography, Upload, message,
 } from 'antd';
 import {
   ArrowLeftOutlined, FileTextOutlined, ExperimentOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, ClockCircleOutlined, PrinterOutlined, ThunderboltOutlined,
-  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined, EditOutlined,
+  PlusOutlined, LockOutlined, SaveOutlined, CalculatorOutlined, FilePdfOutlined,
+  HistoryOutlined, WarningOutlined, CommentOutlined,
+  PictureOutlined, UploadOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import {
   autoUncertainty, computeDatasheet, computeUncertainty, createDatasheet, generateCertificate,
-  getDatasheet, getJob, openCertificateReport, openDatasheetReport, signCertificate,
-  updateDatasheetEnvironmental,
+  getDatasheet, getJob, getJobs, openCertificateReport, openDatasheetReport, signCertificate,
+  lookupCmc, lookupMpe,
+  getInstrumentImages, uploadInstrumentImage, deleteInstrumentImage, openInstrumentImageFile,
 } from '../api';
-import { findProcedure, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
+import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
 const { Title, Text } = Typography;
 
-const SIG_STAGES = ['TECHNICAL_MANAGER', 'QUALITY_MANAGER'];
+const SIG_STAGES = ['ENGINEER', 'TECHNICAL_MANAGER'];
 const STAGE_LABELS: Record<string, string> = {
-  TECHNICAL_MANAGER: 'Technical Manager',
-  QUALITY_MANAGER: 'QA Manager',
+  ENGINEER: 'Calibrated By',
+  TECHNICAL_MANAGER: 'Authorized Signatory',
 };
 const DISTRIBUTIONS = ['normal', 'rectangular', 'triangular', 'u-shaped'];
-const NREAD = 5;
 
 const JOB_STATUS_COLORS: Record<string, string> = {
   IN_CALIBRATION: 'processing', PENDING_REVIEW: 'gold', APPROVED: 'green',
@@ -33,7 +35,22 @@ const JOB_STATUS_COLORS: Record<string, string> = {
 };
 
 type Row = { pointLabel: string; unit: string; nominal: string; standardValue: string; readings: string[] };
-const emptyRow = (unit = ''): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(NREAD).fill('') });
+const emptyRow = (unit = '', nread = 5): Row => ({ pointLabel: '', unit, nominal: '', standardValue: '', readings: Array(nread).fill('') });
+
+/** Smart number formatter: fixed decimal for normal values, scientific notation for very small/large. */
+function fmtSci(v: number): string {
+  if (v === 0 || !Number.isFinite(v)) return '0';
+  const abs = Math.abs(v);
+  if (abs < 0.0001 || abs >= 1e6) {
+    // Scientific notation: e.g. 1.23e-14 → "1.23 × 10⁻¹⁴"
+    const exp = v.toExponential(3);
+    const [coeff, expPart] = exp.split('e');
+    const expNum = parseInt(expPart, 10);
+    const sup = String(Math.abs(expNum)).split('').map((d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+d]).join('');
+    return `${coeff} × 10${expNum < 0 ? '⁻' : '⁺'}${sup}`;
+  }
+  return v.toPrecision(4).replace(/\.?0+$/, '');
+}
 
 export default function JobWorkspace() {
   const { id } = useParams();
@@ -92,6 +109,26 @@ export default function JobWorkspace() {
       ),
       children: <CertificateTab job={job} onChanged={() => qc.invalidateQueries({ queryKey: ['job-detail', jobId] })} />,
     },
+    {
+      key: 'images',
+      label: (
+        <Space>
+          <PictureOutlined />
+          Images
+        </Space>
+      ),
+      children: <ImagesTab job={job} />,
+    },
+    {
+      key: 'history',
+      label: <Space><HistoryOutlined />Cal. History</Space>,
+      children: <CalibrationHistoryTab job={job} />,
+    },
+    {
+      key: 'remarks',
+      label: <Space><CommentOutlined />Remarks</Space>,
+      children: <RemarksTab job={job} onChanged={invalidate} />,
+    },
   ];
 
   return (
@@ -132,6 +169,30 @@ export default function JobWorkspace() {
         </Row>
       </div>
 
+      {job.batch?.jobs?.length > 1 && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            <Space wrap size={6}>
+              <Tag color="purple">{job.batch.batchNumber}</Tag>
+              <Text strong>Multi-instrument batch</Text>
+              <Text type="secondary">— {job.batch.jobs.length} instruments in this intake:</Text>
+              {job.batch.jobs.map((sib: any) => (
+                sib.id === job.id ? (
+                  <Tag key={sib.id} color="blue">{sib.instrument?.name} (this)</Tag>
+                ) : (
+                  <RouterLink key={sib.id} to={`/jobs/${sib.id}`}>
+                    <Tag style={{ cursor: 'pointer' }}>{sib.instrument?.name} · {sib.status?.replace(/_/g, ' ')}</Tag>
+                  </RouterLink>
+                )
+              ))}
+            </Space>
+          }
+        />
+      )}
+
       <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Tabs
           activeKey={activeTab}
@@ -153,11 +214,24 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
   const [procId, setProcId] = useState(lockedProcId || '');
   const [unit, setUnit] = useState(lockedUnit || '');
   const [env, setEnv] = useState({ temperature: '23', humidity: '50', pressure: '101.3' });
+
+  // NABL 129 criteria for the selected procedure
+  const nc = useMemo(() => getNabl129(procId), [procId]);
+  const nread = nc?.minReadings ?? 5;
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  const [selectedAccClass, setSelectedAccClass] = useState<string | null>(null);
+
+  const effectiveMpe = useMemo(() => {
+    if (!nc) return null;
+    if (selectedAccClass && nc.accuracyClasses) {
+      const cls = nc.accuracyClasses.find((c: { class: string; mpe: string; mpeNumeric?: number; mpeIsPercent?: boolean }) => c.class === selectedAccClass);
+      if (cls) return { value: cls.mpeNumeric ?? nc.mpeNumeric, isPercent: cls.mpeIsPercent ?? nc.mpeIsPercent };
+    }
+    return { value: nc.mpeNumeric, isPercent: nc.mpeIsPercent };
+  }, [nc, selectedAccClass]);
+
   // Version history: which datasheet id to view (null = latest)
   const [viewDsId, setViewDsId] = useState<string | null>(null);
-  const [envEditOpen, setEnvEditOpen] = useState(false);
-  const [envEditForm] = Form.useForm();
 
   const { data: viewedDatasheet } = useQuery({
     queryKey: ['datasheet', viewDsId],
@@ -184,27 +258,30 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
 
   const [rangeIdx, setRangeIdx] = useState(0);
 
-  const loadPoints = (u: string, points: { label: string; nominal: number }[]) => {
+  const loadPoints = (u: string, points: { label: string; nominal: number }[], readCount = nread) => {
     setUnit(u);
     setRows(points.map((pt) => ({
       pointLabel: pt.label,
       unit: u,
       nominal: String(pt.nominal),
       standardValue: String(pt.nominal),
-      readings: Array(NREAD).fill(''),
+      readings: Array(readCount).fill(''),
     })));
   };
 
   const applyProcedure = (id: string, rangeIndex = 0, overrideUnit = '') => {
     setProcId(id);
     setRangeIdx(rangeIndex);
+    setSelectedAccClass(null);
     const p = findProcedure(id);
+    const crit = getNabl129(id);
+    const readCount = crit?.minReadings ?? 5;
     if (!p) return;
     if (p.ranges && p.ranges.length) {
       const r = p.ranges[rangeIndex] ?? p.ranges[0];
-      loadPoints(overrideUnit || r.unit, r.points);
+      loadPoints(overrideUnit || r.unit, r.points, readCount);
     } else {
-      loadPoints(overrideUnit || p.unit, p.points);
+      loadPoints(overrideUnit || p.unit, p.points, readCount);
     }
   };
 
@@ -212,31 +289,66 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     setRangeIdx(idx);
     const p = findProcedure(procId);
     const r = p?.ranges?.[idx];
-    if (r) loadPoints(r.unit, r.points);
+    if (r) loadPoints(r.unit, r.points, nread);
   };
 
   const selectedProc = findProcedure(procId);
+
+  // ── Auto-fetch lab scope: CMC (4.3/4.4) and MPE (4.2) from the masters ──
+  // Lookup keys come from the selected procedure's discipline + parameter and
+  // a representative point value (largest nominal in the sheet).
+  const lookupDiscipline = (selectedProc?.discipline ?? (job?.instrument as any)?.discipline?.name ?? (job?.instrument as any)?.discipline ?? '') as string;
+  const lookupParameter = (selectedProc?.ranges?.[rangeIdx]?.parameter ?? (selectedProc as any)?.parameter ?? '') as string;
+  const repNominal = useMemo(() => {
+    const vals = rows.map((r) => Math.abs(Number(r.nominal))).filter((n) => !Number.isNaN(n) && n !== 0);
+    return vals.length ? Math.max(...vals) : undefined;
+  }, [rows]);
+
+  const scopeEnabled = !!lookupDiscipline && !!lookupParameter;
+  const { data: scopeCmc } = useQuery({
+    queryKey: ['cmc-lookup', lookupDiscipline, lookupParameter, repNominal],
+    queryFn: () => lookupCmc({ discipline: lookupDiscipline, parameter: lookupParameter, value: repNominal }),
+    enabled: scopeEnabled,
+  });
+  const { data: scopeMpeRes } = useQuery({
+    queryKey: ['mpe-lookup', lookupDiscipline, lookupParameter, repNominal, selectedAccClass],
+    queryFn: () => lookupMpe({ discipline: lookupDiscipline, parameter: lookupParameter, value: repNominal, accuracyClass: selectedAccClass ?? undefined }),
+    enabled: scopeEnabled,
+  });
+
+  // A lab-configured MPE rule overrides the bundled NABL-129 default.
+  const scopeMpe = scopeMpeRes ? { value: scopeMpeRes.mpeValue, isPercent: scopeMpeRes.mpeIsPercent } : null;
+  const resolvedMpe = scopeMpe ?? effectiveMpe;
 
   const createMut = useMutation({
     mutationFn: () => createDatasheet({
       jobId: job.id,
       templateName: findProcedure(procId)?.label || `${job.instrument?.name || 'Instrument'} Calibration`,
       environmental: { temperature: Number(env.temperature), humidity: Number(env.humidity), pressure: Number(env.pressure) },
-      observations: rows.filter((r) => r.standardValue !== '').map((r) => ({
-        pointLabel: r.pointLabel,
-        unit: r.unit || unit,
-        nominal: r.nominal ? Number(r.nominal) : undefined,
-        standardValue: Number(r.standardValue),
-        data: { readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)) },
-      })),
+      observations: rows.filter((r) => r.standardValue !== '').map((r) => {
+        // Resolve the absolute maximum permissible error for this point so the
+        // backend can derive Pass/Fail (percent MPEs are relative to nominal).
+        // A lab-configured MPE rule (resolvedMpe) takes precedence over NABL 129.
+        const nominalVal = r.nominal ? Number(r.nominal) : Number(r.standardValue);
+        const mpe = resolvedMpe?.value != null
+          ? (resolvedMpe.isPercent ? (resolvedMpe.value / 100) * Math.abs(nominalVal) : resolvedMpe.value)
+          : undefined;
+        return {
+          pointLabel: r.pointLabel,
+          unit: r.unit || unit,
+          nominal: r.nominal ? Number(r.nominal) : undefined,
+          standardValue: Number(r.standardValue),
+          data: {
+            readings: r.readings.map(Number).filter((n) => !Number.isNaN(n)),
+            ...(mpe != null ? { mpe } : {}),
+            ...(scopeCmc?.cmc ? { cmc: scopeCmc.cmc } : {}),
+          },
+        };
+      }),
     }),
     onSuccess: onChanged,
   });
   const computeMut = useMutation({ mutationFn: () => computeDatasheet(datasheet.id), onSuccess: onChanged });
-  const envMut = useMutation({
-    mutationFn: (environmental: any) => updateDatasheetEnvironmental(datasheet.id, environmental),
-    onSuccess: () => { setEnvEditOpen(false); onChanged(); },
-  });
 
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
@@ -248,6 +360,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       label: `v${ds.version}${ds.id === (datasheet?.id) ? ' (latest)' : ''}`,
     }));
 
+    const savedNc = getNabl129(lockedProcId || procId);
     const obsColumns = [
       { title: 'Point', dataIndex: 'pointLabel', key: 'point', render: (v: string) => v || '—' },
       { title: 'Unit', dataIndex: 'unit', key: 'unit', render: (v: string) => v ? <Tag color="cyan">{v}</Tag> : '—' },
@@ -255,11 +368,51 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       { title: 'Standard', dataIndex: 'standardValue', key: 'standard', render: (v: number) => v ?? '—' },
       { title: 'Observed (mean)', dataIndex: 'observedValue', key: 'observed', render: (v: number) => v?.toFixed(4) ?? '—' },
       { title: 'Correction', dataIndex: 'correction', key: 'correction', render: (v: number) => v?.toFixed(4) ?? '—' },
-      { title: 'Error', dataIndex: 'error', key: 'error', render: (v: number) => v?.toFixed(4) ?? '—' },
+      {
+        title: 'Error', dataIndex: 'error', key: 'error',
+        render: (v: number, row: any) => {
+          if (v == null) return '—';
+          const errStr = v.toFixed(4);
+          if (!savedNc) return <span style={{ fontFamily: 'monospace' }}>{errStr}</span>;
+          const pass = checkMpe(v, row.nominal ?? row.standardValue ?? 0, savedNc);
+          return (
+            <Space size={4}>
+              <span style={{ fontFamily: 'monospace' }}>{errStr}</span>
+              {pass && <Tag color={pass === 'pass' ? 'green' : 'red'} style={{ margin: 0 }}>{pass === 'pass' ? '✓ PASS' : '✗ FAIL'}</Tag>}
+            </Space>
+          );
+        },
+      },
+      {
+        title: 'Std Dev', key: 'stdDev',
+        render: (_: any, row: any) => row.data?.stdDev != null ? fmtSci(Number(row.data.stdDev)) : '—',
+      },
+      {
+        title: 'Repeatability', key: 'repeatability',
+        render: (_: any, row: any) => row.data?.repeatability != null ? Number(row.data.repeatability).toFixed(4) : '—',
+      },
+      {
+        title: 'Drift', key: 'drift',
+        render: (_: any, row: any) => row.data?.drift != null
+          ? <span style={{ fontFamily: 'monospace' }}>{Number(row.data.drift).toFixed(4)}</span>
+          : <span style={{ color: '#bbb' }}>n/a</span>,
+      },
       {
         title: 'uA', key: 'uA',
-        render: (_: any, row: any) => row.data?.uA != null ? Number(row.data.uA).toExponential(2) : '—',
+        render: (_: any, row: any) => row.data?.uA != null ? fmtSci(Number(row.data.uA)) : '—',
       },
+      {
+        title: 'Result', key: 'result',
+        render: (_: any, row: any) => {
+          const res = row.data?.result;
+          if (!res) return '—';
+          return <Tag color={res === 'PASS' ? 'green' : 'red'} style={{ margin: 0 }}>{res === 'PASS' ? '✓ PASS' : '✗ FAIL'}</Tag>;
+        },
+      },
+      ...(savedNc ? [{
+        title: 'MPE', key: 'mpe',
+        render: () => <Tag color="orange" style={{ fontFamily: 'monospace', fontSize: 11 }}>{savedNc.mpe}</Tag>,
+      }] : []),
     ];
 
     return (
@@ -306,45 +459,9 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
               <Tag icon={<ThunderboltOutlined />} color="blue">{displayedDatasheet.environmental?.temperature ?? '—'} °C</Tag>
               <Tag color="cyan">{displayedDatasheet.environmental?.humidity ?? '—'} %RH</Tag>
               <Tag color="purple">{displayedDatasheet.environmental?.pressure ?? '—'} kPa</Tag>
-              {(!viewDsId || viewDsId === datasheet?.id) && (
-                <Button
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    envEditForm.setFieldsValue({
-                      temperature: displayedDatasheet.environmental?.temperature ?? 23,
-                      humidity: displayedDatasheet.environmental?.humidity ?? 50,
-                      pressure: displayedDatasheet.environmental?.pressure ?? 101.3,
-                    });
-                    setEnvEditOpen(true);
-                  }}
-                >
-                  Edit Env
-                </Button>
-              )}
             </Space>
           </Col>
         </Row>
-        <Modal
-          title="Edit Environmental Conditions"
-          open={envEditOpen}
-          onCancel={() => setEnvEditOpen(false)}
-          onOk={() => envEditForm.validateFields().then((vals) => envMut.mutate(vals))}
-          confirmLoading={envMut.isPending}
-          okText="Save"
-        >
-          <Form form={envEditForm} layout="vertical" style={{ marginTop: 16 }}>
-            <Form.Item name="temperature" label="Temperature (°C)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} step={0.1} />
-            </Form.Item>
-            <Form.Item name="humidity" label="Humidity (%RH)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} step={0.1} min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="pressure" label="Pressure (kPa)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} step={0.1} />
-            </Form.Item>
-          </Form>
-        </Modal>
         <Table
           columns={obsColumns}
           dataSource={displayedDatasheet.observations}
@@ -392,14 +509,27 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     ),
   }));
 
-  // Live error preview: Error = mean(readings) - standardValue
-  const liveError = (row: Row): string => {
+  // Live result: mean, error, reading count, pass/fail vs NABL 129 MPE
+  const liveResult = (row: Row) => {
     const nums = row.readings.map(Number).filter((n) => !Number.isNaN(n) && n !== 0);
     const std = Number(row.standardValue);
-    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return '—';
+    if (!nums.length || Number.isNaN(std) || row.standardValue === '') return null;
     const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
-    return (mean - std).toFixed(4);
+    const error = mean - std;
+    let pass: 'pass' | 'fail' | null = null;
+    if (resolvedMpe?.value != null) {
+      const absErr = Math.abs(error);
+      const limit = resolvedMpe.isPercent ? (resolvedMpe.value / 100) * Math.abs(std) : resolvedMpe.value;
+      pass = absErr <= limit ? 'pass' : 'fail';
+    }
+    return { mean: mean.toFixed(4), error: error.toFixed(4), count: nums.length, pass };
   };
+
+  const envAlerts: string[] = [];
+  const temp = Number(env.temperature);
+  const hum = Number(env.humidity);
+  if (!Number.isNaN(temp) && (temp < 21 || temp > 25)) envAlerts.push(`Temperature ${temp}°C is outside NABL 129 limit (23±2°C)`);
+  if (!Number.isNaN(hum) && (hum < 35 || hum > 65)) envAlerts.push(`Humidity ${hum}%RH is outside NABL 129 limit (50±15%RH)`);
 
   const inputCols = [
     {
@@ -409,38 +539,72 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
       ),
     },
     {
-      title: 'Unit', key: 'unit', width: 70,
-      render: (_: any, _row: any, i: number) => (
-        <Input size="small" value={rows[i].unit} onChange={(e) => setRow(i, { unit: e.target.value })} />
-      ),
+      title: 'Unit', key: 'unit', width: 100,
+      render: (_: any, _row: any, i: number) => {
+        const procUnits = selectedProc?.units ?? (selectedProc?.unit ? [selectedProc.unit] : []);
+        if (procUnits.length > 1) {
+          return (
+            <Select
+              size="small"
+              value={rows[i].unit || procUnits[0]}
+              onChange={(v: string) => setRow(i, { unit: v })}
+              style={{ width: '100%' }}
+              options={procUnits.map((u: string) => ({ value: u, label: u }))}
+            />
+          );
+        }
+        return (
+          <Input size="small" value={rows[i].unit} onChange={(e) => setRow(i, { unit: e.target.value })}
+            placeholder={procUnits[0] || 'unit'} />
+        );
+      },
     },
     {
-      title: 'Nominal', key: 'nominal', width: 90,
+      title: 'Nominal', key: 'nominal', width: 80,
       render: (_: any, _row: any, i: number) => (
         <Input size="small" value={rows[i].nominal} onChange={(e) => setRow(i, { nominal: e.target.value })} />
       ),
     },
     {
-      title: 'Standard', key: 'std', width: 90,
+      title: 'Standard', key: 'std', width: 80,
       render: (_: any, _row: any, i: number) => (
         <Input size="small" value={rows[i].standardValue} onChange={(e) => setRow(i, { standardValue: e.target.value })} />
       ),
     },
-    ...Array.from({ length: NREAD }).map((_, j) => ({
-      title: `R${j + 1}`, key: `r${j}`, width: 80,
+    ...Array.from({ length: nread }).map((_, j) => ({
+      title: `R${j + 1}`, key: `r${j}`, width: 72,
       render: (_: any, _row: any, i: number) => (
-        <Input size="small" value={rows[i].readings[j]} onChange={(e) => setReading(i, j, e.target.value)} />
+        <Input
+          size="small"
+          value={rows[i].readings[j] ?? ''}
+          onChange={(e) => setReading(i, j, e.target.value)}
+          style={rows[i].readings[j] ? { background: '#f0f9ff' } : {}}
+        />
       ),
     })),
     {
-      title: 'Error (preview)', key: 'error_preview', width: 110,
+      title: 'Mean', key: 'mean', width: 90,
       render: (_: any, _row: any, i: number) => {
-        const err = liveError(rows[i]);
-        const num = Number(err);
+        const r = liveResult(rows[i]);
+        return r ? <Tag color="blue">{r.mean}</Tag> : <Tag>—</Tag>;
+      },
+    },
+    {
+      title: 'Error / Pass-Fail', key: 'error_preview', width: 140,
+      render: (_: any, _row: any, i: number) => {
+        const r = liveResult(rows[i]);
+        if (!r) return <Tag>—</Tag>;
+        const filled = rows[i].readings.filter((x) => x !== '').length;
         return (
-          <Tag color={err === '—' ? 'default' : num === 0 ? 'green' : Math.abs(num) < 0.01 ? 'orange' : 'red'}>
-            {err}
-          </Tag>
+          <Space direction="vertical" size={2}>
+            <Space size={4}>
+              {r.pass === 'pass' && <Tag color="green">✓ PASS</Tag>}
+              {r.pass === 'fail' && <Tag color="red">✗ FAIL</Tag>}
+              {!r.pass && <Tag color={Number(r.error) === 0 ? 'green' : Math.abs(Number(r.error)) < 0.01 ? 'orange' : 'red'}>{r.error}</Tag>}
+              {r.pass && <Tag>{r.error}</Tag>}
+            </Space>
+            <span style={{ fontSize: 10, color: '#888' }}>{filled}/{nread} readings</span>
+          </Space>
         );
       },
     },
@@ -545,10 +709,148 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         />
       )}
 
+      {scopeEnabled && (scopeCmc || scopeMpeRes) && (
+        <Alert
+          type="success"
+          showIcon
+          icon={<ThunderboltOutlined />}
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            <Space size={8} wrap>
+              <Text strong>Lab Scope auto-fetched</Text>
+              <Tag color="blue">{lookupDiscipline}</Tag>
+              <Tag>{lookupParameter}</Tag>
+              {scopeCmc?.cmc && <Tag color="geekblue" style={{ fontFamily: 'monospace' }}>Best CMC: {scopeCmc.cmc}</Tag>}
+              {scopeCmc?.method && <Tag color="purple">Method: {scopeCmc.method}</Tag>}
+              {scopeCmc?.revision && <Tag>Rev {scopeCmc.revision}</Tag>}
+              {scopeMpeRes && (
+                <Tag color="orange" style={{ fontFamily: 'monospace' }}>
+                  MPE: {scopeMpeRes.mpeIsPercent ? `${scopeMpeRes.mpeValue}%` : `±${scopeMpeRes.mpeValue} ${scopeMpeRes.unit ?? ''}`}
+                </Tag>
+              )}
+            </Space>
+          }
+          description={
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Pulled from the Calibration Masters for this discipline/parameter/range.
+              {scopeMpe ? ' The lab MPE rule overrides the NABL 129 default for Pass/Fail.' : ''}
+            </Text>
+          }
+        />
+      )}
+
+      {scopeEnabled && !scopeCmc && !scopeMpeRes && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            <Text style={{ fontSize: 13 }}>
+              No lab scope / MPE master found for <Text strong>{lookupDiscipline} · {lookupParameter}</Text>.
+              Pass/Fail uses the NABL 129 default. Add an entry in Calibration Masters to drive it from your accredited scope.
+            </Text>
+          }
+        />
+      )}
+
+      {selectedProc && (() => {
+        const nc = getNabl129(selectedProc.id);
+        if (!nc) return null;
+        return (
+          <Card
+            size="small"
+            title={
+              <Space>
+                <Tag color="red">NABL 129</Tag>
+                <Text strong>{nc.nablChapter}</Text>
+              </Space>
+            }
+            style={{ marginBottom: 16, borderRadius: 8, borderColor: '#ff4d4f' }}
+            headStyle={{ background: '#fff1f0', borderBottom: '1px solid #ffccc7' }}
+          >
+            <Row gutter={[16, 8]}>
+              <Col xs={24} sm={12} md={6}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Min. Readings / Point</Text>
+                <div><Text strong style={{ fontSize: 16, color: '#1677ff' }}>{nc.minReadings}</Text></div>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Calibration Interval</Text>
+                <div><Text strong style={{ fontSize: 16, color: '#1677ff' }}>{nc.calibrationIntervalMonths} months</Text></div>
+              </Col>
+              <Col xs={24} sm={12} md={12}>
+                <Text type="secondary" style={{ fontSize: 11 }}>MPE (Typical)</Text>
+                <div><Text strong>{nc.mpe}</Text></div>
+              </Col>
+              {nc.accuracyClasses && nc.accuracyClasses.length > 0 && (
+                <Col span={24}>
+                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Accuracy Classes</Text>
+                  <Space size={4} wrap>
+                    {nc.accuracyClasses.map((ac) => (
+                      <Tag key={ac.class} color="orange" style={{ fontFamily: 'monospace' }}>
+                        {ac.class}: {ac.mpe}
+                      </Tag>
+                    ))}
+                  </Space>
+                </Col>
+              )}
+              {nc.keyRequirements && nc.keyRequirements.length > 0 && (
+                <Col span={24}>
+                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Key Requirements</Text>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {nc.keyRequirements.map((req, i) => (
+                      <li key={i}><Text style={{ fontSize: 12 }}>{req}</Text></li>
+                    ))}
+                  </ul>
+                </Col>
+              )}
+            </Row>
+          </Card>
+        );
+      })()}
+
+      {nc?.accuracyClasses && nc.accuracyClasses.length > 0 && (
+        <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', borderColor: '#ffe58f' }}>
+          <Row align="middle" gutter={16}>
+            <Col><Text strong>NABL 129 Accuracy Class:</Text></Col>
+            <Col>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Select accuracy class"
+                value={selectedAccClass ?? undefined}
+                allowClear
+                onChange={(v) => setSelectedAccClass(v ?? null)}
+                options={nc.accuracyClasses.map((c: { class: string; mpe: string }) => ({ value: c.class, label: `${c.class} (MPE: ${c.mpe})` }))}
+              />
+            </Col>
+            {selectedAccClass && (
+              <Col>
+                <Tag color="orange">MPE: {nc.accuracyClasses.find((c: { class: string; mpe: string }) => c.class === selectedAccClass)?.mpe}</Tag>
+              </Col>
+            )}
+          </Row>
+        </Card>
+      )}
+
+      {nc && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={
+            <Space size={8} wrap>
+              <Text strong>NABL 129 — {nc.nablChapter}</Text>
+              <Tag color="purple">Min Readings: {nc.minReadings}</Tag>
+              <Tag color="orange">MPE: {selectedAccClass && nc.accuracyClasses ? (nc.accuracyClasses.find((c: { class: string; mpe: string }) => c.class === selectedAccClass)?.mpe ?? nc.mpe) : nc.mpe}</Tag>
+              <Tag color="cyan">Cal. Interval: {nc.calibrationIntervalMonths}M</Tag>
+            </Space>
+          }
+        />
+      )}
+
       <Card
         size="small"
         title="Environmental Conditions"
-        style={{ marginBottom: 20, borderRadius: 8 }}
+        style={{ marginBottom: envAlerts.length ? 8 : 20, borderRadius: 8 }}
       >
         <Row gutter={16}>
           {[
@@ -562,12 +864,31 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
                   value={env[key as keyof typeof env]}
                   onChange={(e) => setEnv({ ...env, [key]: e.target.value })}
                   placeholder="—"
+                  status={
+                    (key === 'temperature' && !Number.isNaN(Number(env.temperature)) && (Number(env.temperature) < 21 || Number(env.temperature) > 25)) ? 'error' :
+                    (key === 'humidity' && !Number.isNaN(Number(env.humidity)) && (Number(env.humidity) < 35 || Number(env.humidity) > 65)) ? 'error' : ''
+                  }
                 />
               </Form.Item>
             </Col>
           ))}
         </Row>
       </Card>
+
+      {envAlerts.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ marginBottom: 20 }}
+          message="Environmental Condition Deviation — NABL 129"
+          description={
+            <ul style={{ margin: 0, paddingLeft: 16 }}>
+              {envAlerts.map((msg, i) => <li key={i}>{msg}</li>)}
+            </ul>
+          }
+        />
+      )}
 
       <Text strong style={{ display: 'block', marginBottom: 12 }}>
         Measurement Points & Readings {unit && <Tag color="cyan">{unit}</Tag>}
@@ -583,7 +904,7 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
         />
       </div>
       <Space>
-        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit)])}>
+        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, emptyRow(unit, nread)])}>
           Add Point
         </Button>
         <Button
@@ -649,8 +970,10 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
   const removeC = (i: number) => setContributors(contributors.filter((_, idx) => idx !== i));
 
   const loadDefaults = () => {
-    const list: any[] = [{ source: 'Repeatability', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit }];
-    if (procedure) procedure.typeB.forEach((b) => list.push({ ...b, type: 'B', value: String(b.value) }));
+    const list: any[] = [{ source: 'Repeatability (Type A, from observations)', type: 'A', value: maxUA.toExponential(4), divisor: 1, sensitivity: 1, unit }];
+    if (procedure) {
+      procedure.typeB.forEach((b) => list.push({ ...b, type: 'B', value: String(b.value) }));
+    }
     setContributors(list);
   };
 
@@ -786,7 +1109,7 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
           size="small"
         >
           <Title level={5} style={{ color: '#389e0d', marginBottom: 12 }}>GUM Uncertainty Results</Title>
-          <Row gutter={32}>
+          <Row gutter={32} wrap>
             <Col>
               <Text type="secondary" style={{ fontSize: 12 }}>Combined Standard Uncertainty</Text>
               <div><Text strong>u_c = {Number(result.combinedUncertainty).toExponential(3)} {unit}</Text></div>
@@ -807,6 +1130,110 @@ function UncertaintyTab({ datasheet, onChanged }: any) {
         </Card>
       )}
     </div>
+  );
+}
+
+function CalibrationHistoryTab({ job }: any) {
+  const instrumentId = job?.instrument?.id;
+  const instrumentName = job?.instrument?.name ?? 'this instrument';
+
+  const { data: allJobs = [], isLoading } = useQuery({ queryKey: ['jobs'], queryFn: () => getJobs() });
+
+  const history = useMemo(() => {
+    return (allJobs as any[])
+      .filter((j: any) => j.instrument?.id === instrumentId && j.id !== job.id)
+      .sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+  }, [allJobs, instrumentId, job.id]);
+
+  if (isLoading) return <Spin />;
+  if (!history.length) {
+    return <Alert type="info" showIcon icon={<HistoryOutlined />} message={`No previous calibration records found for ${instrumentName}`} />;
+  }
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Alert type="info" showIcon icon={<HistoryOutlined />} message={`Found ${history.length} previous calibration(s) for ${instrumentName}`} />
+      <Table
+        rowKey="id"
+        dataSource={history}
+        size="small"
+        pagination={{ pageSize: 10 }}
+        columns={[
+          { title: 'Job No.', dataIndex: 'jobNumber', key: 'j', render: (v: string) => <Text strong>{v}</Text> },
+          { title: 'Received', dataIndex: 'receivedAt', key: 'r', render: (v: string) => new Date(v).toLocaleDateString('en-IN') },
+          { title: 'Status', dataIndex: 'status', key: 's', render: (s: string) => <Tag>{s?.replace(/_/g, ' ')}</Tag> },
+          {
+            title: 'Certificate', key: 'cert',
+            render: (_: any, r: any) => r.certificate?.certificateNumber
+              ? <Tag color="green">{r.certificate.certificateNumber}</Tag>
+              : <Tag color="default">—</Tag>,
+          },
+        ]}
+      />
+    </Space>
+  );
+}
+
+function RemarksTab({ job, onChanged }: any) {
+  const [text, setText] = useState('');
+  const [remarks, setRemarks] = useState<{ ts: string; note: string }[]>(() => {
+    try { return JSON.parse(job?.remarks || '[]'); } catch { return job?.remarks ? [{ ts: new Date().toISOString(), note: job.remarks }] : []; }
+  });
+  const qc = useQueryClient();
+
+  const saveMut = useMutation({
+    mutationFn: async (note: string) => {
+      const updated = [...remarks, { ts: new Date().toISOString(), note }];
+      const { api } = await import('../api');
+      await api.patch(`/jobs/${job.id}`, { remarks: JSON.stringify(updated) });
+      return updated;
+    },
+    onSuccess: (updated) => {
+      setRemarks(updated);
+      setText('');
+      qc.invalidateQueries({ queryKey: ['job-detail', job.id] });
+      onChanged?.();
+    },
+  });
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Text type="secondary">Deviation notes, calibration remarks, and observations for this job.</Text>
+      {remarks.length > 0 ? (
+        <Timeline
+          items={remarks.map((r) => ({
+            color: 'blue',
+            children: (
+              <div>
+                <Text type="secondary" style={{ fontSize: 11 }}>{new Date(r.ts).toLocaleString('en-IN')}</Text>
+                <div>{r.note}</div>
+              </div>
+            ),
+          }))}
+        />
+      ) : (
+        <Alert type="info" message="No remarks recorded yet." showIcon />
+      )}
+      <Row gutter={8}>
+        <Col flex="auto">
+          <Input.TextArea
+            rows={3}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a remark, deviation note, or observation..."
+          />
+        </Col>
+      </Row>
+      <Button
+        type="primary"
+        icon={<SaveOutlined />}
+        disabled={!text.trim()}
+        loading={saveMut.isPending}
+        onClick={() => saveMut.mutate(text.trim())}
+      >
+        Add Remark
+      </Button>
+    </Space>
   );
 }
 
@@ -948,6 +1375,121 @@ function CertificateTab({ job, onChanged }: any) {
           onClose={() => setFinalLockEmail(null)}
           style={{ marginTop: 12 }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Module 8: Instrument images (before/after/damage/accessory) ──
+const IMAGE_CATEGORIES = ['BEFORE', 'AFTER', 'DAMAGE', 'ACCESSORY'] as const;
+const CATEGORY_LABELS: Record<string, string> = {
+  BEFORE: 'Before Calibration',
+  AFTER: 'After Calibration',
+  DAMAGE: 'Damage Photos',
+  ACCESSORY: 'Accessories',
+};
+
+function ImagesTab({ job }: any) {
+  const qc = useQueryClient();
+  const [category, setCategory] = useState<string>('BEFORE');
+  const [remarks, setRemarks] = useState('');
+  const [pending, setPending] = useState<{ name: string; type: string; base64: string } | null>(null);
+
+  const { data: images = [], isLoading } = useQuery({
+    queryKey: ['instrument-images', job.id],
+    queryFn: () => getInstrumentImages({ jobId: job.id }),
+    enabled: !!job?.id,
+  });
+
+  const uploadMut = useMutation({
+    mutationFn: () => uploadInstrumentImage({
+      jobId: job.id,
+      instrumentId: job.instrumentId,
+      category,
+      fileName: pending!.name,
+      fileType: pending!.type,
+      fileBase64: pending!.base64,
+      remarks: remarks || undefined,
+    }),
+    onSuccess: () => {
+      message.success('Image uploaded');
+      setPending(null); setRemarks('');
+      qc.invalidateQueries({ queryKey: ['instrument-images', job.id] });
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Upload failed'),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => deleteInstrumentImage(id),
+    onSuccess: () => {
+      message.success('Image removed');
+      qc.invalidateQueries({ queryKey: ['instrument-images', job.id] });
+    },
+  });
+
+  const readFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result);
+      setPending({ name: file.name, type: file.type || 'application/octet-stream', base64: result.slice(result.indexOf(',') + 1) });
+    };
+    reader.readAsDataURL(file);
+    return false; // prevent antd auto-upload
+  };
+
+  return (
+    <div>
+      <Card size="small" title="Upload Image" style={{ marginBottom: 16 }}>
+        <Space wrap align="end">
+          <div>
+            <Text style={{ display: 'block', fontSize: 12, color: '#888' }}>Category</Text>
+            <Select
+              value={category}
+              onChange={setCategory}
+              style={{ width: 200 }}
+              options={IMAGE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
+            />
+          </div>
+          <div>
+            <Text style={{ display: 'block', fontSize: 12, color: '#888' }}>Remarks (optional)</Text>
+            <Input value={remarks} onChange={(e) => setRemarks(e.target.value)} style={{ width: 240 }} placeholder="e.g. scratch on dial" />
+          </div>
+          <Upload beforeUpload={readFile} maxCount={1} accept="image/*" fileList={pending ? [{ uid: '1', name: pending.name } as any] : []} onRemove={() => setPending(null)}>
+            <Button icon={<UploadOutlined />}>Select Image</Button>
+          </Upload>
+          <Button type="primary" loading={uploadMut.isPending} disabled={!pending} onClick={() => uploadMut.mutate()}>Upload</Button>
+        </Space>
+      </Card>
+
+      {isLoading ? <Spin /> : (images as any[]).length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No images captured for this job yet" />
+      ) : (
+        IMAGE_CATEGORIES.map((cat) => {
+          const group = (images as any[]).filter((i) => i.category === cat);
+          if (!group.length) return null;
+          return (
+            <div key={cat} style={{ marginBottom: 20 }}>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                {CATEGORY_LABELS[cat]} <Tag>{group.length}</Tag>
+              </Text>
+              <Space wrap>
+                {group.map((img) => (
+                  <Card key={img.id} size="small" style={{ width: 200 }}
+                    actions={[
+                      <Button key="open" type="link" icon={<PictureOutlined />} onClick={() => openInstrumentImageFile(img.id)}>Open</Button>,
+                      <Popconfirm key="del" title="Delete this image?" onConfirm={() => delMut.mutate(img.id)}>
+                        <Button type="link" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>,
+                    ]}
+                  >
+                    <Text ellipsis style={{ fontSize: 12 }}>{img.fileName}</Text>
+                    {img.remarks && <div><Text type="secondary" style={{ fontSize: 11 }}>{img.remarks}</Text></div>}
+                  </Card>
+                ))}
+              </Space>
+            </div>
+          );
+        })
       )}
     </div>
   );

@@ -1,14 +1,40 @@
 import {
-  Body, Controller, ForbiddenException, Get, Injectable, Module, Post, Request,
-  UnauthorizedException, UseGuards,
+  Body, Controller, ForbiddenException, Get, Injectable, Module, Param, Post, Request,
+  UnauthorizedException, UseGuards, Res, HttpCode, HttpStatus, HttpException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule, PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthGuard } from '@nestjs/passport';
+import { Response } from 'express';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+// ── Portal login rate limiter (5 attempts per IP per 15 minutes) ─────────────
+const PORTAL_MAX_ATTEMPTS = 5;
+const PORTAL_WINDOW_MS = 15 * 60 * 1000;
+const portalIpMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkPortalRateLimit(ip: string): boolean {
+  const now = Date.now();
+  let entry = portalIpMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + PORTAL_WINDOW_MS };
+    portalIpMap.set(ip, entry);
+  }
+  entry.count++;
+  return entry.count > PORTAL_MAX_ATTEMPTS;
+}
+
+// Periodic cleanup every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of portalIpMap.entries()) {
+    if (now > entry.resetAt) portalIpMap.delete(ip);
+  }
+}, 10 * 60 * 1000);
 
 // ────────────────────────── Portal JWT strategy ──────────────────────────────
 
@@ -41,24 +67,43 @@ class PortalJwtGuard extends AuthGuard('portal-jwt') {}
 class PortalAuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
 
-  async login(email: string, labAccreditationCode: string) {
-    // Find the lab by accreditation number
-    const lab = await this.prisma.lab.findFirst({
-      where: { accreditationNumber: labAccreditationCode },
-    });
-    if (!lab) throw new UnauthorizedException('Lab accreditation code not found');
+  async login(email: string, password: string, labAccreditationCode?: string) {
+    let lab: any = null;
 
-    // Find the customer by email within this lab
-    const customer = await this.prisma.customer.findFirst({
-      where: { labId: lab.id, email },
-    });
-    if (!customer) throw new UnauthorizedException('Customer email not found for this lab');
+    if (labAccreditationCode) {
+      lab = await this.prisma.lab.findFirst({
+        where: { accreditationNumber: labAccreditationCode },
+      });
+      if (!lab) throw new UnauthorizedException('Lab accreditation code not found');
+    }
 
-    const payload = { customerId: customer.id, labId: lab.id, role: 'CUSTOMER' };
-    const token = this.jwt.sign(payload, {
-      secret: portalSecret(),
-      expiresIn: '7d',
-    });
+    const whereClause: any = { email };
+    if (lab) whereClause.labId = lab.id;
+
+    const customer = await this.prisma.customer.findFirst({ where: whereClause });
+    if (!customer) throw new UnauthorizedException('Customer email not found');
+
+    // If customer has a portal password set, validate it
+    if (customer.portalPassword) {
+      const passwordValid = password ? await bcrypt.compare(password, customer.portalPassword) : false;
+      if (!passwordValid) {
+        throw new UnauthorizedException('Invalid password');
+      }
+    } else {
+      // No password set yet — allow login with just email (backwards compat)
+      // but require lab code to identify the right lab
+      if (!labAccreditationCode) {
+        throw new UnauthorizedException('Password not set. Contact the lab to set your portal password.');
+      }
+    }
+
+    // Resolve lab if not already done
+    if (!lab) {
+      lab = await this.prisma.lab.findUnique({ where: { id: customer.labId } });
+    }
+
+    const payload = { customerId: customer.id, labId: customer.labId, role: 'CUSTOMER' };
+    const token = this.jwt.sign(payload, { secret: portalSecret(), expiresIn: '7d' });
 
     return { accessToken: token, customer: { id: customer.id, name: customer.name, email: customer.email } };
   }
@@ -141,6 +186,44 @@ class PortalService {
     });
   }
 
+  async downloadCertificate(certId: string, customerId: string, labId: string) {
+    const cert = await this.prisma.certificate.findFirst({
+      where: { id: certId, isLocked: true, job: { customerId, labId } },
+      include: {
+        job: {
+          include: {
+            instrument: true,
+            customer: true,
+            datasheets: { include: { observations: true, uncertainty: true } },
+          },
+        },
+      },
+    });
+    if (!cert) throw new ForbiddenException('Certificate not found or not accessible');
+    return cert;
+  }
+
+  async submitComplaint(customerId: string, labId: string, body: { description: string; subject?: string }) {
+    return this.prisma.complaint.create({
+      data: {
+        labId,
+        complaintNo: `PORTAL/${new Date().getFullYear()}/${randomUUID().slice(0, 8).toUpperCase()}`,
+        customerId,
+        subject: body.subject,
+        description: body.description,
+        status: 'OPEN',
+      },
+    });
+  }
+
+  async submitFeedback(customerId: string, labId: string, body: {
+    serviceRating: number; qualityRating: number; tatRating: number; supportRating: number; comments?: string; jobId?: string;
+  }) {
+    return this.prisma.customerFeedback.create({
+      data: { labId, customerId, ...body },
+    });
+  }
+
   // ─── Internal portal (linked via Setting) ────────────────────────────────
 
   async jobs(userId: string, labId: string) {
@@ -193,6 +276,19 @@ class PortalService {
       },
     });
   }
+
+  // ─── Admin: set portal password for a customer ────────────────────────────
+
+  async setPortalPassword(customerId: string, labId: string, password: string) {
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, labId } });
+    if (!customer) throw new ForbiddenException('Customer not found');
+    const hashed = await bcrypt.hash(password, 10);
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { portalPassword: hashed },
+    });
+    return { success: true };
+  }
 }
 
 // ─────────────────────────────── Controllers ─────────────────────────────────
@@ -202,8 +298,12 @@ class PortalAuthController {
   constructor(private readonly auth: PortalAuthService) {}
 
   @Post('login')
-  login(@Body() body: { email: string; labAccreditationCode: string }) {
-    return this.auth.login(body.email, body.labAccreditationCode);
+  login(@Body() body: { email: string; password?: string; labAccreditationCode?: string }, @Request() req: any) {
+    const ip = req.ip ?? req.connection?.remoteAddress ?? 'unknown';
+    if (checkPortalRateLimit(ip)) {
+      throw new HttpException('Too many login attempts. Please try again later.', 429);
+    }
+    return this.auth.login(body.email, body.password ?? '', body.labAccreditationCode);
   }
 }
 
@@ -227,9 +327,26 @@ class PortalCustomerController {
     return this.portal.portalCertificates(req.user.customerId, req.user.labId);
   }
 
+  @Get('certificates/:id/download')
+  async downloadCertificate(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
+    const cert = await this.portal.downloadCertificate(id, req.user.customerId, req.user.labId);
+    // Return JSON; frontend builds HTML from it
+    res.json(cert);
+  }
+
   @Get('instruments')
   instruments(@Request() req: any) {
     return this.portal.portalInstruments(req.user.customerId, req.user.labId);
+  }
+
+  @Post('complaints')
+  submitComplaint(@Request() req: any, @Body() body: any) {
+    return this.portal.submitComplaint(req.user.customerId, req.user.labId, body);
+  }
+
+  @Post('feedback')
+  submitFeedback(@Request() req: any, @Body() body: any) {
+    return this.portal.submitFeedback(req.user.customerId, req.user.labId, body);
   }
 }
 
@@ -251,6 +368,11 @@ class PortalInternalController {
   @Post('complaints')
   complaint(@Request() req: any, @Body() body: any) {
     return this.portal.raiseComplaint(req.user.id, req.user.labId, body);
+  }
+
+  @Post('customers/:id/set-password')
+  setPassword(@Param('id') id: string, @Request() req: any, @Body() body: { password: string }) {
+    return this.portal.setPortalPassword(id, req.user.labId, body.password);
   }
 }
 

@@ -99,6 +99,7 @@ export class RecallScheduler {
             email,
             `Calibration Due Reminder — ${inst.name} (S/N: ${inst.serialNumber ?? 'N/A'})`,
             htmlBody,
+            inst.labId,
           );
           this.logger.log(`[recall] Sent ${days}-day reminder for ${inst.name} to ${email}`);
           results.push({ instrumentId: inst.id, name: inst.name, daysThreshold: days, sentTo: email });

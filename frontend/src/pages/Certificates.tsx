@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Row, Space, Steps, Tag, Typography, message, Spin,
+  Alert, Badge, Button, Card, Col, Descriptions, Drawer, Input, Modal, Row, Select, Space, Steps, Table, Tabs, Tag, Timeline, Typography, message, Spin,
 } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, ExportOutlined,
+  PrinterOutlined, LockOutlined, UserOutlined, FileDoneOutlined, PlusCircleOutlined, HistoryOutlined, EditOutlined, QrcodeOutlined,
 } from '@ant-design/icons';
-import { getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser } from '../api';
-import { exportToCsv } from '../utils/export';
+import {
+  getJob, getJobs, signCertificate, generateCertificate, openCertificateReport, getUser,
+  reviseCertificate, getCertificateRevisions, openStickerReport, getDatasheet, getLab,
+} from '../api';
 
 const { Title, Text } = Typography;
 
@@ -31,6 +33,13 @@ export default function Certificates() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [genType, setGenType] = useState<'NABL' | 'NON_NABL' | null>(null);
+  const [activeDs, setActiveDs] = useState<string | null>(null);
+  const labId = me?.labId ?? '';
+  const { data: labInfo } = useQuery({ queryKey: ['lab', labId], queryFn: () => getLab(labId), enabled: !!labId });
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const [reviseReason, setReviseReason] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const PAGE_SIZE = 10;
 
   const { data: jobs = [], isLoading } = useQuery({
@@ -72,7 +81,7 @@ export default function Certificates() {
   });
 
   const genMut = useMutation({
-    mutationFn: (jobId: string) => generateCertificate({ jobId, type: 'NABL' }),
+    mutationFn: (jobId: string) => generateCertificate({ jobId, type: detail?.certificateType ?? 'NABL' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
       qc.invalidateQueries({ queryKey: ['jobs'] });
@@ -80,6 +89,33 @@ export default function Certificates() {
     },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to generate certificate'),
   });
+
+  const reviseMut = useMutation({
+    mutationFn: () => reviseCertificate(cert!.id, reviseReason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-detail', selectedJobId] });
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      setReviseOpen(false);
+      setReviseReason('');
+      message.success('New revision created — certificate reopened for re-signing');
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Failed to create revision'),
+  });
+
+  const { data: revisionData } = useQuery({
+    queryKey: ['cert-revisions', cert?.id],
+    queryFn: () => getCertificateRevisions(cert!.id),
+    enabled: !!cert?.id && historyOpen,
+  });
+
+  const { data: dsDetail } = useQuery({
+    queryKey: ['datasheet', activeDs],
+    queryFn: () => getDatasheet(activeDs!),
+    enabled: !!activeDs,
+  });
+
+  // Derive effective genType from lab setting when not manually overridden
+  const effectiveGenType: 'NABL' | 'NON_NABL' = genType ?? (labInfo?.isNabl === false ? 'NON_NABL' : 'NABL');
 
 
   const signatureSteps = STAGES.map((st, idx) => {
@@ -121,19 +157,6 @@ export default function Certificates() {
           onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
           style={{ width: 340 }}
         />
-        <Button
-          icon={<ExportOutlined />}
-          onClick={() => exportToCsv('certificates.csv', certJobs as any[], [
-            { key: 'jobNumber', label: 'Job No' },
-            { key: 'certificate.certificateNumber', label: 'Cert Number' },
-            { key: 'customer.name', label: 'Customer' },
-            { key: 'instrument.name', label: 'Instrument' },
-            { key: 'status', label: 'Status' },
-            { key: 'certificate.isLocked', label: 'Locked' },
-          ])}
-        >
-          Export CSV
-        </Button>
       </div>
 
       {/* Info banner */}
@@ -263,7 +286,7 @@ export default function Certificates() {
         onClose={() => setSelectedJobId(null)}
         width={560}
         footer={
-          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }} wrap>
             {!cert && !detailLoading && detail && isAdmin && (
               <Button
                 type="primary"
@@ -271,17 +294,33 @@ export default function Certificates() {
                 loading={genMut.isPending}
                 onClick={() => genMut.mutate(detail.id)}
               >
-                Generate Certificate
+                Generate {detail.certificateType === 'NON_NABL' ? 'Non-NABL' : 'NABL'} Certificate
               </Button>
             )}
             {cert && (
               <>
+                {cert.revision > 0 && (
+                  <Button icon={<HistoryOutlined />} onClick={() => setHistoryOpen(true)}>
+                    History
+                  </Button>
+                )}
                 <Button
                   icon={<PrinterOutlined />}
                   onClick={() => openCertificateReport(cert.id)}
                 >
                   Print / View PDF
                 </Button>
+                <Button
+                  icon={<QrcodeOutlined />}
+                  onClick={() => openStickerReport(cert.id)}
+                >
+                  Sticker
+                </Button>
+                {cert.isLocked && isAdmin && (
+                  <Button icon={<EditOutlined />} onClick={() => setReviseOpen(true)}>
+                    Create Revision
+                  </Button>
+                )}
                 {!cert.isLocked && nextStage && (
                   <Button
                     type="primary"
@@ -317,6 +356,13 @@ export default function Certificates() {
         )}
 
         {!detailLoading && cert && (
+          <Tabs
+            defaultActiveKey="cert"
+            items={[
+              {
+                key: 'cert',
+                label: 'Certificate',
+                children: (
           <Space direction="vertical" size={20} style={{ width: '100%' }}>
             {/* Job / Cert info */}
             <Descriptions column={2} size="small" bordered>
@@ -325,6 +371,7 @@ export default function Certificates() {
               </Descriptions.Item>
               <Descriptions.Item label="Certificate No." span={1}>
                 <Tag color="geekblue">{cert.certificateNumber}</Tag>
+                {cert.revision > 0 && <Tag color="volcano">Rev {cert.revision}</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label="Customer" span={2}>
                 {detail?.customer?.name}
@@ -343,6 +390,11 @@ export default function Certificates() {
                   ? <Tag color="green" icon={<LockOutlined />}>Yes — Immutable</Tag>
                   : <Tag color="orange">No — Pending signatures</Tag>}
               </Descriptions.Item>
+              {cert.revision > 0 && cert.revisionReason && (
+                <Descriptions.Item label="Revision Reason" span={2}>
+                  <Text type="secondary">{cert.revisionReason}</Text>
+                </Descriptions.Item>
+              )}
             </Descriptions>
 
             {/* Signature workflow */}
@@ -379,8 +431,128 @@ export default function Certificates() {
               />
             )}
           </Space>
+                ),
+              },
+              {
+                key: 'datasheets',
+                label: `Datasheets (${(detail?.datasheets ?? []).length})`,
+                children: (
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    {(detail?.datasheets ?? []).length === 0 ? (
+                      <Alert type="info" message="No datasheets recorded for this job." showIcon />
+                    ) : (
+                      (detail?.datasheets ?? []).map((ds: any, idx: number) => (
+                        <Card
+                          key={ds.id}
+                          size="small"
+                          title={<Space><Tag color="blue">DS {idx + 1}</Tag><Text>{ds.templateName}</Text></Space>}
+                          extra={
+                            <Button size="small" onClick={() => setActiveDs(activeDs === ds.id ? null : ds.id)}>
+                              {activeDs === ds.id ? 'Collapse' : 'Expand'}
+                            </Button>
+                          }
+                          style={{ borderRadius: 8 }}
+                        >
+                          {activeDs === ds.id && (
+                            <div>
+                              {dsDetail?.observations?.length > 0 ? (
+                                <Table
+                                  size="small"
+                                  pagination={false}
+                                  dataSource={(dsDetail.observations ?? []).map((o: any, i: number) => ({ ...o, key: i }))}
+                                  columns={[
+                                    { title: 'Point', dataIndex: 'pointLabel', key: 'pt', render: (v: any) => v ?? '—' },
+                                    { title: 'Nominal', dataIndex: 'nominal', key: 'nom', render: (v: any) => v ?? '—' },
+                                    { title: 'Std Value', dataIndex: 'standardValue', key: 'sv', render: (v: any) => v ?? '—' },
+                                    { title: 'Observed', dataIndex: 'observedValue', key: 'ov', render: (v: any) => v ?? '—' },
+                                    { title: 'Error', dataIndex: 'error', key: 'err', render: (v: any) => v ?? '—' },
+                                    { title: 'Unit', dataIndex: 'unit', key: 'u', render: (v: any) => v ?? '—' },
+                                  ]}
+                                />
+                              ) : (
+                                <Text type="secondary">No observation data recorded.</Text>
+                              )}
+                              {dsDetail?.uncertainty && (
+                                <Descriptions size="small" bordered style={{ marginTop: 12 }}>
+                                  <Descriptions.Item label="Expanded Uncertainty">
+                                    {dsDetail.uncertainty.expandedUncertainty ?? '—'}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label="Coverage Factor (k)">
+                                    {dsDetail.uncertainty.coverageFactor ?? 2}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label="Confidence Level">
+                                    {dsDetail.uncertainty.confidenceLevel ?? 95.45}%
+                                  </Descriptions.Item>
+                                </Descriptions>
+                              )}
+                            </div>
+                          )}
+                        </Card>
+                      ))
+                    )}
+                  </Space>
+                ),
+              },
+            ]}
+          />
         )}
       </Drawer>
+
+      {/* ── Create Revision modal ── */}
+      <Modal
+        title="Create Certificate Revision"
+        open={reviseOpen}
+        onCancel={() => setReviseOpen(false)}
+        okText="Create Revision"
+        okButtonProps={{ disabled: !reviseReason.trim(), loading: reviseMut.isPending }}
+        onOk={() => reviseMut.mutate()}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="The current certificate cannot be edited"
+          description="A new revision will be created. The current version is archived read-only, signatures are cleared, and the certificate is reopened for re-review and re-signing."
+        />
+        <Text strong>Reason for revision</Text>
+        <Input.TextArea
+          rows={3}
+          value={reviseReason}
+          onChange={(e) => setReviseReason(e.target.value)}
+          placeholder="e.g. Corrected nominal value at 50% range; customer reported transcription error."
+          style={{ marginTop: 8 }}
+        />
+      </Modal>
+
+      {/* ── Revision history modal ── */}
+      <Modal
+        title={<Space><HistoryOutlined />Revision History</Space>}
+        open={historyOpen}
+        onCancel={() => setHistoryOpen(false)}
+        footer={null}
+      >
+        {(revisionData?.history?.length ?? 0) === 0 ? (
+          <Text type="secondary">No previous revisions archived.</Text>
+        ) : (
+          <Timeline
+            items={(revisionData?.history ?? []).map((r: any) => ({
+              color: 'blue',
+              children: (
+                <div>
+                  <Text strong>{r.certificateNumber}</Text>{' '}
+                  <Tag color="volcano">Rev {r.revision}</Tag>
+                  <div><Text type="secondary" style={{ fontSize: 12 }}>
+                    Archived {new Date(r.archivedAt).toLocaleString()}
+                  </Text></div>
+                  {r.revisionReason && (
+                    <div><Text style={{ fontSize: 13 }}>Reason: {r.revisionReason}</Text></div>
+                  )}
+                </div>
+              ),
+            }))}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

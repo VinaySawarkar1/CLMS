@@ -10,11 +10,12 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { buildQrPayload, contentHash } from '../../common/qr/qr-engine';
 import { MailService } from '../../common/mail/mail.service';
 import { ReportsService } from '../reports/reports.module';
+import { NotificationsService } from '../notifications/notifications.module';
 
 /** The signature workflow order. Each stage must sign before the next. */
 const SIGNATURE_ORDER: SignatureStage[] = [
+  'ENGINEER',
   'TECHNICAL_MANAGER',
-  'QUALITY_MANAGER',
 ];
 
 @Injectable()
@@ -23,6 +24,7 @@ export class CertificatesService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly reports: ReportsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Generate a certificate for an approved job. */
@@ -49,7 +51,7 @@ export class CertificatesService {
       throw new BadRequestException('Job must be in APPROVED status for certificate generation');
     }
 
-    const certificateNumber = await this.nextCertificateNumber(labId);
+    const certificateNumber = await this.nextCertificateNumber(labId, type);
     const hash = contentHash({
       job: job.jobNumber,
       customer: job.customer.name,
@@ -112,7 +114,7 @@ export class CertificatesService {
       data: { certificateId: id, stage, signedById, signedByName, signatureHash },
     });
 
-    // When the last required stage (QUALITY_MANAGER) is signed, auto-lock the certificate.
+    // When the last required stage (TECHNICAL_MANAGER) is signed, auto-lock the certificate.
     const isLastStage = signedStages.length + 1 === SIGNATURE_ORDER.length;
     if (isLastStage) {
       await this.prisma.certificate.update({
@@ -134,12 +136,27 @@ export class CertificatesService {
             cert.certificateNumber,
             (cert.job as any)?.jobNumber ?? id,
             htmlContent,
+            jobWithCustomer.labId,
           );
         } catch (err) {
           // Email failure must never block certificate finalisation
           console.error('[certificates] Email send failed:', err);
         }
       }
+
+      // Record a certificate-ready notification (Module 15).
+      await this.notifications.notify({
+        labId: jobWithCustomer?.labId,
+        channel: 'EMAIL',
+        event: 'CERTIFICATE_READY',
+        payload: {
+          certificateId: id,
+          certificateNumber: cert.certificateNumber,
+          email: jobWithCustomer?.customer?.email,
+          phone: (jobWithCustomer?.customer as any)?.phone,
+          message: `Certificate ${cert.certificateNumber} is ready.`,
+        },
+      });
     }
 
     return this.findOne(id);
@@ -158,25 +175,175 @@ export class CertificatesService {
       certificateNumber: cert.certificateNumber,
       status: cert.isLocked ? 'VALID' : 'PENDING_SIGNATURES',
       type: cert.type,
+      revision: cert.revision,
       issueDate: cert.issueDate,
+      jobNumber: (cert.job as any)?.jobNumber,
       signatures: cert.signatures.map((s) => ({ stage: s.stage, by: s.signedByName })),
       qr,
     };
   }
 
-  private async nextCertificateNumber(_labId?: string): Promise<string> {
+  /**
+   * Certificate-number prefix per certificate type. NABL and Non-NABL
+   * certificates run on independent sequences so their numbers never collide.
+   */
+  private static readonly TYPE_PREFIX: Record<CertificateType, string> = {
+    NABL: 'CC',
+    NON_NABL: 'CR',
+    CALIBRATION_REPORT: 'CALR',
+    VERIFICATION_REPORT: 'VR',
+    TEST_REPORT: 'TR',
+  };
+
+  private async nextCertificateNumber(
+    _labId: string,
+    type: CertificateType,
+  ): Promise<string> {
     const year = new Date().getFullYear();
-    const prefix = `CC/${year}/`;
-    // Count globally — certificateNumber has a global unique constraint.
+    const code = CertificatesService.TYPE_PREFIX[type] ?? 'CC';
+    const prefix = `${code}/${year}/`;
+    // Count globally per type — certificateNumber has a global unique
+    // constraint, so the running sequence is scoped by the type prefix.
     const existing = await this.prisma.certificate.findMany({
       where: { certificateNumber: { startsWith: prefix } },
       select: { certificateNumber: true },
     });
     let max = 0;
     for (const { certificateNumber } of existing) {
-      const n = parseInt(certificateNumber.slice(prefix.length), 10);
+      // The base sequence number is the segment after the prefix, ignoring any
+      // "/R{n}" revision suffix (e.g. CC/2026/00007/R1).
+      const seq = certificateNumber.slice(prefix.length).split('/')[0];
+      const n = parseInt(seq, 10);
       if (!Number.isNaN(n) && n > max) max = n;
     }
     return `${prefix}${String(max + 1).padStart(5, '0')}`;
+  }
+
+  /**
+   * Create a new revision of an existing (locked) certificate. The original is
+   * never edited in place: its current state is archived read-only into
+   * CertificateRevision, then the certificate row is advanced to the next
+   * revision with a fresh number (…/R{n}), cleared signatures and unlocked so
+   * the new revision can be re-reviewed and re-signed.
+   */
+  async createRevision(
+    id: string,
+    labId: string,
+    reason: string,
+  ) {
+    if (!reason || !reason.trim()) {
+      throw new BadRequestException('A revision reason is required');
+    }
+    const cert = await this.prisma.certificate.findUnique({
+      where: { id },
+      include: { signatures: { orderBy: { signedAt: 'asc' } }, job: true },
+    });
+    if (!cert) throw new NotFoundException('Certificate not found');
+    if ((cert.job as any).labId !== labId) {
+      throw new NotFoundException('Certificate not found');
+    }
+    if (!cert.isLocked) {
+      throw new BadRequestException(
+        'Only a finalised (locked) certificate can be revised',
+      );
+    }
+
+    // Archive the current state as an immutable historical revision.
+    await this.prisma.certificateRevision.create({
+      data: {
+        certificateId: cert.id,
+        revision: cert.revision,
+        certificateNumber: cert.certificateNumber,
+        type: cert.type,
+        issueDate: cert.issueDate,
+        qrHash: cert.qrHash,
+        decisionRule: cert.decisionRule,
+        revisionReason: cert.revisionReason,
+        snapshot: {
+          isLocked: cert.isLocked,
+          signatures: cert.signatures.map((s) => ({
+            stage: s.stage,
+            signedByName: s.signedByName,
+            signedAt: s.signedAt,
+            signatureHash: s.signatureHash,
+          })),
+        },
+      },
+    });
+
+    // New revision number: base sequence carried forward with a /R{n} suffix.
+    const nextRevision = cert.revision + 1;
+    const base = cert.certificateNumber.split('/R')[0];
+    const newNumber = `${base}/R${nextRevision}`;
+    const newHash = createHash('sha256')
+      .update(`${cert.qrHash ?? ''}|R${nextRevision}|${reason}`)
+      .digest('hex');
+
+    // Clear prior signatures, unlock, and advance the revision in place.
+    await this.prisma.digitalSignature.deleteMany({
+      where: { certificateId: cert.id },
+    });
+    await this.prisma.certificate.update({
+      where: { id: cert.id },
+      data: {
+        certificateNumber: newNumber,
+        revision: nextRevision,
+        revisionReason: reason.trim(),
+        isLocked: false,
+        issueDate: new Date(),
+        qrHash: newHash,
+      },
+    });
+
+    // Reopen the job for re-review of the revised certificate.
+    await this.prisma.job.update({
+      where: { id: cert.jobId },
+      data: { status: 'APPROVED' },
+    });
+
+    return this.findOne(cert.id);
+  }
+
+  /** Full revision history (archived, read-only) for a certificate. */
+  async getRevisions(id: string) {
+    const cert = await this.prisma.certificate.findUnique({
+      where: { id },
+      include: { revisions: { orderBy: { revision: 'desc' } } },
+    });
+    if (!cert) throw new NotFoundException('Certificate not found');
+    return {
+      current: {
+        revision: cert.revision,
+        certificateNumber: cert.certificateNumber,
+        revisionReason: cert.revisionReason,
+        isLocked: cert.isLocked,
+        issueDate: cert.issueDate,
+      },
+      history: cert.revisions,
+    };
+  }
+
+  /**
+   * Public lookup for the online verification page. Resolves a certificate by
+   * its certificate number or by job number, returning the verification view.
+   */
+  async lookup(query: string) {
+    const q = (query ?? '').trim();
+    if (!q) throw new BadRequestException('A search term is required');
+    const cert = await this.prisma.certificate.findFirst({
+      where: {
+        OR: [
+          { certificateNumber: { equals: q, mode: 'insensitive' } },
+          { job: { jobNumber: { equals: q, mode: 'insensitive' } } },
+        ],
+      },
+      include: { job: true },
+    });
+    if (!cert) {
+      throw new NotFoundException(
+        'No certificate found for that certificate or job number',
+      );
+    }
+    return this.verify(cert.id);
   }
 }

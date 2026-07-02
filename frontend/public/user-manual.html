@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLMS User Manual — Calibration Laboratory Management System</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a202c; background: #f7f8fa; line-height: 1.7; }
+  .cover { background: linear-gradient(135deg, #0f3460 0%, #16213e 60%, #1a1a2e 100%); color: #fff; padding: 80px 40px; text-align: center; }
+  .cover h1 { font-size: 2.8em; letter-spacing: 2px; margin-bottom: 12px; }
+  .cover p { font-size: 1.15em; color: #8c9db5; margin-bottom: 6px; }
+  .cover .badge { display: inline-block; margin-top: 24px; padding: 6px 18px; border: 1px solid #52c41a; color: #52c41a; border-radius: 20px; font-size: 13px; }
+  .toc { background: #fff; max-width: 900px; margin: 40px auto; padding: 36px 40px; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.07); }
+  .toc h2 { color: #0f3460; border-bottom: 2px solid #e8ecf0; padding-bottom: 10px; margin-bottom: 20px; }
+  .toc ol { padding-left: 22px; }
+  .toc li { margin: 7px 0; }
+  .toc a { color: #1677ff; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .section { max-width: 900px; margin: 32px auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.07); overflow: hidden; }
+  .sec-header { background: linear-gradient(90deg, #0f3460, #1677ff); color: #fff; padding: 22px 36px; }
+  .sec-header h2 { font-size: 1.5em; }
+  .sec-header p { font-size: .9em; opacity: .85; margin-top: 4px; }
+  .sec-body { padding: 32px 36px; }
+  h3 { color: #0f3460; margin: 28px 0 10px; font-size: 1.15em; }
+  h4 { color: #1677ff; margin: 18px 0 6px; font-size: 1em; }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 6px; }
+  .tip { background: #e6f4ff; border-left: 4px solid #1677ff; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: .93em; }
+  .warn { background: #fff7e6; border-left: 4px solid #fa8c16; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: .93em; }
+  .danger { background: #fff1f0; border-left: 4px solid #ff4d4f; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: .93em; }
+
+  /* Mockup UI widgets */
+  .mockup { border: 1.5px solid #d9d9d9; border-radius: 10px; overflow: hidden; margin: 20px 0; font-size: .88em; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .mockup-bar { background: #f0f2f5; padding: 8px 14px; border-bottom: 1px solid #d9d9d9; display: flex; align-items: center; gap: 8px; font-size: .8em; color: #666; }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .mockup-body { padding: 18px; background: #fff; }
+  .mock-btn { display: inline-block; padding: 4px 14px; border-radius: 6px; font-size: .85em; cursor: default; font-weight: 500; }
+  .btn-primary { background: #1677ff; color: #fff; border: none; }
+  .btn-default { background: #fff; color: #333; border: 1px solid #d9d9d9; }
+  .btn-danger { background: #ff4d4f; color: #fff; border: none; }
+  .btn-green { background: #52c41a; color: #fff; border: none; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .78em; font-weight: 600; }
+  .tag-blue { background: #e6f4ff; color: #1677ff; }
+  .tag-green { background: #f6ffed; color: #389e0d; }
+  .tag-orange { background: #fff7e6; color: #d46b08; }
+  .tag-red { background: #fff1f0; color: #cf1322; }
+  .tag-grey { background: #f5f5f5; color: #666; }
+  .tag-cyan { background: #e6fffb; color: #08979c; }
+  .mock-table { width: 100%; border-collapse: collapse; font-size: .85em; }
+  .mock-table th { background: #fafafa; border-bottom: 1px solid #e8e8e8; padding: 8px 12px; text-align: left; color: #666; font-weight: 600; }
+  .mock-table td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+  .mock-table tr:last-child td { border-bottom: none; }
+  .stat-card { display: inline-block; background: #fff; border: 1px solid #e8e8e8; border-radius: 8px; padding: 14px 22px; margin: 6px; min-width: 130px; text-align: center; }
+  .stat-val { font-size: 1.8em; font-weight: 700; color: #0f3460; }
+  .stat-lbl { font-size: .78em; color: #888; margin-top: 2px; }
+  .form-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .form-group { flex: 1; min-width: 180px; }
+  .form-label { font-size: .82em; color: #555; font-weight: 600; margin-bottom: 4px; }
+  .form-input { width: 100%; border: 1px solid #d9d9d9; border-radius: 6px; padding: 6px 10px; font-size: .88em; background: #fff; }
+  .sidebar { display: flex; gap: 0; }
+  .sidebar-nav { width: 200px; background: #001529; padding: 16px 0; flex-shrink: 0; }
+  .nav-item { padding: 10px 20px; color: #8c9db5; font-size: .85em; cursor: default; }
+  .nav-item.active { background: #1677ff; color: #fff; }
+  .nav-item:hover { color: #fff; }
+  .sidebar-content { flex: 1; padding: 20px; background: #f0f2f5; }
+  .breadcrumb { font-size: .8em; color: #888; margin-bottom: 12px; }
+  .steps { counter-reset: step; }
+  .step { counter-increment: step; display: flex; gap: 16px; margin-bottom: 20px; }
+  .step::before { content: counter(step); background: #1677ff; color: #fff; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: .88em; }
+  .step-body { padding-top: 4px; }
+  .kbd { background: #f0f2f5; border: 1px solid #d9d9d9; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: .85em; }
+  .workflow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+  .wf-step { background: #e6f4ff; border: 1px solid #91caff; border-radius: 6px; padding: 6px 14px; font-size: .82em; color: #1677ff; font-weight: 600; }
+  .wf-arrow { color: #bbb; font-size: 1.1em; }
+  .cert-preview { border: 2px solid #003087; border-radius: 8px; padding: 20px; background: #fff; font-size: .82em; }
+  .cert-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #003087; padding-bottom: 12px; margin-bottom: 14px; }
+  .cert-title { text-align: center; flex: 1; }
+  .cert-title h3 { color: #003087; font-size: 1.2em; }
+  .cert-body-row { display: flex; gap: 20px; margin-bottom: 10px; }
+  .cert-field { flex: 1; }
+  .cert-field label { font-weight: 700; font-size: .8em; color: #555; display: block; }
+  .cert-field span { color: #1a202c; }
+  .nabl-circle { width: 56px; height: 56px; border-radius: 50%; background: #1a237e; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: .85em; letter-spacing: 1px; }
+  .section-num { background: #0f3460; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 10px; }
+  code { background: #f5f5f5; border-radius: 4px; padding: 1px 5px; font-family: monospace; font-size: .9em; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+  @media(max-width:600px){ .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div style="font-size:3em;margin-bottom:16px">🔬</div>
+  <h1>CLMS User Manual</h1>
+  <p>Calibration Laboratory Management System</p>
+  <p>ISO/IEC 17025 · NABL Accreditation Ready</p>
+  <div class="badge">Version 2.0 · June 2026</div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc" id="top">
+  <h2>📋 Table of Contents</h2>
+  <ol>
+    <li><a href="#s1">Getting Started — Login &amp; Navigation</a></li>
+    <li><a href="#s2">Dashboard — At a Glance</a></li>
+    <li><a href="#s3">Jobs — Creating &amp; Managing Calibration Jobs</a></li>
+    <li><a href="#s4">Job Workspace — Full Calibration Workflow</a>
+      <ol type="a" style="margin-top:4px">
+        <li><a href="#s4a">Datasheet Tab</a></li>
+        <li><a href="#s4b">Uncertainty Tab</a></li>
+        <li><a href="#s4c">Certificate Tab</a></li>
+        <li><a href="#s4d">Calibration History Tab</a></li>
+        <li><a href="#s4e">Remarks Tab</a></li>
+      </ol>
+    </li>
+    <li><a href="#s5">Instruments — Asset Registry</a></li>
+    <li><a href="#s6">Customers — Client Management</a></li>
+    <li><a href="#s7">Reference Standards — NABL Master Equipment</a></li>
+    <li><a href="#s8">Certificates — View &amp; Download</a></li>
+    <li><a href="#s9">Reports — Analytics &amp; Exports</a></li>
+    <li><a href="#s10">Settings — Lab Configuration</a></li>
+    <li><a href="#s11">Customer Portal — Self-Service Access</a></li>
+    <li><a href="#s12">Role Permissions Summary</a></li>
+  </ol>
+</div>
+
+<!-- SECTION 1: LOGIN -->
+<div class="section" id="s1">
+  <div class="sec-header">
+    <h2><span class="section-num">1</span> Getting Started — Login &amp; Navigation</h2>
+    <p>Access the system, understand the layout, and navigate between modules</p>
+  </div>
+  <div class="sec-body">
+    <h3>1.1 Logging In</h3>
+    <p>Open the CLMS URL in your browser. You will see the login screen.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57"></div>
+        <div class="mockup-dot" style="background:#febc2e"></div>
+        <div class="mockup-dot" style="background:#28c840"></div>
+        <span style="margin-left:8px">CLMS — Login</span>
+      </div>
+      <div class="mockup-body" style="background:linear-gradient(135deg,#0f3460,#1a1a2e);padding:40px;display:flex;justify-content:center">
+        <div style="background:#fff;border-radius:12px;padding:32px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+          <div style="text-align:center;margin-bottom:20px">
+            <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1677ff,#003087);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4em">🔬</div>
+            <strong style="font-size:1.1em">CLMS Login</strong><br>
+            <span style="font-size:.82em;color:#888">Calibration Laboratory Management System</span>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <div class="form-label">Email Address</div>
+            <input class="form-input" value="admin@yourlab.com" readonly>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <div class="form-label">Password</div>
+            <input class="form-input" type="password" value="••••••••" readonly>
+          </div>
+          <div style="text-align:center"><span class="mock-btn btn-primary" style="width:100%;display:block;padding:8px">Sign In</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><div class="step-body">Enter your <strong>Email Address</strong> (registered by your lab administrator).</div></div>
+      <div class="step"><div class="step-body">Enter your <strong>Password</strong>.</div></div>
+      <div class="step"><div class="step-body">Click <strong>Sign In</strong>. You will be taken to the Dashboard.</div></div>
+    </div>
+
+    <h3>1.2 Main Navigation</h3>
+    <p>After login, the left sidebar is always visible. Each item opens a different module.</p>
+
+    <div class="mockup">
+      <div class="mockup-body" style="padding:0">
+        <div class="sidebar">
+          <div class="sidebar-nav">
+            <div style="color:#8c9db5;font-size:.72em;padding:6px 20px 10px;letter-spacing:1px">MAIN MENU</div>
+            <div class="nav-item active">📊 Dashboard</div>
+            <div class="nav-item">📋 Jobs</div>
+            <div class="nav-item">🔧 Instruments</div>
+            <div class="nav-item">👥 Customers</div>
+            <div class="nav-item">⚗️ Reference Standards</div>
+            <div class="nav-item">📜 Certificates</div>
+            <div class="nav-item">📈 Reports</div>
+            <div class="nav-item">⚙️ Settings</div>
+            <div class="nav-item">🌐 Customer Portal</div>
+          </div>
+          <div class="sidebar-content">
+            <div class="breadcrumb">Home › Dashboard</div>
+            <p style="color:#888;font-size:.88em">← Click any menu item to navigate</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip">💡 <strong>Tip:</strong> The sidebar can be collapsed on smaller screens by clicking the hamburger icon (☰) at the top left.</div>
+
+    <h3>1.3 User Roles</h3>
+    <table class="mock-table" style="width:100%;border:1px solid #e8e8e8;border-radius:8px;overflow:hidden">
+      <tr><th>Role</th><th>Access Level</th></tr>
+      <tr><td><span class="tag tag-red">ADMIN</span></td><td>Full access — manage users, settings, all jobs</td></tr>
+      <tr><td><span class="tag tag-blue">ENGINEER</span></td><td>Create &amp; work on calibration jobs assigned to them</td></tr>
+      <tr><td><span class="tag tag-orange">REVIEWER</span></td><td>Review and approve calibration datasheets</td></tr>
+      <tr><td><span class="tag tag-cyan">TECHNICAL_MANAGER</span></td><td>Sign off technical approval</td></tr>
+      <tr><td><span class="tag tag-green">QUALITY_MANAGER</span></td><td>Final quality lock before certificate generation</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- SECTION 2: DASHBOARD -->
+<div class="section" id="s2">
+  <div class="sec-header">
+    <h2><span class="section-num">2</span> Dashboard — At a Glance</h2>
+    <p>Overview of lab activity, pending jobs, and calibration alerts</p>
+  </div>
+  <div class="sec-body">
+    <p>The Dashboard is the home screen. It shows real-time statistics and alerts so you know immediately what needs attention.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><div class="mockup-dot" style="background:#ff5f57"></div><div class="mockup-dot" style="background:#febc2e"></div><div class="mockup-dot" style="background:#28c840"></div><span>Dashboard</span></div>
+      <div class="mockup-body">
+        <div style="margin-bottom:16px">
+          <div class="stat-card"><div class="stat-val" style="color:#1677ff">24</div><div class="stat-lbl">Active Jobs</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:#fa8c16">7</div><div class="stat-lbl">Pending Review</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:#52c41a">156</div><div class="stat-lbl">Certs Issued</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:#ff4d4f">3</div><div class="stat-lbl">Overdue Recalls</div></div>
+        </div>
+        <div style="background:#fff7e6;border-left:4px solid #fa8c16;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:12px;font-size:.85em">
+          ⚠️ <strong>3 instruments</strong> are overdue for calibration recall. <a href="#" style="color:#1677ff">View →</a>
+        </div>
+        <div style="background:#f6ffed;border-left:4px solid #52c41a;padding:10px 14px;border-radius:0 8px 8px 0;font-size:.85em">
+          ✅ Environmental conditions: <strong>23.4 °C · 52% RH</strong> — All within NABL limits
+        </div>
+      </div>
+    </div>
+
+    <h3>Key Dashboard Elements</h3>
+    <ul>
+      <li><strong>Active Jobs</strong> — Jobs currently in progress (not yet delivered or closed)</li>
+      <li><strong>Pending Review</strong> — Datasheets submitted and awaiting reviewer sign-off</li>
+      <li><strong>Certs Issued</strong> — Total calibration certificates generated to date</li>
+      <li><strong>Overdue Recalls</strong> — Customer instruments that have passed their due calibration date</li>
+      <li><strong>Environmental Alert</strong> — Live lab condition status (temperature 21–25 °C, humidity 35–65 %RH)</li>
+    </ul>
+
+    <div class="tip">💡 Click any statistic card to navigate directly to the relevant module.</div>
+  </div>
+</div>
+
+<!-- SECTION 3: JOBS -->
+<div class="section" id="s3">
+  <div class="sec-header">
+    <h2><span class="section-num">3</span> Jobs — Creating &amp; Managing Calibration Jobs</h2>
+    <p>Every calibration starts as a Job. This module handles intake, assignment, and tracking.</p>
+  </div>
+  <div class="sec-body">
+    <h3>3.1 The Job List</h3>
+    <p>Navigate to <strong>Jobs</strong> in the sidebar. You see a table of all calibration jobs with their current status.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><div class="mockup-dot" style="background:#ff5f57"></div><span>Jobs</span></div>
+      <div class="mockup-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div><input class="form-input" style="width:220px" placeholder="🔍 Search jobs..." readonly></div>
+          <div>
+            <span class="mock-btn btn-default" style="margin-right:8px">Bulk Create Jobs</span>
+            <span class="mock-btn btn-primary">+ New Job</span>
+          </div>
+        </div>
+        <table class="mock-table">
+          <tr><th>Job No.</th><th>Customer</th><th>Instrument</th><th>Received</th><th>Status</th><th>Engineer</th><th>Actions</th></tr>
+          <tr><td><strong>JOB-2026-001</strong></td><td>Tata Motors</td><td>Vernier Caliper</td><td>20 Jun 2026</td><td><span class="tag tag-blue">IN CALIBRATION</span></td><td>Raj Kumar</td><td><span class="mock-btn btn-default">Open</span></td></tr>
+          <tr><td><strong>JOB-2026-002</strong></td><td>BHEL</td><td>Pressure Gauge</td><td>21 Jun 2026</td><td><span class="tag tag-orange">PENDING REVIEW</span></td><td>Anita S.</td><td><span class="mock-btn btn-default">Open</span></td></tr>
+          <tr><td><strong>JOB-2026-003</strong></td><td>ISRO</td><td>Torque Wrench</td><td>22 Jun 2026</td><td><span class="tag tag-green">CERTIFICATE GENERATED</span></td><td>Priya M.</td><td><span class="mock-btn btn-default">Open</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>3.2 Job Status Workflow</h3>
+    <div class="workflow">
+      <div class="wf-step">RECEIVED</div><div class="wf-arrow">→</div>
+      <div class="wf-step">WAITING</div><div class="wf-arrow">→</div>
+      <div class="wf-step">ASSIGNED</div><div class="wf-arrow">→</div>
+      <div class="wf-step">IN CALIBRATION</div><div class="wf-arrow">→</div>
+      <div class="wf-step">PENDING REVIEW</div><div class="wf-arrow">→</div>
+      <div class="wf-step">APPROVED</div><div class="wf-arrow">→</div>
+      <div class="wf-step">CERT GENERATED</div><div class="wf-arrow">→</div>
+      <div class="wf-step">DELIVERED</div><div class="wf-arrow">→</div>
+      <div class="wf-step">CLOSED</div>
+    </div>
+
+    <h3>3.3 Creating a New Job</h3>
+    <div class="steps">
+      <div class="step"><div class="step-body">Click <strong>+ New Job</strong> (top right of Jobs page).</div></div>
+      <div class="step"><div class="step-body">Fill in the required details in the modal form.</div></div>
+      <div class="step"><div class="step-body">Click <strong>Create Job</strong>. The job appears in the list with status <span class="tag tag-grey">RECEIVED</span>.</div></div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Create New Job</span></div>
+      <div class="mockup-body">
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Customer *</div><input class="form-input" value="Tata Motors Ltd." readonly></div>
+          <div class="form-group"><div class="form-label">Instrument *</div><input class="form-input" value="Vernier Caliper 300mm" readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Received At *</div><input class="form-input" value="2026-06-22" readonly></div>
+          <div class="form-group"><div class="form-label">PO Number</div><input class="form-input" placeholder="Optional" readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Challan No.</div><input class="form-input" placeholder="Delivery challan number" readonly></div>
+          <div class="form-group"><div class="form-label">Condition of Item</div><input class="form-input" placeholder="Good / Damaged / etc." readonly></div>
+        </div>
+        <div class="form-group" style="margin-bottom:14px"><div class="form-label">Onsite Calibration?</div><input type="checkbox" readonly> &nbsp;<span style="font-size:.88em">Check if calibration is performed at customer's site</span></div>
+        <div style="text-align:right"><span class="mock-btn btn-default" style="margin-right:8px">Cancel</span><span class="mock-btn btn-primary">Create Job</span></div>
+      </div>
+    </div>
+
+    <h3>3.4 Bulk Job Creation</h3>
+    <p>Use <strong>Bulk Create Jobs</strong> when a customer sends multiple instruments at once.</p>
+    <div class="steps">
+      <div class="step"><div class="step-body">Click <strong>Bulk Create Jobs</strong> button.</div></div>
+      <div class="step"><div class="step-body">Select the <strong>Customer</strong> from the dropdown.</div></div>
+      <div class="step"><div class="step-body">A list of all instruments belonging to that customer appears. <strong>Tick</strong> the instruments to be calibrated in this batch.</div></div>
+      <div class="step"><div class="step-body">Click <strong>Create N Jobs</strong>. One job is created per selected instrument simultaneously.</div></div>
+    </div>
+
+    <div class="tip">💡 Bulk creation is ideal for annual maintenance contracts (AMCs) where an entire fleet of instruments arrives together.</div>
+
+    <h3>3.5 Searching &amp; Filtering Jobs</h3>
+    <p>Use the <strong>search bar</strong> at the top to filter jobs by job number, customer name, or instrument name in real time.</p>
+  </div>
+</div>
+
+<!-- SECTION 4: JOB WORKSPACE -->
+<div class="section" id="s4">
+  <div class="sec-header">
+    <h2><span class="section-num">4</span> Job Workspace — Complete Calibration Workflow</h2>
+    <p>The central workspace where engineers perform calibration, record data, and generate certificates</p>
+  </div>
+  <div class="sec-body">
+    <p>Click <strong>Open</strong> on any job to enter the Job Workspace. This is the most feature-rich screen in CLMS. It contains five tabs:</p>
+    <div style="display:flex;gap:0;border:1px solid #d9d9d9;border-radius:8px;overflow:hidden;margin:16px 0">
+      <div style="padding:10px 20px;background:#1677ff;color:#fff;font-weight:600;font-size:.88em">📊 Datasheet</div>
+      <div style="padding:10px 20px;background:#f0f2f5;color:#555;font-size:.88em">📐 Uncertainty</div>
+      <div style="padding:10px 20px;background:#f0f2f5;color:#555;font-size:.88em">📜 Certificate</div>
+      <div style="padding:10px 20px;background:#f0f2f5;color:#555;font-size:.88em">🕐 History</div>
+      <div style="padding:10px 20px;background:#f0f2f5;color:#555;font-size:.88em">💬 Remarks</div>
+    </div>
+
+    <div id="s4a"><h3>4.1 Datasheet Tab</h3></div>
+    <p>This is where the actual calibration measurements are entered. The datasheet records Before and After calibration readings for each measurement point.</p>
+
+    <h4>4.1.1 Accuracy Class Selector</h4>
+    <p>At the top of the Datasheet tab, select the instrument's <strong>accuracy class</strong>. This determines:</p>
+    <ul>
+      <li><strong>MPE (Maximum Permissible Error)</strong> — The tolerance threshold for PASS/FAIL evaluation</li>
+      <li><strong>Minimum Readings</strong> required per point (per NABL 129 criteria)</li>
+      <li><strong>Calibration Interval</strong> recommendation in months</li>
+    </ul>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Datasheet Tab — Accuracy Class</span></div>
+      <div class="mockup-body">
+        <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:14px;margin-bottom:16px">
+          <div style="font-weight:700;color:#389e0d;margin-bottom:8px">⚗️ NABL 129 Calibration Criteria</div>
+          <div class="form-row">
+            <div class="form-group">
+              <div class="form-label">Accuracy Class</div>
+              <select class="form-input" style="height:32px">
+                <option>Class I (±0.01 mm)</option>
+                <option>Class II (±0.02 mm)</option>
+              </select>
+            </div>
+            <div class="form-group"><div class="form-label">Effective MPE</div><div style="padding:6px 10px;background:#fff;border:1px solid #d9d9d9;border-radius:6px;font-size:.88em">±0.01 mm</div></div>
+            <div class="form-group"><div class="form-label">Min. Readings/Point</div><div style="padding:6px 10px;background:#fff;border:1px solid #d9d9d9;border-radius:6px;font-size:.88em">5 readings</div></div>
+            <div class="form-group"><div class="form-label">Calibration Interval</div><div style="padding:6px 10px;background:#fff;border:1px solid #d9d9d9;border-radius:6px;font-size:.88em">12 months</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h4>4.1.2 Environmental Conditions</h4>
+    <p>Record the laboratory environmental conditions at the time of calibration. NABL requires these to be within controlled limits.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Environmental Conditions</span></div>
+      <div class="mockup-body">
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Temperature (°C)</div><input class="form-input" value="23.4" readonly></div>
+          <div class="form-group"><div class="form-label">Humidity (%RH)</div><input class="form-input" value="52" readonly></div>
+          <div class="form-group"><div class="form-label">Pressure (kPa)</div><input class="form-input" value="101.3" readonly></div>
+        </div>
+        <div style="background:#f6ffed;border-left:4px solid #52c41a;padding:8px 12px;border-radius:0 6px 6px 0;font-size:.83em">
+          ✅ All environmental conditions are within NABL acceptable limits (Temp: 21–25°C, Humidity: 35–65%RH)
+        </div>
+      </div>
+    </div>
+
+    <div class="warn">⚠️ If temperature or humidity is <strong>outside</strong> the NABL-specified range, the input field turns red and a warning alert appears. Do not proceed with calibration until conditions are within spec or document a deviation justification.</div>
+
+    <h4>4.1.3 Measurement Readings</h4>
+    <p>Enter the <strong>Before</strong> and <strong>After</strong> calibration readings for each nominal value point. The system automatically calculates:</p>
+    <ul>
+      <li><strong>Mean</strong> of multiple readings per point</li>
+      <li><strong>Error</strong> (difference from nominal)</li>
+      <li><strong>PASS / FAIL</strong> against the selected MPE</li>
+    </ul>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Measurement Data Entry</span></div>
+      <div class="mockup-body">
+        <table class="mock-table">
+          <tr><th>Nominal (mm)</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>R5</th><th>Mean</th><th>Error</th><th>Result</th></tr>
+          <tr><td>0.00</td><td>0.00</td><td>0.00</td><td>0.01</td><td>0.00</td><td>0.00</td><td>0.002</td><td>+0.002</td><td><span class="tag tag-green">PASS</span></td></tr>
+          <tr><td>10.00</td><td>10.01</td><td>10.01</td><td>10.00</td><td>10.01</td><td>10.01</td><td>10.008</td><td>+0.008</td><td><span class="tag tag-green">PASS</span></td></tr>
+          <tr><td>50.00</td><td>50.02</td><td>50.02</td><td>50.01</td><td>50.02</td><td>50.02</td><td>50.018</td><td>+0.018</td><td><span class="tag tag-red">FAIL</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h4>4.1.4 Workflow Actions</h4>
+    <p>After entering all readings, use the action buttons to progress the job:</p>
+    <table class="mock-table" style="width:100%;border:1px solid #e8e8e8;border-radius:8px;overflow:hidden">
+      <tr><th>Button</th><th>Who Can Use</th><th>What It Does</th></tr>
+      <tr><td><span class="mock-btn btn-primary" style="font-size:.8em">Submit for Review</span></td><td>Engineer</td><td>Changes status to PENDING_REVIEW, notifies Reviewer</td></tr>
+      <tr><td><span class="mock-btn btn-green" style="font-size:.8em">Approve</span></td><td>Reviewer / Technical Manager</td><td>Signs off the datasheet; progresses workflow</td></tr>
+      <tr><td><span class="mock-btn btn-danger" style="font-size:.8em">Request Correction</span></td><td>Reviewer</td><td>Sends job back to Engineer with comments</td></tr>
+      <tr><td><span class="mock-btn btn-primary" style="font-size:.8em">Generate Certificate</span></td><td>Quality Manager</td><td>Creates the locked calibration certificate</td></tr>
+    </table>
+
+    <div id="s4b"><h3>4.2 Uncertainty Tab</h3></div>
+    <p>The Uncertainty tab implements a <strong>GUM-compliant uncertainty budget</strong> calculation. This is mandatory for NABL accredited laboratories.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-body">The system lists all <strong>Uncertainty Sources</strong> (Type A and Type B) relevant to this instrument type.</div></div>
+      <div class="step"><div class="step-body">For each source, enter or confirm the <strong>value, distribution type</strong> (Normal/Rectangular/U-shaped), and <strong>divisor</strong>.</div></div>
+      <div class="step"><div class="step-body">The system calculates <strong>Standard Uncertainty (u)</strong> for each source.</div></div>
+      <div class="step"><div class="step-body"><strong>Combined Uncertainty (Uc)</strong> is computed as the square root of the sum of squares.</div></div>
+      <div class="step"><div class="step-body"><strong>Expanded Uncertainty (U)</strong> = Uc × Coverage Factor k (usually k=2 for 95% confidence).</div></div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Uncertainty Budget</span></div>
+      <div class="mockup-body">
+        <table class="mock-table">
+          <tr><th>Source</th><th>Type</th><th>Value</th><th>Distribution</th><th>Divisor</th><th>Std. Unc.</th></tr>
+          <tr><td>Reference Std. Uncertainty</td><td>B</td><td>0.0025 mm</td><td>Normal</td><td>2</td><td>0.00125</td></tr>
+          <tr><td>Repeatability</td><td>A</td><td>0.003 mm</td><td>Normal</td><td>√5</td><td>0.00134</td></tr>
+          <tr><td>Resolution</td><td>B</td><td>0.005 mm</td><td>Rectangular</td><td>√3</td><td>0.00289</td></tr>
+          <tr style="background:#f6ffed"><td colspan="5"><strong>Expanded Uncertainty U (k=2, 95%)</strong></td><td><strong>0.0068 mm</strong></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div id="s4c"><h3>4.3 Certificate Tab</h3></div>
+    <p>Once the job is <strong>APPROVED</strong>, the Certificate tab becomes active. Here you can preview and generate the final calibration certificate.</p>
+
+    <div class="cert-preview">
+      <div class="cert-header">
+        <div style="flex:0 0 80px">
+          <div style="background:#003087;border-radius:8px;padding:8px 12px;color:#fff;font-size:.75em;font-weight:700;text-align:center">
+            YOUR LAB<br><span style="font-size:.85em;font-weight:400">logo here</span>
+          </div>
+        </div>
+        <div class="cert-title">
+          <div style="color:#003087;font-size:.8em;font-weight:700;letter-spacing:2px">CALIBRATION CERTIFICATE</div>
+          <div style="font-size:.75em;color:#555;margin-top:2px">Certificate No: CC-2026-0047</div>
+        </div>
+        <div class="nabl-circle">NABL<br><span style="font-size:.6em">143</span></div>
+      </div>
+      <div class="cert-body-row">
+        <div class="cert-field"><label>Instrument</label><span>Vernier Caliper 300mm</span></div>
+        <div class="cert-field"><label>Make/Model</label><span>Mitutoyo / 530-104</span></div>
+        <div class="cert-field"><label>Serial No.</label><span>12345678</span></div>
+      </div>
+      <div class="cert-body-row">
+        <div class="cert-field"><label>Customer</label><span>Tata Motors Ltd.</span></div>
+        <div class="cert-field"><label>Calibrated On</label><span>22 Jun 2026</span></div>
+        <div class="cert-field"><label>Next Due Date</label><span>22 Jun 2027</span></div>
+      </div>
+      <div style="border-top:1px dashed #ccc;margin:10px 0;padding-top:10px;font-size:.78em;color:#555;text-align:center">
+        This certificate is traceable to National / International Standards. Expanded Uncertainty: U = 0.007 mm (k=2, 95% confidence)
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div style="text-align:center">
+          <div style="border-top:1px solid #333;width:160px;padding-top:4px;font-size:.78em">
+            <strong>Dr. A. Kumar</strong><br>Technical Manager
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip">💡 Click <strong>Download Certificate</strong> to get a PDF-ready HTML version. Use your browser's print function (Ctrl+P) and select "Save as PDF" for a print-quality output.</div>
+
+    <div id="s4d"><h3>4.4 Calibration History Tab</h3></div>
+    <p>Shows all <strong>previous calibration jobs</strong> for the same instrument. This gives a complete longitudinal history — useful for trend analysis and NABL audits.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Calibration History — Vernier Caliper 300mm (SN: 12345678)</span></div>
+      <div class="mockup-body">
+        <table class="mock-table">
+          <tr><th>Job No.</th><th>Date</th><th>Engineer</th><th>Result</th><th>Certificate</th></tr>
+          <tr><td>JOB-2025-044</td><td>15 Jun 2025</td><td>Raj Kumar</td><td><span class="tag tag-green">PASS</span></td><td><span class="tag tag-green">CC-2025-0044</span></td></tr>
+          <tr><td>JOB-2024-031</td><td>12 Jun 2024</td><td>Anita S.</td><td><span class="tag tag-green">PASS</span></td><td><span class="tag tag-green">CC-2024-0031</span></td></tr>
+          <tr><td>JOB-2023-019</td><td>08 Jun 2023</td><td>Raj Kumar</td><td><span class="tag tag-orange">PASS (Warning)</span></td><td><span class="tag tag-green">CC-2023-0019</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div id="s4e"><h3>4.5 Remarks Tab</h3></div>
+    <p>A timestamped <strong>communication log</strong> for this job. Engineers, reviewers, and managers can add notes that are visible to all team members.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Remarks / Notes Timeline</span></div>
+      <div class="mockup-body">
+        <div style="border-left:2px solid #1677ff;padding-left:16px;margin-bottom:16px">
+          <div style="font-size:.78em;color:#888">Raj Kumar · 22 Jun 2026, 10:45 AM</div>
+          <div style="font-size:.88em;margin-top:2px">Instrument received with minor surface rust on jaw faces. Cleaned before calibration. Condition documented with photos.</div>
+        </div>
+        <div style="border-left:2px solid #fa8c16;padding-left:16px;margin-bottom:16px">
+          <div style="font-size:.78em;color:#888">Anita S. (Reviewer) · 22 Jun 2026, 2:30 PM</div>
+          <div style="font-size:.88em;margin-top:2px">Point 3 reading at 50mm shows marginal FAIL. Please re-check reference standard and repeat measurement.</div>
+        </div>
+        <div style="border-left:2px solid #52c41a;padding-left:16px">
+          <div style="font-size:.78em;color:#888">Raj Kumar · 22 Jun 2026, 3:15 PM</div>
+          <div style="font-size:.88em;margin-top:2px">Re-calibrated using freshly cleaned gauge blocks. Point 3 now PASS. Datasheet updated.</div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <input class="form-input" placeholder="Add a remark..." style="flex:1" readonly>
+          <span class="mock-btn btn-primary">Add</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5: INSTRUMENTS -->
+<div class="section" id="s5">
+  <div class="sec-header">
+    <h2><span class="section-num">5</span> Instruments — Asset Registry</h2>
+    <p>Manage all customer instruments received for calibration</p>
+  </div>
+  <div class="sec-body">
+    <p>Every instrument that comes into the lab for calibration must be registered here. Instruments are linked to customers and tracked across multiple calibration cycles.</p>
+
+    <h3>5.1 Adding a New Instrument</h3>
+    <div class="steps">
+      <div class="step"><div class="step-body">Go to <strong>Instruments</strong> in the sidebar.</div></div>
+      <div class="step"><div class="step-body">Click <strong>+ Add Instrument</strong>.</div></div>
+      <div class="step"><div class="step-body">Fill in the instrument details and click <strong>Save</strong>.</div></div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Add Instrument</span></div>
+      <div class="mockup-body">
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Instrument Name *</div><input class="form-input" value="Vernier Caliper 300mm" readonly></div>
+          <div class="form-group"><div class="form-label">Customer *</div><input class="form-input" value="Tata Motors Ltd." readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Make</div><input class="form-input" value="Mitutoyo" readonly></div>
+          <div class="form-group"><div class="form-label">Model</div><input class="form-input" value="530-104" readonly></div>
+          <div class="form-group"><div class="form-label">Serial Number</div><input class="form-input" value="12345678" readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Range</div><input class="form-input" value="0–300 mm" readonly></div>
+          <div class="form-group"><div class="form-label">Least Count / Resolution</div><input class="form-input" value="0.02 mm" readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Calibration Interval (months)</div><input class="form-input" value="12" readonly></div>
+          <div class="form-group"><div class="form-label">Asset Tag / ID</div><input class="form-input" placeholder="Customer's internal tag" readonly></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>5.2 Import Instruments from CSV</h3>
+    <p>To add many instruments at once, use the <strong>Import CSV</strong> button. Download the template, fill it in Excel, and upload.</p>
+
+    <div class="tip">💡 <strong>CSV columns for import:</strong> Name, Make, Model, Serial Number, Range, Least Count, Customer Code, Calibration Interval Months</div>
+
+    <h3>5.3 Calibration Due Tracking</h3>
+    <p>After each calibration, the system automatically sets <code>lastCalibrationDate</code> and calculates <code>nextDueDate</code> based on the calibration interval. The instrument list shows a colour-coded status:</p>
+    <ul>
+      <li><span class="tag tag-green">OK</span> — Due date more than 30 days away</li>
+      <li><span class="tag tag-orange">Due Soon</span> — Due within 30 days</li>
+      <li><span class="tag tag-red">Overdue</span> — Due date has passed</li>
+    </ul>
+  </div>
+</div>
+
+<!-- SECTION 6: CUSTOMERS -->
+<div class="section" id="s6">
+  <div class="sec-header">
+    <h2><span class="section-num">6</span> Customers — Client Management</h2>
+    <p>Maintain your client database for job tracking, recall notifications, and portal access</p>
+  </div>
+  <div class="sec-body">
+    <h3>6.1 Adding a Customer</h3>
+    <div class="steps">
+      <div class="step"><div class="step-body">Go to <strong>Customers</strong> in the sidebar.</div></div>
+      <div class="step"><div class="step-body">Click <strong>+ Add Customer</strong>.</div></div>
+      <div class="step"><div class="step-body">Enter all contact details and click <strong>Save</strong>.</div></div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Customer Details</span></div>
+      <div class="mockup-body">
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Company Name *</div><input class="form-input" value="Tata Motors Ltd." readonly></div>
+          <div class="form-group"><div class="form-label">Customer Code *</div><input class="form-input" value="TML-001" readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Contact Email</div><input class="form-input" value="quality@tatamotors.com" readonly></div>
+          <div class="form-group"><div class="form-label">Phone</div><input class="form-input" value="+91 98765 43210" readonly></div>
+        </div>
+        <div class="form-group" style="margin-bottom:14px"><div class="form-label">Address</div><textarea class="form-input" style="height:60px" readonly>Plot 42, MIDC Industrial Area, Pune - 411018</textarea></div>
+        <div class="form-group"><div class="form-label">GSTIN</div><input class="form-input" placeholder="Optional — for invoice records" readonly></div>
+      </div>
+    </div>
+
+    <h3>6.2 Portal Access</h3>
+    <p>Each customer can access the <strong>Customer Portal</strong> (see Section 11) using their registered email and your lab's accreditation code. The portal lets them track jobs and download certificates without calling you.</p>
+
+    <div class="tip">💡 Share your lab's accreditation code with customers when onboarding them. This acts as a shared secret for portal login.</div>
+  </div>
+</div>
+
+<!-- SECTION 7: REFERENCE STANDARDS -->
+<div class="section" id="s7">
+  <div class="sec-header">
+    <h2><span class="section-num">7</span> Reference Standards — NABL Master Equipment</h2>
+    <p>Track your lab's master instruments with calibration traceability and validity alerts</p>
+  </div>
+  <div class="sec-body">
+    <p>Reference Standards are your lab's own calibrated master instruments used to calibrate customer instruments. NABL requires all masters to be traceable to national/international standards and within their calibration validity period.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Reference Standards</span></div>
+      <div class="mockup-body">
+        <div style="margin-bottom:14px">
+          <div class="stat-card"><div class="stat-val">12</div><div class="stat-lbl">Total Standards</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:#fa8c16">2</div><div class="stat-lbl">Due Soon (30d)</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:#ff4d4f">1</div><div class="stat-lbl">Overdue</div></div>
+        </div>
+        <div style="background:#fff1f0;border-left:4px solid #ff4d4f;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:10px;font-size:.85em">
+          🔔 <strong>1 reference standard(s) are OVERDUE for calibration.</strong> Overdue reference standards must not be used for calibration. Schedule immediate recalibration to maintain NABL accreditation.
+        </div>
+        <table class="mock-table">
+          <tr><th>Standard</th><th>Make/Model</th><th>Traceability</th><th>Cert No.</th><th>Calibration Due</th><th>Status</th></tr>
+          <tr><td><strong>Gauge Block Set 1mm</strong><br><span style="font-size:.78em;color:#888">ID: STD-001 · SN: GB-2019-001</span></td><td>Mitutoyo / 516-XXX</td><td>NPL India</td><td>NPL/2025/001</td><td>15 Dec 2026</td><td><span class="tag tag-green">Valid</span></td></tr>
+          <tr><td><strong>Load Cell 50kN</strong><br><span style="font-size:.78em;color:#888">ID: STD-005 · SN: LC-5001</span></td><td>HBM / U2B</td><td>NABL Lab</td><td>NABL/25/0445</td><td>01 Jul 2026</td><td><span class="tag tag-orange">Due Soon</span></td></tr>
+          <tr><td><strong>Pressure Deadweight</strong><br><span style="font-size:.78em;color:#888">ID: STD-008 · SN: DW-3322</span></td><td>Budenberg / —</td><td>NPL India</td><td>NPL/2025/088</td><td>10 May 2026</td><td><span class="tag tag-red">OVERDUE</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>7.1 Adding a Reference Standard</h3>
+    <div class="steps">
+      <div class="step"><div class="step-body">Click <strong>Add Standard</strong>.</div></div>
+      <div class="step"><div class="step-body">Enter: Standard Name, ID Number, Make, Model, Serial Number, Traceability, Certificate Number, Uncertainty, Calibrated Date, Calibration Due Date, Location.</div></div>
+      <div class="step"><div class="step-body">Click <strong>Add</strong> to save.</div></div>
+    </div>
+
+    <h3>7.2 Alerts</h3>
+    <ul>
+      <li><strong>Red banner</strong>: One or more standards are OVERDUE — do not use for calibration</li>
+      <li><strong>Orange banner</strong>: Standards due within 30 days — schedule recalibration</li>
+    </ul>
+
+    <div class="danger">🚨 Using an OVERDUE reference standard for calibration is a major non-conformance under NABL criteria and could result in suspension of your accreditation. Always check the Reference Standards page before starting calibration work.</div>
+
+    <h3>7.3 Export &amp; Import</h3>
+    <p>Use <strong>Export CSV</strong> to download the full master list. Use <strong>Import CSV</strong> to bulk-upload standards from a spreadsheet.</p>
+  </div>
+</div>
+
+<!-- SECTION 8: CERTIFICATES -->
+<div class="section" id="s8">
+  <div class="sec-header">
+    <h2><span class="section-num">8</span> Certificates — View &amp; Download</h2>
+    <p>Access all generated calibration certificates in one place</p>
+  </div>
+  <div class="sec-body">
+    <p>The Certificates module lists all locked (finalised) calibration certificates. Once generated, a certificate cannot be edited — it is permanently locked to maintain document integrity.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Certificates</span></div>
+      <div class="mockup-body">
+        <table class="mock-table">
+          <tr><th>Cert. No.</th><th>Job No.</th><th>Customer</th><th>Instrument</th><th>Issue Date</th><th>Actions</th></tr>
+          <tr><td><span class="tag tag-green">CC-2026-0047</span></td><td>JOB-2026-001</td><td>Tata Motors</td><td>Vernier Caliper 300mm</td><td>22 Jun 2026</td><td><span class="mock-btn btn-primary" style="font-size:.8em">📄 Download</span></td></tr>
+          <tr><td><span class="tag tag-green">CC-2026-0046</span></td><td>JOB-2026-002</td><td>BHEL</td><td>Pressure Gauge 0-10 bar</td><td>20 Jun 2026</td><td><span class="mock-btn btn-primary" style="font-size:.8em">📄 Download</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>Downloading a Certificate</h3>
+    <div class="steps">
+      <div class="step"><div class="step-body">Find the certificate in the list (search by cert number, customer, or instrument).</div></div>
+      <div class="step"><div class="step-body">Click <strong>Download</strong>. The certificate opens in a new browser tab as a formatted HTML page.</div></div>
+      <div class="step"><div class="step-body">Press <kbd class="kbd">Ctrl+P</kbd> (Windows) or <kbd class="kbd">Cmd+P</kbd> (Mac), choose <strong>Save as PDF</strong> as the destination.</div></div>
+      <div class="step"><div class="step-body">Save and share the PDF with your customer.</div></div>
+    </div>
+
+    <div class="tip">💡 Customers can also download their own certificates directly from the Customer Portal (Section 11) without needing to contact you.</div>
+  </div>
+</div>
+
+<!-- SECTION 9: REPORTS -->
+<div class="section" id="s9">
+  <div class="sec-header">
+    <h2><span class="section-num">9</span> Reports — Analytics &amp; Exports</h2>
+    <p>Calibration recall reminders, job register, engineer performance, and data export</p>
+  </div>
+  <div class="sec-body">
+    <p>The Reports module has four tabs. Navigate to <strong>Reports</strong> in the sidebar.</p>
+
+    <h3>9.1 Calibration Recall Report</h3>
+    <p>Shows customer instruments that are <strong>overdue or due soon</strong> for recalibration. Use this to proactively contact customers before their instruments expire.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Reports — Calibration Recall</span></div>
+      <div class="mockup-body">
+        <div style="margin-bottom:12px;font-size:.88em">Show instruments due within: <select class="form-input" style="width:120px;display:inline-block"><option>30 days</option><option>60 days</option><option>90 days</option></select></div>
+        <table class="mock-table">
+          <tr><th>Instrument</th><th>Customer</th><th>Next Due</th><th>Interval</th></tr>
+          <tr><td><strong>Pressure Gauge 0-10 bar</strong><br><span style="font-size:.78em;color:#888">Yokogawa · SN P-2201</span></td><td>BHEL<br><span style="font-size:.78em;color:#888">quality@bhel.in</span></td><td>01 Jul 2026<br><span class="tag tag-orange">in 5d</span></td><td>12 months</td></tr>
+          <tr><td><strong>Torque Wrench 10-100 Nm</strong><br><span style="font-size:.78em;color:#888">Snap-on · SN TW-0099</span></td><td>ISRO</td><td>10 May 2026<br><span class="tag tag-red">OVERDUE</span></td><td>6 months</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <p>Change the <strong>window</strong> (7, 30, 60, or 90 days) to see more or fewer instruments.</p>
+
+    <h3>9.2 Job Register</h3>
+    <p>A complete list of all calibration jobs — useful for NABL audits and management review. Shows job number, date, customer, instrument, job type (in-lab / onsite), and status.</p>
+
+    <h3>9.3 Engineer Performance</h3>
+    <p>An analytical view of each engineer's workload and completion metrics.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Reports — Engineer Performance</span></div>
+      <div class="mockup-body">
+        <div style="margin-bottom:14px">
+          <div class="stat-card"><div class="stat-val">48</div><div class="stat-lbl">Total Jobs</div></div>
+          <div class="stat-card"><div class="stat-val">36</div><div class="stat-lbl">Assigned</div></div>
+          <div class="stat-card"><div class="stat-val">29</div><div class="stat-lbl">Completed</div></div>
+          <div class="stat-card"><div class="stat-val">3</div><div class="stat-lbl">Engineers Active</div></div>
+        </div>
+        <table class="mock-table">
+          <tr><th>Engineer</th><th>Total Jobs</th><th>Completed</th><th>Completion Rate</th><th>Avg. Turnaround</th></tr>
+          <tr><td><strong>Raj Kumar</strong></td><td>18</td><td>15</td><td>83%</td><td><span class="tag tag-green">4 days</span></td></tr>
+          <tr><td><strong>Anita Sharma</strong></td><td>12</td><td>10</td><td>83%</td><td><span class="tag tag-green">3 days</span></td></tr>
+          <tr><td><strong>Priya Mehta</strong></td><td>6</td><td>4</td><td>67%</td><td><span class="tag tag-orange">9 days</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>9.4 Lab Data Export</h3>
+    <p>Export raw data for record-keeping, audits, and external analysis. Select a time period (last 1 or 2 years) and choose what to export:</p>
+
+    <div class="two-col">
+      <div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">📋 Export Jobs</div>
+        <p style="font-size:.88em;color:#555">All jobs with customer, instrument, status, and creation date.</p>
+        <span class="mock-btn btn-default" style="font-size:.82em">Export Jobs CSV</span>
+      </div>
+      <div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">📜 Export Certificates</div>
+        <p style="font-size:.88em;color:#555">All issued certificates with certificate number and details.</p>
+        <span class="mock-btn btn-default" style="font-size:.82em">Export Certificates CSV</span>
+      </div>
+      <div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">🌡️ Export Environmental</div>
+        <p style="font-size:.88em;color:#555">All temperature, humidity, and pressure records.</p>
+        <span class="mock-btn btn-default" style="font-size:.82em">Export Environmental CSV</span>
+      </div>
+      <div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px">
+        <div style="font-weight:700;margin-bottom:8px">📦 Full Lab Report</div>
+        <p style="font-size:.88em;color:#555">Combined jobs + customers in one CSV file.</p>
+        <span class="mock-btn btn-primary" style="font-size:.82em">Export Full Report CSV</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 10: SETTINGS -->
+<div class="section" id="s10">
+  <div class="sec-header">
+    <h2><span class="section-num">10</span> Settings — Lab Configuration</h2>
+    <p>Configure your lab profile, certificate appearance, uncertainty types, and user management</p>
+  </div>
+  <div class="sec-body">
+    <p>Go to <strong>Settings</strong> in the sidebar. Only Admin users can access most settings.</p>
+
+    <h3>10.1 Lab Profile</h3>
+    <p>Set your laboratory's identity information. This appears on every certificate generated by CLMS.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Settings — Lab Profile</span></div>
+      <div class="mockup-body">
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Lab Name *</div><input class="form-input" value="National Calibration Laboratory" readonly></div>
+          <div class="form-group"><div class="form-label">NABL Accreditation No.</div><input class="form-input" value="CC-1234" readonly></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Phone</div><input class="form-input" value="+91 20 2765 4321" readonly></div>
+          <div class="form-group"><div class="form-label">Email</div><input class="form-input" value="lab@ncl.in" readonly></div>
+          <div class="form-group"><div class="form-label">Website</div><input class="form-input" value="www.ncl.in" readonly></div>
+        </div>
+        <div class="form-group" style="margin-bottom:14px"><div class="form-label">Address</div><textarea class="form-input" style="height:56px" readonly>Plot 12, Industrial Estate, Pune - 411019</textarea></div>
+        <div class="form-group" style="margin-bottom:14px"><div class="form-label">Lab Logo URL</div><input class="form-input" value="https://cdn.yourlab.com/logo.png" readonly></div>
+        <div style="border-top:1px solid #e8e8e8;padding-top:16px;margin-top:8px">
+          <div style="font-weight:700;margin-bottom:12px">Certificate Signature Block</div>
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">Authorized Signatory Name</div><input class="form-input" value="Dr. A. Kumar" readonly><div style="font-size:.78em;color:#888;margin-top:3px">Appears on all certificates</div></div>
+            <div class="form-group"><div class="form-label">Signatory Designation</div><input class="form-input" value="Technical Manager" readonly></div>
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:8px"><span class="mock-btn btn-primary">Save Lab Details</span></div>
+      </div>
+    </div>
+
+    <h3>10.2 Certificate Templates</h3>
+    <p>CLMS supports multiple certificate layout templates. Select the one that matches your NABL scope and preferred format.</p>
+
+    <h3>10.3 Uncertainty Types</h3>
+    <p>Define the uncertainty budget categories (Type A / Type B sources) that appear in the uncertainty calculation for each instrument type. These are configurable per discipline (dimensional, pressure, electrical, etc.).</p>
+
+    <h3>10.4 User Management</h3>
+    <p>Admins can add, edit, and deactivate user accounts. When adding a user, assign their role carefully — it controls what they can see and do in the system.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-body">Go to Settings → <strong>Users</strong> tab.</div></div>
+      <div class="step"><div class="step-body">Click <strong>Add User</strong>.</div></div>
+      <div class="step"><div class="step-body">Enter their name, email, and select a <strong>role</strong>.</div></div>
+      <div class="step"><div class="step-body">The user receives a welcome email with instructions to set their password.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 11: CUSTOMER PORTAL -->
+<div class="section" id="s11">
+  <div class="sec-header">
+    <h2><span class="section-num">11</span> Customer Portal — Self-Service Access</h2>
+    <p>Your customers can track their jobs and download certificates without contacting you</p>
+  </div>
+  <div class="sec-body">
+    <p>The Customer Portal is a <strong>separate login screen</strong> accessible via the <strong>Customer Portal</strong> menu item or by navigating to <code>/portal</code> in the URL. It uses a different login — customers do NOT use the main CLMS login.</p>
+
+    <h3>11.1 Customer Login</h3>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Customer Portal — Login</span></div>
+      <div class="mockup-body" style="background:linear-gradient(135deg,#0f3460,#1a1a2e);padding:40px;display:flex;justify-content:center">
+        <div style="background:#fff;border-radius:12px;padding:32px;width:340px">
+          <div style="text-align:center;margin-bottom:20px">
+            <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#52c41a,#237804);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4em">👤</div>
+            <strong style="font-size:1.1em">Customer Portal</strong><br>
+            <span style="font-size:.82em;color:#888">Track your calibration jobs &amp; certificates</span>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <div class="form-label">Email Address</div>
+            <input class="form-input" value="quality@tatamotors.com" readonly>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <div class="form-label">Lab Accreditation Code</div>
+            <input class="form-input" value="CC-1234" readonly>
+          </div>
+          <div style="text-align:center"><span class="mock-btn btn-green" style="width:100%;display:block;padding:8px">Access Portal</span></div>
+        </div>
+      </div>
+    </div>
+
+    <p>Customers log in using:</p>
+    <ul>
+      <li><strong>Email Address</strong> — The email registered for their company in CLMS</li>
+      <li><strong>Lab Accreditation Code</strong> — Your NABL accreditation number (e.g., CC-1234). Share this with customers when you onboard them.</li>
+    </ul>
+
+    <h3>11.2 Portal — Jobs Tab</h3>
+    <p>After login, customers see their <strong>active and completed jobs</strong>.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Customer Portal — My Jobs</span></div>
+      <div class="mockup-body">
+        <table class="mock-table">
+          <tr><th>Job No.</th><th>Instrument</th><th>Status</th><th>Received</th><th>Certificate</th></tr>
+          <tr><td>JOB-2026-001</td><td>Vernier Caliper 300mm</td><td><span class="tag tag-blue">IN CALIBRATION</span></td><td>20 Jun 2026</td><td><span class="tag tag-grey">Pending</span></td></tr>
+          <tr><td>JOB-2025-044</td><td>Vernier Caliper 300mm</td><td><span class="tag tag-green">DELIVERED</span></td><td>15 Jun 2025</td><td><span class="tag tag-green">✓ CC-2025-0044</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>11.3 Portal — Certificates Tab</h3>
+    <p>Customers can see all their <strong>issued certificates</strong> and download them directly.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-body">Click the <strong>Certificates</strong> tab.</div></div>
+      <div class="step"><div class="step-body">Find the certificate by instrument or date.</div></div>
+      <div class="step"><div class="step-body">Click <strong>Download</strong>. The certificate opens as HTML in a new tab.</div></div>
+      <div class="step"><div class="step-body">Use <kbd class="kbd">Ctrl+P</kbd> → Save as PDF.</div></div>
+    </div>
+
+    <h3>11.4 Portal — Instruments Tab</h3>
+    <p>A dashboard of all customer instruments with calibration due date status, and a <strong>View History</strong> button to see the full calibration timeline for each instrument.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar"><span>Customer Portal — My Instruments</span></div>
+      <div class="mockup-body">
+        <table class="mock-table">
+          <tr><th>Name</th><th>Serial No.</th><th>Last Calibrated</th><th>Next Due</th><th>Status</th><th>History</th></tr>
+          <tr><td><strong>Vernier Caliper 300mm</strong></td><td>12345678</td><td>22 Jun 2026</td><td style="color:#52c41a;font-weight:700">22 Jun 2027</td><td><span class="tag tag-green">OK</span></td><td><span style="color:#1677ff;cursor:pointer">View History</span></td></tr>
+          <tr><td><strong>Pressure Gauge 0-10 bar</strong></td><td>P-2201</td><td>15 Jan 2026</td><td style="color:#ff4d4f;font-weight:700">15 Jul 2026</td><td><span class="tag tag-orange">Due Soon</span></td><td><span style="color:#1677ff;cursor:pointer">View History</span></td></tr>
+        </table>
+        <div style="border:1px solid #91caff;border-radius:8px;overflow:hidden;margin-top:16px">
+          <div style="background:#e6f4ff;padding:8px 14px;font-weight:600;font-size:.85em;color:#1677ff">📅 Calibration History — Vernier Caliper 300mm</div>
+          <table class="mock-table">
+            <tr><th>Job No.</th><th>Received</th><th>Status</th><th>Certificate</th></tr>
+            <tr><td>JOB-2026-001</td><td>20 Jun 2026</td><td><span class="tag tag-blue">IN CALIBRATION</span></td><td>—</td></tr>
+            <tr><td>JOB-2025-044</td><td>15 Jun 2025</td><td><span class="tag tag-green">DELIVERED</span></td><td><span class="tag tag-green">CC-2025-0044</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 12: ROLES -->
+<div class="section" id="s12">
+  <div class="sec-header">
+    <h2><span class="section-num">12</span> Role Permissions Summary</h2>
+    <p>Quick reference for what each role can and cannot do</p>
+  </div>
+  <div class="sec-body">
+    <table class="mock-table" style="width:100%;border:1px solid #e8e8e8;border-radius:8px;overflow:hidden">
+      <tr>
+        <th>Feature</th>
+        <th style="text-align:center"><span class="tag tag-red">ADMIN</span></th>
+        <th style="text-align:center"><span class="tag tag-blue">ENGINEER</span></th>
+        <th style="text-align:center"><span class="tag tag-orange">REVIEWER</span></th>
+        <th style="text-align:center"><span class="tag tag-cyan">TECH MGR</span></th>
+        <th style="text-align:center"><span class="tag tag-green">QA MGR</span></th>
+      </tr>
+      <tr><td>Create Job</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr>
+      <tr><td>Enter Datasheet Readings</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+      <tr><td>Submit for Review</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+      <tr><td>Approve / Request Correction</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">—</td></tr>
+      <tr><td>Generate Certificate</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+      <tr><td>Manage Reference Standards</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">✅</td><td style="text-align:center">—</td></tr>
+      <tr><td>View Reports</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr>
+      <tr><td>Manage Settings / Users</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+    </table>
+
+    <div class="tip" style="margin-top:24px">💡 <strong>Need help?</strong> Contact your lab administrator or refer to the in-app tooltips (hover over any field with a ❓ icon).</div>
+
+    <div style="text-align:center;margin-top:32px;padding:20px;background:#f7f8fa;border-radius:8px">
+      <div style="font-size:1.5em;margin-bottom:8px">🔬</div>
+      <div style="font-weight:700;color:#0f3460;font-size:1.1em">Calibration Laboratory Management System</div>
+      <div style="color:#888;font-size:.88em;margin-top:4px">ISO/IEC 17025 · NABL Accreditation Ready · © 2026 CLMS</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:24px;color:#aaa;font-size:.82em">
+  <a href="#top" style="color:#1677ff;text-decoration:none">↑ Back to Top</a>
+  &nbsp;·&nbsp; CLMS User Manual v2.0 · June 2026
+</div>
+
+</body>
+</html>

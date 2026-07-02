@@ -1,10 +1,19 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LabStatus, Role } from '@prisma/client';
+import { LabStatus, PlanTier, Role } from '@prisma/client';
+import { MailService } from '../../common/mail/mail.service';
+
+const PLAN_USER_LIMITS: Record<PlanTier, number> = {
+  STARTER: 25,
+  GROWTH: 50,
+  BUSINESS: 100,
+  ENTERPRISE: 999999,
+};
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
@@ -19,6 +28,7 @@ const ALL_PERMISSION_KEYS = [
 /** Default granted permissions per role (applied when a new lab is registered) */
 const DEFAULT_GRANTS: Record<string, string[]> = {
   TECHNICAL_MANAGER: ALL_PERMISSION_KEYS,
+  QUALITY_MANAGER: ['customers', 'instruments', 'jobs', 'certificates', 'quality', 'audit', 'notifications', 'environmental'],
   CALIBRATION_ENGINEER: ['customers', 'instruments', 'jobs', 'certificates', 'tasks', 'environmental'],
   SERVICE_ENGINEER: ['customers', 'instruments', 'jobs', 'tasks'],
   DATA_ENTRY_OPERATOR: ['customers', 'instruments', 'jobs', 'notifications'],
@@ -29,6 +39,7 @@ export class LabsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly mail: MailService,
   ) {}
 
   /** Public: register a new lab + LAB_ADMIN user. Lab starts PENDING until SUPER_ADMIN approves. */
@@ -90,6 +101,35 @@ export class LabsService {
       include: { _count: { select: { users: true, jobs: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** SUPER_ADMIN: platform-level statistics */
+  async getPlatformStats() {
+    const [totalLabs, totalUsers, labsByStatus, labsByPlan, recentLabs] = await Promise.all([
+      this.prisma.lab.count(),
+      this.prisma.user.count({ where: { role: { not: Role.SUPER_ADMIN } } }),
+      this.prisma.lab.groupBy({ by: ['status'], _count: { id: true } }),
+      this.prisma.lab.groupBy({ by: ['plan'], _count: { id: true } }),
+      this.prisma.lab.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, name: true, status: true, plan: true, createdAt: true, _count: { select: { users: true } } },
+      }),
+    ]);
+    return { totalLabs, totalUsers, labsByStatus, labsByPlan, recentLabs };
+  }
+
+  /** SUPER_ADMIN: update lab plan */
+  async updatePlan(labId: string, plan: PlanTier, planExpiresAt: Date | null, actorId: string) {
+    const maxUsers = PLAN_USER_LIMITS[plan];
+    const lab = await this.prisma.lab.update({
+      where: { id: labId },
+      data: { plan, maxUsers, planExpiresAt },
+    });
+    await this.prisma.auditLog.create({
+      data: { labId, userId: actorId, action: `PLAN_CHANGED_TO_${plan}`, entity: 'Lab', entityId: labId },
+    });
+    return lab;
   }
 
   async findOne(id: string, actorLabId?: string | null) {
@@ -155,10 +195,21 @@ export class LabsService {
     email: string; fullName: string; password: string; role: Role;
     employeeCode?: string; skills?: string[];
   }) {
+    // Enforce plan user limit
+    const lab = await this.prisma.lab.findUnique({ where: { id: labId }, select: { maxUsers: true, plan: true } });
+    if (lab) {
+      const currentCount = await this.prisma.user.count({ where: { labId } });
+      if (currentCount >= lab.maxUsers) {
+        throw new BadRequestException(
+          `User limit reached for your plan (${lab.plan}: max ${lab.maxUsers} users). Upgrade your plan to add more users.`
+        );
+      }
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
     if (existing) throw new ConflictException('Email already registered');
 
-    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
+    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.QUALITY_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
     if (!allowedRoles.includes(data.role)) {
       throw new ForbiddenException('Cannot assign this role');
     }
@@ -205,7 +256,7 @@ export class LabsService {
     const user = await this.prisma.user.findFirst({ where: { id: userId, labId } });
     if (!user) throw new NotFoundException('User not found in this lab');
 
-    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
+    const allowedRoles: Role[] = [Role.TECHNICAL_MANAGER, Role.QUALITY_MANAGER, Role.CALIBRATION_ENGINEER, Role.SERVICE_ENGINEER, Role.DATA_ENTRY_OPERATOR];
     if (!allowedRoles.includes(role)) throw new ForbiddenException('Cannot assign this role');
 
     const isEngineerRole = role === Role.CALIBRATION_ENGINEER || role === Role.SERVICE_ENGINEER;
@@ -259,7 +310,7 @@ export class LabsService {
 
   /** LAB_ADMIN: update lab details (name, address, logo, etc.) */
   async updateDetails(labId: string, body: any) {
-    const allowed = ['name', 'accreditationNumber', 'address', 'contactEmail', 'phone', 'website', 'city', 'state', 'pinCode', 'logoUrl'];
+    const allowed = ['name', 'accreditationNumber', 'address', 'contactEmail', 'phone', 'website', 'city', 'state', 'pinCode', 'logoUrl', 'gstin', 'pan', 'bankName', 'bankAccountNumber', 'bankIfsc', 'bankBranch'];
     const data: any = {};
     for (const key of allowed) {
       if (body[key] !== undefined) data[key] = body[key];
@@ -285,6 +336,21 @@ export class LabsService {
       update: { value: merged },
     });
     return merged;
+  }
+
+  /** LAB_ADMIN / SUPER_ADMIN: get SMTP config (password redacted) */
+  getSmtpConfig(labId: string) {
+    return this.mail.getSmtpConfig(labId);
+  }
+
+  /** LAB_ADMIN / SUPER_ADMIN: save SMTP config */
+  saveSmtpConfig(labId: string, cfg: any) {
+    return this.mail.saveSmtpConfig(labId, cfg);
+  }
+
+  /** LAB_ADMIN / SUPER_ADMIN: send a test email using the lab's SMTP */
+  testSmtpConfig(labId: string, toEmail: string) {
+    return this.mail.testSmtpConfig(labId, toEmail);
   }
 
   private hash(value: string) {
