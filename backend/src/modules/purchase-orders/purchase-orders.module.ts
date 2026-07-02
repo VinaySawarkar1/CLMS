@@ -84,7 +84,7 @@ class PurchaseOrdersService {
   async create(labId: string, dto: CreatePurchaseOrderDto) {
     const [lab, supplier] = await Promise.all([
       this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } }),
-      this.prisma.supplier.findUnique({ where: { id: dto.supplierId }, select: { billingState: true } }),
+      this.prisma.customer.findUnique({ where: { id: dto.supplierId }, select: { billingState: true } }),
     ]);
     const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(dto.lineItems, supplier?.billingState ?? undefined, lab?.state ?? undefined);
     return this.prisma.purchaseOrder.create({
@@ -136,7 +136,7 @@ class PurchaseOrdersService {
     const items = dto.lineItems ?? (po.lineItems as unknown as LineItemDto[]);
     const [lab, supplier] = await Promise.all([
       this.prisma.lab.findUnique({ where: { id: labId }, select: { state: true } }),
-      this.prisma.supplier.findUnique({ where: { id: po.supplierId }, select: { billingState: true } }),
+      this.prisma.customer.findUnique({ where: { id: po.supplierId }, select: { billingState: true } }),
     ]);
     const { subTotal, discountTotal, cgst, sgst, igst, totalAmount } = calcTotals(items, supplier?.billingState ?? undefined, lab?.state ?? undefined);
 
