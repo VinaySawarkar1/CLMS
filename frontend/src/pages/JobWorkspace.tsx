@@ -17,6 +17,7 @@ import {
   getDatasheet, getJob, getJobs, openCertificateReport, openDatasheetReport, signCertificate,
   lookupCmc, lookupMpe,
   getInstrumentImages, uploadInstrumentImage, deleteInstrumentImage, openInstrumentImageFile,
+  fillEnvironmentalFromLog, applyMasterFormula, getFormulas,
 } from '../api';
 import { checkMpe, findProcedure, getNabl129, groupedProcedures, Procedure, PROCEDURES } from '../procedures';
 
@@ -349,6 +350,11 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
     onSuccess: onChanged,
   });
   const computeMut = useMutation({ mutationFn: () => computeDatasheet(datasheet.id), onSuccess: onChanged });
+  const fillEnvMut = useMutation({
+    mutationFn: () => fillEnvironmentalFromLog(datasheet.id),
+    onSuccess: () => { onChanged(); message.success('Environmental conditions filled from latest lab log'); },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'No environmental log found'),
+  });
 
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const setReading = (i: number, j: number, v: string) => setRows(rows.map((r, idx) => idx === i ? { ...r, readings: r.readings.map((x, k) => k === j ? v : x) } : r));
@@ -459,6 +465,15 @@ function DatasheetTab({ job, datasheet, allDatasheets, onChanged }: any) {
               <Tag icon={<ThunderboltOutlined />} color="blue">{displayedDatasheet.environmental?.temperature ?? '—'} °C</Tag>
               <Tag color="cyan">{displayedDatasheet.environmental?.humidity ?? '—'} %RH</Tag>
               <Tag color="purple">{displayedDatasheet.environmental?.pressure ?? '—'} kPa</Tag>
+              <Button
+                size="small"
+                onClick={() => fillEnvMut.mutate()}
+                loading={fillEnvMut.isPending}
+                disabled={!!viewDsId && viewDsId !== datasheet?.id}
+                title="Auto-fill from latest environmental log"
+              >
+                Fill from Lab Log
+              </Button>
             </Space>
           </Col>
         </Row>

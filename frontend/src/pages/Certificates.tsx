@@ -14,10 +14,10 @@ import {
 
 const { Title, Text } = Typography;
 
-const STAGES = ['TECHNICAL_MANAGER', 'QUALITY_MANAGER'];
+const STAGES = ['ENGINEER', 'TECHNICAL_MANAGER'];
 const STAGE_LABELS: Record<string, string> = {
+  ENGINEER: 'Engineer',
   TECHNICAL_MANAGER: 'Technical Manager',
-  QUALITY_MANAGER: 'QA Manager',
 };
 const CERT_STATUSES = ['CERTIFICATE_GENERATED', 'DELIVERED', 'CLOSED'];
 

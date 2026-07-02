@@ -204,6 +204,10 @@ export const computeDatasheet = (id: string) => post(`/datasheets/${id}/compute`
 export const computeUncertainty = (id: string, contributors: any) => post(`/datasheets/${id}/uncertainty`, { contributors });
 export const autoUncertainty = (id: string) => post(`/datasheets/${id}/auto-uncertainty`);
 export const updateDatasheetEnvironmental = (id: string, environmental: any) => patch(`/datasheets/${id}/environmental`, { environmental });
+export const fillEnvironmentalFromLog = (id: string) => post(`/datasheets/${id}/fill-environmental`);
+export const applyMasterFormula = (id: string, formulaId: string, targetField: string) =>
+  post(`/datasheets/${id}/apply-formula`, { formulaId, targetField });
+export const getFormulas = () => get('/calibration-masters/formulas');
 
 // Open the printable certificate report (auth-protected) in a new tab.
 export async function openCertificateReport(certificateId: string) {

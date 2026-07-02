@@ -62,4 +62,22 @@ export class DatasheetsController {
   autoUncertainty(@Param('id') id: string) {
     return this.datasheets.autoUncertainty(id);
   }
+
+  /** Auto-fill environmental conditions from the latest lab environmental log entry. */
+  @Post(':id/fill-environmental')
+  @Roles(Role.SUPER_ADMIN, Role.CALIBRATION_ENGINEER, Role.DATA_ENTRY_OPERATOR)
+  fillEnvironmental(@Param('id') id: string) {
+    return this.datasheets.fillEnvironmentalFromLog(id);
+  }
+
+  /** Apply a saved FormulaMaster expression to all observation rows. */
+  @Post(':id/apply-formula')
+  @Roles(Role.SUPER_ADMIN, Role.CALIBRATION_ENGINEER, Role.DATA_ENTRY_OPERATOR)
+  applyFormula(
+    @Param('id') id: string,
+    @Body('formulaId') formulaId: string,
+    @Body('targetField') targetField: string,
+  ) {
+    return this.datasheets.applyMasterFormula(id, formulaId, targetField);
+  }
 }

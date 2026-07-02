@@ -61,6 +61,45 @@ export class DatasheetsService {
     });
   }
 
+  /**
+   * Auto-fill environmental conditions from the most recent EnvironmentalRecord
+   * for the lab. Merges into existing environmental JSON without overwriting
+   * manual corrections already saved.
+   */
+  async fillEnvironmentalFromLog(id: string) {
+    const ds = await this.findOne(id);
+    const job = await this.prisma.job.findUnique({ where: { id: ds.jobId }, select: { labId: true } });
+    if (!job) throw new NotFoundException('Job not found');
+
+    const latest = await this.prisma.environmentalRecord.findFirst({
+      where: { labId: job.labId },
+      orderBy: { recordedAt: 'desc' },
+    });
+    if (!latest) throw new BadRequestException('No environmental records found for this lab');
+
+    const existing = (ds.environmental as any) ?? {};
+    const merged = {
+      ...existing,
+      temperature: latest.temperature ?? existing.temperature,
+      humidity: latest.humidity ?? existing.humidity,
+      pressure: (latest as any).pressure ?? existing.pressure,
+      recordedAt: latest.recordedAt,
+      location: latest.location ?? existing.location,
+    };
+    return this.updateEnvironmental(id, merged);
+  }
+
+  /**
+   * Apply a saved FormulaMaster formula to every observation row.
+   * The formula's expression is mapped to the target field specified by the caller.
+   */
+  async applyMasterFormula(id: string, formulaId: string, targetField: string) {
+    const formula = await this.prisma.formulaMaster.findUnique({ where: { id: formulaId } });
+    if (!formula) throw new NotFoundException('Formula not found');
+    if (!formula.isActive) throw new BadRequestException('Formula is inactive');
+    return this.recalculate(id, { formulas: { [targetField]: formula.expression } });
+  }
+
   /** Apply formula columns to every observation row using the formula engine. */
   async recalculate(id: string, dto: RecalcDto) {
     const ds = await this.findOne(id);

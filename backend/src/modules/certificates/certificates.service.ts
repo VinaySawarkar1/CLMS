@@ -51,6 +51,39 @@ export class CertificatesService {
       throw new BadRequestException('Job must be in APPROVED status for certificate generation');
     }
 
+    // CMC compliance check: for NABL certificates, expanded uncertainty must not
+    // exceed the lab's CMC for each calibration point (ISO 17025 §7.8.6 / NABL 141).
+    if (type === 'NABL') {
+      const instrument = job.instrument as any;
+      const discipline = instrument?.discipline?.name ?? instrument?.disciplineId;
+      for (const ds of job.datasheets) {
+        const budget = (ds as any).uncertainty;
+        if (!budget) continue;
+        const expandedU = budget.expandedUncertainty as number;
+        for (const obs of (ds as any).observations) {
+          const nominalValue = obs.nominal ?? obs.standardValue;
+          if (nominalValue == null || !discipline) continue;
+          const cmc = await this.prisma.cmcScope.findFirst({
+            where: {
+              labId,
+              discipline: { contains: discipline, mode: 'insensitive' },
+              isActive: true,
+              OR: [
+                { rangeMin: null, rangeMax: null },
+                { rangeMin: { lte: nominalValue }, rangeMax: { gte: nominalValue } },
+              ],
+            },
+            orderBy: { cmcValue: 'asc' },
+          });
+          if (cmc?.cmcValue && expandedU > cmc.cmcValue) {
+            throw new BadRequestException(
+              `Expanded uncertainty (${expandedU}) exceeds lab CMC (${cmc.cmcValue}) for point ${obs.pointLabel ?? nominalValue}. Resolve before generating NABL certificate.`,
+            );
+          }
+        }
+      }
+    }
+
     const certificateNumber = await this.nextCertificateNumber(labId, type);
     const hash = contentHash({
       job: job.jobNumber,
@@ -122,11 +155,23 @@ export class CertificatesService {
         data: { isLocked: true },
       });
 
-      // Fetch customer email for the job linked to this certificate.
+      // Fetch customer email and instrument for the job linked to this certificate.
       const jobWithCustomer = await this.prisma.job.findUnique({
         where: { id: cert.jobId },
-        include: { customer: true },
+        include: { customer: true, instrument: true },
       });
+
+      // Auto-update instrument calibration recall dates (ISO 17025 §6.4.10).
+      if (jobWithCustomer?.instrument) {
+        const instr = jobWithCustomer.instrument;
+        const interval = (instr as any).calibrationIntervalMonths ?? 12;
+        const nextDueDate = new Date();
+        nextDueDate.setMonth(nextDueDate.getMonth() + interval);
+        await this.prisma.instrument.update({
+          where: { id: instr.id },
+          data: { lastCalibrationDate: new Date(), nextDueDate },
+        }).catch((err) => console.error('[certificates] Instrument recall update failed:', err));
+      }
 
       if (jobWithCustomer?.customer?.email) {
         try {
