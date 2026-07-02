@@ -37,8 +37,19 @@ export class JobsController {
   }
 
   @Get()
-  findAll(@Request() req: any, @Query('status') status?: JobStatus) {
-    return this.jobs.findAll(req.user.labId, status, { id: req.user.id, role: req.user.role });
+  findAll(
+    @Request() req: any,
+    @Query('status') status?: JobStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.jobs.findAll(
+      req.user.labId,
+      status,
+      { id: req.user.id, role: req.user.role },
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 50,
+    );
   }
 
   @Get(':id')
